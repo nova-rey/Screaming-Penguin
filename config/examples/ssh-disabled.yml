@@ -1,0 +1,30 @@
+version: 0.1
+
+target:
+  disk: sda
+  wipe: true
+
+filesystem:
+  layout: single
+  type: ext4
+  boot_mode: auto
+
+rootfs:
+  path: /config/rootfs/debian-rootfs.tar.gz
+
+system:
+  hostname: no-ssh-demo
+  timezone: America/Chicago
+  locale: en_US.UTF-8
+
+user:
+  name: localuser
+  sudo: false
+  password_hash: "$6$dummyhash"   # required when ssh.disable = true
+
+ssh:
+  enable: false
+  authorized_keys: []
+
+safety:
+  require_erase_word: true

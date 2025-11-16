@@ -15,5 +15,12 @@ directory:
 - `SAFETY.md`
 - `TROUBLESHOOTING.md`
 
-These documents are currently in skeleton form and will be completed during
-Phase 7 Prompt B.
+These documents provide detailed guidance for preparing the installer media,
+supplying configuration, and troubleshooting installs.
+
+## Release Packaging
+
+Screaming Penguin provides a `make dist-release` target to assemble the v1.0.0
+release bundle, including installer image, rootfs tarball, example configs, and
+SHA256 checksums. See `docs/GETTING_STARTED.md` and
+`docs/INSTALLER_USAGE.md` for details.

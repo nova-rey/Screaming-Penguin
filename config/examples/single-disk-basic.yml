@@ -1,0 +1,30 @@
+version: 0.1
+
+target:
+  disk: nvme0n1
+  wipe: true
+
+filesystem:
+  layout: single
+  type: ext4
+  boot_mode: auto
+
+rootfs:
+  path: /config/rootfs/debian-rootfs.tar.gz
+
+system:
+  hostname: penguin-host
+  timezone: America/Chicago
+  locale: en_US.UTF-8
+
+user:
+  name: rey
+  sudo: true
+  password_hash: "$6$dummyhash"
+
+ssh:
+  enable: true
+  authorized_keys: []
+
+safety:
+  require_erase_word: true
