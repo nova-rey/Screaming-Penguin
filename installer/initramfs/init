@@ -1,0 +1,38 @@
+#!/bin/sh
+# Screaming Penguin initramfs entrypoint
+# Phase 2: non-destructive skeleton only.
+
+set -eu
+
+SP_HOOKS_DIR="/installer/initramfs/hooks"
+SP_LOG_DEV="/dev/console"
+
+log() {
+    # Minimal logging directly to console in initramfs context.
+    echo "[sp-init] $*" >"$SP_LOG_DEV"
+}
+
+run_hooks() {
+    hook_dir="$1"
+    if [ -d "$hook_dir" ]; then
+        for hook in "$hook_dir"/*.sh; do
+            if [ -f "$hook" ]; then
+                log "Running hook: $(basename "$hook")"
+                # shellcheck disable=SC1090
+                sh "$hook" || log "Hook failed: $(basename "$hook") (continuing in Phase 2)"
+            fi
+        done
+    else
+        log "Hooks directory not found: $hook_dir (ok in Phase 2)"
+    fi
+}
+
+log "Initramfs entrypoint starting (Phase 2 skeleton)."
+
+# Run early hooks (mount-config, audio init, etc.) in sequence.
+run_hooks "$SP_HOOKS_DIR"
+
+log "Initramfs finishing Phase 2 skeleton. Hand-off to runtime (if wired) is handled by hooks."
+
+# In Phase 2, we terminate successfully here. Later phases may exec runtime.
+exit 0
