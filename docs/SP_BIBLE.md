@@ -89,3 +89,16 @@ machine, safety model, logging requirements, and chroot configuration
 contract. Added INSTALLER_RUNTIME.md, updated DEV_ROADMAP.md and
 CONFIG_SCHEMA.md, and created placeholder directories for the future
 runtime scripts. No executable code was introduced in this checkpoint.
+
+## Entry 010 — Phase 5 Installer Runtime Implemented
+
+**Date:** 2025-11-16
+
+Replaced the Phase 2 skeleton runtime with a functional Phase 5 installer
+core. Implemented logging, configuration loading and validation using yq,
+safety checks for target disk and rootfs, disk planning and application with
+GPT + EFI + ext4, rootfs extraction, chroot-based system configuration
+(hostname, locale, timezone, user, SSH, GRUB), and the full installer state
+machine in sp-installer. Audio hooks were implemented as best-effort helpers
+for startup and completion. Initramfs wiring and CI coverage remain for later
+checkpoints.
