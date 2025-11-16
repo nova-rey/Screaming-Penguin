@@ -1,60 +1,36 @@
-# Screaming Penguin — Troubleshooting
+# Screaming Penguin — Troubleshooting (v1.0.0)
 
-Common problems and how to diagnose them.
+This guide lists common failure modes in Screaming Penguin and how to diagnose
+them using logs.
 
 ---
 
-## Where to Find Logs
-
-Installer logs:
+## Log Location
 
 /config/logs/installer-YYYYMMDD-HHMMSS.log
 
 ---
 
-## Common Failures
+## Common Errors
 
-### Missing rootfs
+### Missing Rootfs
+Ensure `/config/rootfs/debian-rootfs.tar.gz` exists.
 
-**Error:**  
-`rootfs tarball not found`
+### Incorrect Target Disk
+Verify disk names using `lsblk` before installation.
 
-Fix: Ensure file exists at `/config/rootfs/debian-rootfs.tar.gz`.
+### SSH Disabled + Missing Password
+If SSH is disabled, user.password_hash must be present.
 
----
-
-### Incorrect target disk
-
-**Error:**  
-`target disk not found` or installer aborts due to safety check.
-
-Fix: Verify the correct device name (e.g., `lsblk`).
+### GRUB Installation Failure
+Switch boot_mode between `auto`, `bios`, or `uefi`.
 
 ---
 
-### SSH disabled but password missing
+## Debug Checklist
 
-Fix: Provide `password_hash`.
+- Save the full log
+- Save installer-config.yml
+- Save SHA256SUMS
+- Reproduce in QEMU
 
----
-
-### GRUB Install Failure
-
-- Some hardware requires BIOS/UEFI override.
-- Try switching `boot_mode` between `bios`/`uefi`/`auto`.
-
----
-
-## Collecting Debug Info
-
-1. Save `/config/logs/*.log`.
-2. Provide `installer-config.yml`.
-3. Provide rootfs tarball checksum.
-
----
-
-If issues persist, file a GitHub issue with:
-- Log file  
-- ISO version  
-- Config file  
-- Hardware/QEMU details  

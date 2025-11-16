@@ -1,98 +1,70 @@
-# Screaming Penguin — Installer Usage Guide
+# Screaming Penguin — Installer Usage Guide (v1.0.0)
 
-This guide provides the exact steps required to:
-
-- Write the installer ISO to USB
-- Prepare the `/config` partition
-- Run the installer
-- Understand its output
-- Retrieve logs
+This guide provides full operational instructions for using the Screaming
+Penguin installer, including USB preparation, configuration placement, booting,
+confirmation prompts, and log retrieval.
 
 ---
 
-## 1. Write the ISO to USB
+## USB Image Layout
 
-### Linux
+After writing `screaming-penguin-v1.0.0.img` to a USB device:
 
-```sh
-sudo dd if=screaming-penguin-v1.0.0.iso of=/dev/sdX bs=4M status=progress
-sudo sync
+- **Partition 1 (read-only)**: Bootable installer system
+- **Partition 2 (`/config`)**: Writable config + logs
 
-Windows
+---
 
-Use Rufus or Balena Etcher and select:
-•Image: the ISO you downloaded
-•Mode: ISO or DD mode (either works)
+## Required Files on `/config`
 
-macOS
-
-diskutil list
-sudo dd if=screaming-penguin-v1.0.0.iso of=/dev/diskX bs=4m
-sync
-
-
-⸻
-
-2. Prepare the /config Partition
-
-After imaging, reinsert the USB. Two partitions appear:
-•p1: read-only boot system
-•p2 (/config): writable configuration partition
-
-Place the following required files:
-
-/config/installer-config.yml
-/config/rootfs/debian-rootfs.tar.gz
+installer-config.yml
+rootfs/debian-rootfs.tar.gz
 
 Optional:
 
-/config/logs/       (installer creates this automatically)
+logs/
 
-
-⸻
-
-3. Required Files
-
-installer-config.yml
-
-Defines the installation plan, target disk, hostname, locale, users, and SSH.
-
-See CONFIG_REFERENCE.md for full schema.
-
-debian-rootfs.tar.gz
-
-Prebuilt Debian Bookworm root filesystem.
-
-⸻
-
-4. Boot the Target System
-1.Insert the USB stick into the destination machine.
-2.Boot from USB (BIOS/UEFI).
-3.Screaming Penguin starts automatically.
-
-You will see:
-•A startup message
-•Config validation
-•Disk planning
-•Confirmation prompt (ERASE if required)
-•Progress logs
-
-⸻
-
-5. Logs
-
-Installer writes logs to:
-
-/config/logs/installer-YYYYMMDD-HHMMSS.log
+Installer creates `logs/` automatically.
 
 ---
 
-6. Finishing
+## Installer Lifecycle
 
-On success, the installer:
-•Installs GRUB to the target disk
-•Unmounts everything safely
-•Optionally plays a completion beep
-•Shuts down or reboots automatically
+1. **BOOT_INIT**  
+   Mounts `/config`, initializes logging.
+
+2. **LOAD_CONFIG**  
+   Loads YAML and validates schema.
+
+3. **PLAN_INSTALL**  
+   Verifies target disk and layout.
+
+4. **CONFIRM_INSTALL**  
+   Optionally requires the user to type `ERASE`.
+
+5. **EXECUTE_INSTALL**  
+   - Partition target disk
+   - Create EFI + ext4 filesystems
+   - Extract Debian Bookworm rootfs
+   - Configure hostname, locale, timezone
+   - Create user and SSH config
+   - Install GRUB
+
+6. **FINISH**  
+   Writes persistent logs and reboots or shuts down.
 
 ---
+
+## Headless Behavior
+
+Screaming Penguin is designed for unattended environments:
+
+- No graphical UI
+- Optional audio notification at start and finish
+- All logs persisted to `/config/logs`
+
+---
+
+## Troubleshooting
+
+See `TROUBLESHOOTING.md` for detailed failure modes and log extraction.

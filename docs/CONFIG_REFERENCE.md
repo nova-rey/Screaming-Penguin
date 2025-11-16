@@ -1,14 +1,14 @@
-# Screaming Penguin — Configuration Reference
+# Screaming Penguin — Configuration Reference (v1.0.0)
 
-This document describes every field in the `installer-config.yml` used by the
-Screaming Penguin automated installer.
+This reference describes all valid fields in `installer-config.yml` for
+Screaming Penguin v1.0.0.
 
 ---
 
-## Top-Level Structure
+## Top-Level Fields
 
 ```yaml
-version: 0.1
+version:
 target:
 filesystem:
 rootfs:
@@ -20,6 +20,12 @@ safety:
 
 ⸻
 
+version
+
+Required. Must be 0.1 for v1.0.0.
+
+⸻
+
 target
 
 target:
@@ -27,13 +33,8 @@ target:
   wipe: true
 
 Fields
-
-disk (required)
-Block device name.
-Must NOT refer to the USB stick itself.
-
-wipe (boolean)
-Always true in v1. No partial installs.
+disk — Required. Block device name such as sda, nvme0n1, or vda.
+wipe — Must be true in v1.
 
 ⸻
 
@@ -45,39 +46,29 @@ filesystem:
   boot_mode: auto
 
 Fields
-
-layout
-Only single is supported.
-
-type
-Must be ext4.
-
-boot_mode
-•auto
-•bios
-•uefi
-
-When set to auto, installer chooses based on system firmware.
+•layout — Only single supported
+•type — Must be ext4
+•boot_mode — auto, bios, or uefi
 
 ⸻
 
 rootfs
 
+Path to the Debian root filesystem tarball:
+
 rootfs:
   path: /config/rootfs/debian-rootfs.tar.gz
 
-Location of the Debian rootfs tarball. Must exist prior to install.
 
 ⸻
 
 system
 
 system:
-  hostname: penguin-01
+  hostname: penguin
   timezone: America/Chicago
   locale: en_US.UTF-8
 
-Hostname, locale, timezone applied inside the chroot.
 
 ⸻
 
@@ -88,7 +79,7 @@ user:
   sudo: true
   password_hash: "$6$..."
 
-password_hash required if SSH is disabled.
+Password hash is required when SSH is disabled.
 
 ⸻
 
@@ -97,11 +88,8 @@ ssh
 ssh:
   enable: true
   authorized_keys:
-    - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA..."
+    - "ssh-ed25519 AAAA..."
 
-When enabled, SSH will be configured in the target system.
-
-If disabled, password must exist.
 
 ⸻
 
@@ -110,10 +98,14 @@ safety
 safety:
   require_erase_word: true
 
-When true, installer will require the user to type ERASE before proceeding.
+When true, installer requires the literal word ERASE before proceeding on
+physical hardware.
 
 ⸻
 
-Full Example
+Complete Examples
 
-See config/examples/ for complete working configurations.
+See config/examples/ or the release bundle’s example-configs directory for
+fully working configurations.
+
+---
