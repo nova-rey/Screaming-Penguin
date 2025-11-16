@@ -163,28 +163,48 @@ Each milestone is intended to be small, reviewable, and testable on its own. v1 
 
 ---
 
-### Milestone 4 — Debian Rootfs Build Pipeline
+## Phase 4 — Debian Rootfs Builder (v1)
 
-**Goal:** Provide a reproducible way to generate the Debian rootfs tarball used by the installer.
+**Goal:**  
+Provide a reproducible, scripted method to build the Debian root filesystem tarball expected by the Screaming Penguin installer. This rootfs tarball is later extracted onto the target disk during installation.
 
-**Tasks:**
+**Default suite:** Debian Bookworm (stable)  
+**Architecture:** amd64 (x86_64)  
+**Scope:** Build only — no installer logic changes.
 
-- Implement `tools/make_rootfs_debian.sh` using `debootstrap` to create:
-  - A minimal Debian rootfs for `amd64`.
-  - Required packages (e.g., `systemd-sysv`, `openssh-server`, `sudo`, `locales`, `linux-image-amd64`, `grub-pc`, `grub-efi-amd64`).
-- Document the process in `docs/ROOTFS_BUILD.md`:
-  - Build host requirements.
-  - Commands used.
-  - Cleanup steps.
-- Define expectations for the tarball:
-  - Path: `/config/rootfs/debian-rootfs.tar.gz`.
-  - Ownership and permissions.
-  - No hard-coded hostname, fstab, or device-specific GRUB configuration.
+---
 
-**Done When:**
+### Deliverables
 
-- The rootfs tarball builds successfully on a supported build host.
-- Manual testing (outside Screaming Penguin) confirms that the rootfs can be booted when wired into a VM and configured with GRUB.
+1. **Rootfs Builder Script (`tools/build_debian_rootfs.sh`)**  
+   - Uses `debootstrap` or `mmdebstrap` to produce a minimal Debian Bookworm filesystem under `build/rootfs/`.
+   - Performs minimal sanitization (lock root password, generic hostname).
+   - Archives the result into:  
+     `dist/debian-rootfs-bookworm-amd64.tar.gz`
+
+2. **Makefile Target**  
+   - `make rootfs` calls the builder script.
+
+3. **Documentation**  
+   - `docs/ROOTFS_BUILD.md` describing usage, requirements, and assumptions.
+   - Updated `docs/CONFIG_SCHEMA.md` clarifying how `rootfs.path` maps to the generated tarball.
+
+4. **Safety Requirements**  
+   - Builder must operate *only* under `build/` and `dist/`.
+   - Builder must never modify the host system or touch real block devices.
+   - Any `chroot` must occur only inside the working rootfs directory.
+
+---
+
+### Not in Scope (Phase 4)
+
+- Bootloader installation  
+- Target disk partitioning  
+- Installer state-machine changes  
+- User/SSH/timezone/locale config  
+- CI execution of full rootfs builds (optional for later phases)  
+
+Phase 4 produces the rootfs artifact; Phase 5 will consume it.
 
 ---
 

@@ -50,3 +50,9 @@ Implemented the Screaming Penguin raw image builder (Phase 3). Added tools/make_
 **Date:** 2025-11-16
 
 A GitHub Actions CI pipeline was added for Screaming Penguin. The workflow runs ShellCheck on all shell scripts, builds the installer image via `make iso`, and performs a QEMU-based smoke test using the generated raw image. The QEMU smoke test boots the image in a virtual machine, captures logs, and verifies that the Phase 2 installer skeleton runs through its primary states (including BOOT_INIT and FINISH). All CI operations are confined to repository files, build artifacts, and loop devices created from the image; no real block devices are ever touched.
+
+## Entry 006 — Phase 4 Design Kickoff (Rootfs Builder)
+
+**Date:** 2025-11-16
+
+Defined the full design for Phase 4 of Screaming Penguin: the Debian rootfs builder. Added ROOTFS_BUILD.md with a detailed description of build constraints, default suite (Debian Bookworm), architecture (amd64), safety guarantees, and expected artifact layout under build/ and dist/. Updated DEV_ROADMAP.md and CONFIG_SCHEMA.md accordingly. No scripts or Makefile changes were introduced in this checkpoint.

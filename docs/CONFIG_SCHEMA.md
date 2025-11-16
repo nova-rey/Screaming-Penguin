@@ -46,3 +46,17 @@ Future work in this document:
 
 ---
 ```
+
+### Rootfs Builder Integration (Phase 4)
+
+The Screaming Penguin rootfs builder generates a Debian root filesystem tarball under:
+
+dist/debian-rootfs--.tar.gz
+
+For v1, the default suite is **bookworm** and the default architecture is **amd64**.
+
+The installer expects the tarball to be provided at:
+
+/config/rootfs/debian-rootfs.tar.gz
+
+During later phases, the builder may optionally copy or symlink its output to this location for convenience.
