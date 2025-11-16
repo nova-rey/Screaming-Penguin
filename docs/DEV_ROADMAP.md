@@ -208,58 +208,84 @@ Phase 4 produces the rootfs artifact; Phase 5 will consume it.
 
 ---
 
-### Milestone 5 — Installer Runtime v1 (Core Install Path)
+## Phase 5 — Installer Runtime (v1 Core)
 
-**Goal:** Implement the full v1 installer behavior on a single target disk.
+**Goal:**  
+Implement the complete Screaming Penguin installer runtime as a deterministic, safe, state-driven system capable of installing a Debian Bookworm (amd64) root filesystem onto a target disk using a configuration file located on the USB `/config` partition.
 
-**Tasks:**
+---
 
-- Implement all states in the installer state machine:
+### Functional Overview
 
-  - **BOOT_INIT**
-    - Mount `/config`.
-    - Initialize logging under `/config/logs/`.
-    - Optional audio cue (“Installer ready”).
+Phase 5 converts the existing ISO/runtime scaffolding into a full Linux installer with the following capabilities:
 
-  - **LOAD_CONFIG**
-    - Read `/config/installer-config.yml`.
-    - Validate required fields according to `docs/CONFIG_SCHEMA.md`.
-    - Reject unsafe or incomplete configs.
+1. Boot into a minimal initramfs environment.
+2. Read and parse `/config/installer-config.yml`.
+3. Validate required configuration fields (disk, rootfs path, user/SSH requirements, hostname, locale, timezone).
+4. Enforce safety checks (target disk must exist, must not be the USB itself, rootfs must be present, password/SSH rules).
+5. Execute the state machine:
+   - **BOOT_INIT:** Mount `/config`, initialize logging, optional audio.
+   - **LOAD_CONFIG:** Parse YAML and validate schema.
+   - **PLAN_INSTALL:** Verify target disk, plan GPT layout (EFI + ext4).
+   - **CONFIRM_INSTALL:** Require ERASE confirmation if configured.
+   - **EXECUTE_INSTALL:** Partition target disk, create filesystems, extract rootfs, chroot to configure system, install GRUB.
+   - **FINISH:** Write logs and announce completion.
+6. Perform complete system configuration in chroot:
+   - hostname
+   - locale/timezone
+   - user creation and sudo permissions
+   - root password or SSH keys
+   - GRUB installation (UEFI + BIOS)
+7. Write final logs to `/config/logs/<timestamp>.log`.
 
-  - **PLAN_INSTALL**
-    - Enumerate block devices and determine the installer USB.
-    - Verify that `target.disk` exists and is not the installer USB.
-    - Enforce `wipe: true` for v1.
-    - Plan GPT layout: EFI/BIOS partition + single ext4 root.
+---
 
-  - **CONFIRM_INSTALL**
-    - If `safety.require_erase_word: true`, prompt:
-      - “Type ERASE to continue.”
-    - Abort if the confirmation is not provided correctly.
+### Deliverables
 
-  - **EXECUTE_INSTALL**
-    - Apply partition plan to `target.disk`.
-    - Create filesystems:
-      - `mkfs.vfat` for EFI/BIOS partition.
-      - `mkfs.ext4` for root partition.
-    - Mount root partition.
-    - Extract the Debian rootfs tarball.
-    - Configure base system (fstab, hostname, timezone, locale).
-    - Bind-mount `/dev`, `/proc`, `/sys`.
-    - chroot:
-      - Create user and set password hash.
-      - Configure SSH (enable and install authorized_keys, if enabled).
-      - Install and configure GRUB for BIOS/UEFI.
-    - Unmount, sync, and clean up.
+- `docs/INSTALLER_RUNTIME.md` describing the state machine, chroot behavior, safety model, and execution flow.
+- Additions to `docs/CONFIG_SCHEMA.md` documenting exact installer requirements for Phase 5.
+- Placeholder file: `installer/` directory with non-executable placeholders for future runtime scripts.
+- Bible entry marking the Phase 5 kickoff.
 
-  - **FINISH**
-    - Write a final status entry to `/config/logs/<timestamp>.log`.
-    - Emit a completion cue (audio if available).
-    - Shut down the system cleanly.
+---
 
-**Done When:**
+### Safety Requirements (Phase 5)
 
-- An end-to-end run in QEMU, with a valid config and rootfs tarball, produces a bootable Debian system matching the config.
+- Installer must refuse to run if:
+  - target disk is missing or equals the USB device.
+  - rootfs tarball is missing or unreadable.
+  - configuration fails schema validation.
+  - password is missing **and** SSH is disabled.
+  - ERASE confirmation is required but not supplied.
+
+- Installer must never:
+  - Touch arbitrary block devices.
+  - Modify the host (initramfs) environment.
+  - Perform `chroot` outside the extracted rootfs.
+  - Proceed on partial failures.
+
+---
+
+### Out of Scope for Phase 5
+
+- Networking configuration beyond enabling SSH.
+- LVM, btrfs, RAID, encryption, ZFS, or multi-disk layouts.
+- Package customization or additional repositories.
+- UI menus or interactive install flows.
+- Automated updates or rollback behavior.
+- Non-Debian distributions.
+
+---
+
+### Definition of Done
+
+Phase 5 is complete when:
+- Installer boots and reaches BOOT_INIT → LOAD_CONFIG → PLAN_INSTALL.
+- Executes full installation on a QEMU disk using a valid config.
+- Resulting system boots into Debian Bookworm with correct hostname, user, locale, SSH, GRUB.
+- Logs are written reliably to `/config/logs/`.
+- CI smoke test reaches at least LOAD_CONFIG.
+- Documentation and schema updates reflect runtime truth.
 
 ---
 
