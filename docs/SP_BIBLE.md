@@ -20,3 +20,9 @@ This document is the long-term narrative log for Screaming Penguin development.
 **Date:** 2025-11-15
 
 Screaming Penguin was defined as a config-driven, headless-friendly Debian installer delivered as a USB image. The v0 scope focuses on x86_64, full-disk wipe installs, and a two-partition USB layout with a read-only boot environment and a writable `/config` partition. The design emphasizes safety (no disk guessing, USB protection, erase word confirmation) and repeatability via a prebuilt rootfs tarball. Initial documentation (design, roadmap, philosophy, Bible, and agent entrypoint) was specified to anchor all future development steps.
+
+## Entry 001 — Phase 2 Documentation Framework
+
+**Date:** 2025-11-16
+
+Phase 2 was formally defined and documented. This phase establishes the initramfs structure, runtime skeleton, and state machine framework for the Screaming Penguin installer. No destructive actions are implemented at this stage; the system must only log state transitions and complete a dry run inside QEMU. This documentation provides the structural contract required before implementing any real installation logic.

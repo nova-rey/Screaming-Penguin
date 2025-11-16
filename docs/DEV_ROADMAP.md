@@ -79,14 +79,14 @@ Each milestone is intended to be small, reviewable, and testable on its own. v1 
 
 ### Milestone 2 — Initramfs & Runtime Skeleton
 
-**Goal:** Define the installer’s on-USB structure and control flow without performing destructive actions.
+**Goal:** Establish the structural foundation of the installer’s boot environment and runtime orchestration without implementing destructive or state-changing operations.
 
 **Tasks:**
 
-- Create the initramfs entrypoint:
-  - `installer/initramfs/init`.
-  - `installer/initramfs/hooks/` for modular steps (mount config, audio init, launch runtime).
-- Create runtime script skeletons (no real disk work yet):
+- Create the initramfs entrypoint and hook structure:
+  - `installer/initramfs/init`
+  - `installer/initramfs/hooks/` (mount-config, audio-init, runtime-launch placeholders)
+- Create the Screaming Penguin runtime skeleton:
   - `installer/runtime/sp-installer`
   - `installer/runtime/sp-disk-plan.sh`
   - `installer/runtime/sp-disk-apply.sh`
@@ -96,14 +96,18 @@ Each milestone is intended to be small, reviewable, and testable on its own. v1 
   - `installer/runtime/lib/logging.sh`
   - `installer/runtime/lib/config_validation.sh`
   - `installer/runtime/lib/safety_checks.sh`
-- Implement a basic state machine skeleton:
+- Implement a placeholder state machine:
   - BOOT_INIT → LOAD_CONFIG → PLAN_INSTALL → CONFIRM_INSTALL → EXECUTE_INSTALL → FINISH
-  - For this milestone, it may log transitions only and immediately abort before touching disks.
+  - Each state logs “Entered <STATE>” and performs no real logic.
+- Ensure all scripts are non-destructive and contain only structure, TODO markers, and logging.
+- Ensure the installer skeleton boots in QEMU and transitions through states without error before aborting safely.
 
 **Done When:**
 
-- Booting a development image in QEMU reaches the installer skeleton.
-- Logs show the state transitions, but no disk partitioning or formatting occurs.
+- The image boots into the initramfs.
+- The runtime launches and logs each state transition.
+- No destructive operations exist in any script.
+- QEMU demonstrates a full dry-run path through the installer lifecycle.
 
 ---
 
