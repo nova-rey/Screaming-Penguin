@@ -155,3 +155,34 @@ touching any block devices.
 This workflow complements the main image build and QEMU smoke tests by
 providing a fast, low-risk verification path focused specifically on the
 installer runtime.
+
+## QEMU Acceptance CI (Phase 6)
+
+A dedicated QEMU acceptance workflow exercises the Screaming Penguin
+installer end-to-end on a virtual disk:
+
+- **Workflow file:** `.github/workflows/qemu-acceptance-ci.yml`
+- **Triggers:**
+  - Manual (`workflow_dispatch`)
+  - Weekly cron schedule (`0 4 * * 0`)
+
+The QEMU acceptance job:
+
+1. Installs QEMU and required tools (`qemu-system-x86`, `qemu-utils`, and
+   supporting utilities).
+2. Builds the Screaming Penguin installer image via `make iso`.
+3. Builds the Debian Bookworm rootfs via `make rootfs`.
+4. Runs the QEMU acceptance harness using `make qemu-acceptance`, which:
+   - Prepares a virtual target disk image under `build/`.
+   - Populates the `/config` partition inside the installer image with the
+     QEMU example config and rootfs tarball.
+   - Boots the installer image in QEMU and runs a full install to the virtual
+     disk.
+   - Boots from the installed disk and captures console logs.
+5. Uploads the QEMU logs (`build/qemu-install.log` and
+   `build/qemu-installed-boot.log`) as CI artifacts.
+
+This workflow focuses on the happy-path acceptance scenario and is intended
+for periodic validation rather than per-PR gating, due to runtime and
+resource considerations.
+

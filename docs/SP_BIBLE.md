@@ -143,3 +143,17 @@ target. Updated QEMU_TESTS.md with implementation notes. CI integration for
 these tests will be handled in a later checkpoint.
 ```
 
+
+## Entry 014 — Phase 6 QEMU CI Integrated
+
+**Date:** 2025-11-16
+
+Completed Phase 6 by wiring the QEMU acceptance harness into CI. Added a
+dedicated GitHub Actions workflow (`qemu-acceptance-ci.yml`) that installs
+QEMU, builds the Screaming Penguin installer image and Debian Bookworm
+rootfs, runs `make qemu-acceptance`, and uploads the QEMU install and
+post-install boot logs as artifacts. Updated CI_OVERVIEW.md to document the
+new workflow and clarified that it is triggered manually and on a weekly
+schedule rather than on every push or pull request. No installer or rootfs
+behavior changes were made in this checkpoint.
+
