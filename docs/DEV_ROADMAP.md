@@ -390,30 +390,61 @@ Phase 6 is complete when:
 
 ---
 
-### Milestone 7 — User-Facing Documentation & Packaging
+## Phase 7 — User Docs, Packaging, and v1 Release Prep
 
-**Goal:** Make Screaming Penguin usable by others with clear instructions and minimal friction.
+**Goal:**  
+Prepare Screaming Penguin for its initial public release by creating clear,
+user-facing documentation, defining release artifact structure, introducing a
+packaging workflow, and establishing versioning and distribution guidelines.
 
-**Tasks:**
+Phase 7 introduces no installer or rootfs behavior changes. It focuses on making
+the project understandable, usable, and shippable by developers and end-users.
 
-- Update or create:
-  - `README.md` — high-level project overview and quickstart.
-  - `docs/ISO_BUILD.md` — image build instructions.
-  - `docs/ROOTFS_BUILD.md` — rootfs build instructions.
-  - `docs/CONFIG_SCHEMA.md` — config reference and examples.
-- Provide example configs under `config/` for common scenarios.
-- Document safety expectations and caveats:
-  - Full-disk wipe.
-  - No auto-selection of target disks.
-  - Requirement for proper backup and test usage first (e.g., VMs).
+---
 
-**Done When:**
+### Deliverables
 
-- A new user with a Debian-based host can:
-  - Build the image and rootfs.
-  - Write to a USB stick.
-  - Prepare a config.
-  - Perform a successful v1 install following the documentation.
+1. User Documentation Set:
+   - `docs/GETTING_STARTED.md`
+   - `docs/INSTALLER_USAGE.md`
+   - `docs/CONFIG_REFERENCE.md`
+   - `docs/SAFETY.md`
+   - `docs/TROUBLESHOOTING.md`
+   - Refined `README.md` with concise overview and links to docs.
+
+2. Release Packaging:
+   - Define the v1.0.0 release bundle layout:
+     - Installer ISO image
+     - Debian rootfs tarball
+     - Example configs bundle
+     - SHA256 checksums and metadata
+   - Introduce `make dist-release` in Phase 7 Prompt B to assemble the bundle.
+
+3. Versioning & Release Notes:
+   - Introduce semantic version scheme.
+   - Add `docs/RELEASE_NOTES_v1.0.0.md` for the initial release notes.
+
+---
+
+### Out of Scope
+
+- No runtime or installer logic changes.
+- No new states in the installer state machine.
+- No modifications to rootfs building mechanics.
+- No additional acceptance tests.
+- No release automation or publishing in CI (handled in future phases).
+
+---
+
+### Definition of Done
+
+Phase 7 is complete when:
+- All user-facing docs exist and provide clear guidance.
+- README points to the correct docs.
+- Release bundle structure is documented.
+- A `dist-release` packaging mechanism exists (added in Prompt B).
+- Versioning rules and release notes are established.
+- Bible entries record Phase 7 kickoff and completion.
 
 ---
 

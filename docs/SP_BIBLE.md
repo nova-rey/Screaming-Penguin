@@ -157,3 +157,15 @@ new workflow and clarified that it is triggered manually and on a weekly
 schedule rather than on every push or pull request. No installer or rootfs
 behavior changes were made in this checkpoint.
 
+
+## Entry 015 — Phase 7 User Docs & Packaging Kickoff
+
+**Date:** 2025-11-16
+
+Started Phase 7 by defining the user-facing documentation structure, release
+artifact layout, and versioning approach for Screaming Penguin v1.0.0. Added
+skeletons for GETTING_STARTED.md, INSTALLER_USAGE.md, CONFIG_REFERENCE.md,
+SAFETY.md, TROUBLESHOOTING.md, and RELEASE_NOTES_v1.0.0.md. Updated
+DEV_ROADMAP.md to reflect Phase 7 goals and added a README section pointing to
+the new documentation. No runtime, packaging, or CI behavior was added in this
+checkpoint.
