@@ -154,3 +154,48 @@ The expected CI approach is:
 
 Per-PR gating on full QEMU runs is considered out of scope for v1 due to
 runtime and resource constraints.
+
+## 6. Implementation Notes (Phase 6)
+
+The primary harness entrypoint is:
+
+- `tests/harness/qemu-acceptance.sh`
+
+This script:
+
+1. Verifies that:
+   - `dist/screaming-penguin.img` exists (built by `make iso`).
+   - `dist/debian-rootfs-bookworm-amd64.tar.gz` exists (built by `make rootfs`).
+   - `config/installer-config.qemu-basic.yml` exists.
+
+2. Creates or reuses a virtual target disk image:
+   - `build/qemu-target.img` (qcow2, e.g. 20G).
+
+3. Attaches the installer image as a loop device and updates the internal
+   `/config` partition with:
+   - `installer-config.yml` from `config/installer-config.qemu-basic.yml`
+   - `rootfs/debian-rootfs.tar.gz` copied from the rootfs tarball in `dist/`.
+
+4. Runs QEMU in two phases:
+   - **Install phase:** boots the installer image, using the qcow2 disk as the
+     target, and captures console output to `build/qemu-install.log`.
+   - **Post-install boot phase:** boots from the installed target disk and
+     captures console output to `build/qemu-installed-boot.log`.
+
+5. Performs basic log checks:
+   - Confirms that the installer reaches the FINISH state and reports a
+     successful installation.
+   - Confirms that the configured hostname (from the QEMU example config)
+     appears in the post-install boot log.
+
+Developers can run the end-to-end happy-path acceptance scenario locally with:
+
+```bash
+make iso
+make rootfs
+make qemu-acceptance
+
+The harness relies on QEMU (qemu-system-x86_64), qemu-img, and loop device
+support. It may prompt for sudo in order to mount the /config partition of
+the installer image. All modifications are confined to the repository’s
+build/ and dist/ directories and do not touch real host block devices.
