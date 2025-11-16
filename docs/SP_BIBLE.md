@@ -32,3 +32,9 @@ Phase 2 was formally defined and documented. This phase establishes the initramf
 **Date:** 2025-11-16
 
 The initramfs and runtime skeleton for Screaming Penguin were created, including the non-destructive installer state machine. Initramfs hooks, runtime modules, and logging libraries were added to support a dry-run installer that logs each state transition without touching disks. This establishes the structural foundation required for later phases to add real configuration, safety checks, and installation behavior.
+
+## Entry 003 — Phase 3 Image Builder Planning
+
+**Date:** 2025-11-16
+
+Phase 3 was formally defined as the ISO / USB image builder milestone for Screaming Penguin. The roadmap and ISO build plan were updated to describe a GPT-based raw image with a bootable read-only partition and a writable FAT32 `/config` partition. This phase is explicitly limited to producing the installer image itself, leaving target disk installation and configuration logic to later milestones.

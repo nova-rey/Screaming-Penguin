@@ -113,30 +113,53 @@ Each milestone is intended to be small, reviewable, and testable on its own. v1 
 
 ### Milestone 3 — ISO / USB Image Build Pipeline
 
-**Goal:** Build a bootable USB-style disk image with the required two-partition layout.
+**Goal:** Produce a bootable, two-partition disk image that contains the Screaming Penguin initramfs environment and a writable `/config` partition, without performing any installation on target disks. This milestone delivers the installer **image**, not the installation logic.
+
+**Target Artifact:**
+
+- A raw disk image, e.g.:
+  - `dist/screaming-penguin.img`
+
+**Required Layout:**
+
+- GPT partition table on the image.
+- Partition 1 (p1):
+  - Purpose: bootable read-only environment.
+  - Contents: Linux kernel, initramfs, bootloader (GRUB or equivalent), runtime scripts.
+  - Presentation: ISO9660 and/or squashfs as appropriate for the bootloader.
+- Partition 2 (p2):
+  - Filesystem: FAT32.
+  - Label: `SP_CONFIG` (or equivalent).
+  - Mount point at runtime: `/config`.
+  - Purpose: configuration, rootfs tarball, installer logs.
 
 **Tasks:**
 
-- Implement `tools/make_installer_iso.sh` (or equivalent) to:
-  - Build a minimal initramfs-based Linux environment with Screaming Penguin runtime.
-  - Produce a p1 image containing:
-    - Kernel, initramfs, GRUB configuration.
-    - ISO9660 or squashfs content as required.
-  - Create a raw disk image with:
-    - Partition 1: read-only boot environment (p1).
-    - Partition 2: writable `/config` (FAT32).
-- Add `docs/ISO_BUILD.md` describing:
-  - Host build dependencies.
-  - Build steps.
-  - How to write the final image to a USB drive.
-- Add `Makefile` targets:
-  - `make iso` — builds the image.
-  - `make clean` — cleans build artifacts.
+- Define and document the image build process in `docs/ISO_BUILD.md`, including:
+  - Host dependencies (e.g., `parted`, `sgdisk`, `mkfs.vfat`, `xorriso` or `grub-mkrescue`).
+  - Conceptual steps for:
+    - Creating a raw image file.
+    - Partitioning the image with GPT into p1 and p2.
+    - Populating p1 with kernel, initramfs, and bootloader configuration.
+    - Formatting p2 as FAT32 and preparing it for `/config`.
+  - Expected outputs and locations, including `dist/screaming-penguin.img`.
+- Reserve the script entrypoint:
+  - `tools/make_installer_iso.sh`
+  - This script will, in later checkpoints, implement the actual build logic.
+- Ensure the roadmap clearly states:
+  - Milestone 3 operates only on **image files**, not on real block devices (e.g., `/dev/sdX`, `/dev/nvme0n1`).
+  - No installation to target disks is performed in this milestone.
+  - The image must be suitable for:
+    - Writing to a USB device via `dd`/`pv` on a host system.
+    - Booting under both BIOS and UEFI firmware via QEMU.
 
 **Done When:**
 
-- On a supported build host, `make iso` produces a disk image with both partitions.
-- The image boots in QEMU (BIOS and UEFI) into the initramfs and reaches the installer skeleton.
+- `docs/ISO_BUILD.md` describes the intended build pipeline and artifact layout.
+- `docs/DEV_ROADMAP.md` clearly reflects that Milestone 3:
+  - Produces a bootable installer image.
+  - Does not yet implement any target-disk installation logic.
+- The entrypoint `tools/make_installer_iso.sh` is defined in documentation as the canonical image builder (implementation will follow in a later milestone).
 
 ---
 
