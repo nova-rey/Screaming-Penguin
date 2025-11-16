@@ -186,3 +186,33 @@ This workflow focuses on the happy-path acceptance scenario and is intended
 for periodic validation rather than per-PR gating, due to runtime and
 resource considerations.
 
+
+## Dist-Release CI (Phase 7)
+
+The dist-release CI workflow validates that the release packaging process
+continues to work as expected.
+
+- **Workflow file:** `.github/workflows/dist-release-ci.yml`
+- **Triggers:**
+  - Manual (`workflow_dispatch`)
+  - Weekly cron schedule (`30 4 * * 0`)
+
+The dist-release job:
+
+1. Installs the required build tools and dependencies (including QEMU
+   utilities and debootstrap).
+2. Runs `make dist-release` using sudo, which:
+   - Builds the Screaming Penguin installer image (if needed).
+   - Builds the Debian Bookworm rootfs tarball (if needed).
+   - Assembles the v1.0.0 release bundle under `dist/release/`, including:
+     - Installer image
+     - Rootfs tarball
+     - Example configs
+     - `SHA256SUMS`
+3. Lists the contents of `dist/` and `dist/release/` for visibility.
+4. Prints the `SHA256SUMS` file if present.
+5. Uploads the entire `dist/release` directory as a CI artifact.
+
+This workflow is designed as a packaging dry run and is not used as a strict
+per-PR gate. It provides periodic confidence that the release bundle remains
+buildable from the main branch.

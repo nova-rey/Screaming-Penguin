@@ -1,0 +1,61 @@
+name: Screaming Penguin Dist-Release Check
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 4 * * 0"  # Weekly on Sunday at 04:30 UTC
+
+jobs:
+  dist-release:
+    name: Dist-Release Packaging Dry Run
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      DEBIAN_FRONTEND: noninteractive
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show environment info
+        run: |
+          uname -a
+          echo "Shell: $SHELL"
+          echo "Working directory:"
+          pwd
+          ls -la
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            qemu-system-x86 \
+            qemu-utils \
+            xz-utils \
+            tar \
+            dosfstools \
+            parted \
+            gdisk \
+            debootstrap
+
+      - name: Run dist-release packaging
+        run: |
+          echo "[CI-DIST] Running 'make dist-release' to assemble v1.0.0 bundle..."
+          sudo make dist-release
+          echo "[CI-DIST] Listing dist/ and dist/release contents..."
+          ls -lh dist || true
+          ls -lh dist/release || true
+          echo "[CI-DIST] SHA256SUMS (if present):"
+          if [ -f dist/release/SHA256SUMS ]; then
+            cat dist/release/SHA256SUMS
+          else
+            echo "[CI-DIST] WARNING: dist/release/SHA256SUMS not found."
+          fi
+
+      - name: Upload dist-release directory as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-release-bundle
+          path: dist/release
+          if-no-files-found: error

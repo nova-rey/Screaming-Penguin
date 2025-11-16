@@ -179,3 +179,16 @@ release packaging target (`make dist-release`), adding example configs under
 `config/examples/`, and generating the initial structure for v1.0.0 release
 artifacts. README updated with release notes, and Phase 7 content now fully
 represented in user-facing docs. No runtime or installer behavior was changed.
+
+## Entry 017 — Phase 7 Dist-Release CI and Closure
+
+**Date:** 2025-11-16
+
+Completed Phase 7 by adding a dist-release CI workflow that exercises the
+`make dist-release` packaging path under GitHub Actions. The new workflow
+(`dist-release-ci.yml`) installs required build dependencies, runs the
+dist-release target with sudo, inspects the resulting `dist/release` contents,
+and uploads the assembled bundle and checksums as CI artifacts. Updated
+CI_OVERVIEW.md to describe this workflow and its weekly + manual triggers.
+Phase 7 is now fully represented in documentation, packaging targets, and CI
+coverage without altering installer or rootfs runtime behavior.
