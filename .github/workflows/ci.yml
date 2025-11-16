@@ -54,6 +54,13 @@ jobs:
         run: |
           echo "[CI] Running 'make iso' to build Screaming Penguin image..."
           sudo make iso
+          # Ensure build/ and dist/ are owned by the current user, not root.
+          if [ -d build ]; then
+            sudo chown -R "$USER:$USER" build
+          fi
+          if [ -d dist ]; then
+            sudo chown -R "$USER:$USER" dist
+          fi
           ls -lh dist || true
 
       - name: QEMU smoke boot (BIOS)
