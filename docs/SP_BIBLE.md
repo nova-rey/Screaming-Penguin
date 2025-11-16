@@ -102,3 +102,14 @@ GPT + EFI + ext4, rootfs extraction, chroot-based system configuration
 machine in sp-installer. Audio hooks were implemented as best-effort helpers
 for startup and completion. Initramfs wiring and CI coverage remain for later
 checkpoints.
+
+## Entry 011 — Phase 5 Installer CI and Polish
+
+**Date:** 2025-11-16
+
+Completed Phase 5 by adding CI coverage for the installer runtime scripts.
+Introduced a dedicated GitHub Actions workflow (`installer-runtime-ci.yml`)
+that runs `sh -n` over all installer/runtime shell scripts on relevant pushes
+and pull requests. Updated CI_OVERVIEW.md to document this workflow. No
+runtime behavior changes were made in this checkpoint; it strictly improves
+confidence in the installer shell code.
