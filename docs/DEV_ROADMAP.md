@@ -289,26 +289,104 @@ Phase 5 is complete when:
 
 ---
 
-### Milestone 6 — Test Harness & v1 Acceptance Tests
+## Phase 6 — QEMU Test Harness & v1 Acceptance Tests
 
-**Goal:** Provide a minimal but meaningful QEMU-based test harness and clearly defined v1 acceptance scenarios.
+**Goal:**  
+Provide a repeatable, automated way to verify that Screaming Penguin can install a Debian Bookworm (amd64) system onto a virtual disk and boot it successfully under QEMU, using a known-good configuration.
 
-**Tasks:**
+Phase 6 focuses on testing and verification only. No installer or rootfs behavior changes are introduced in this phase.
 
-- Add scripts under `tests/harness/` to:
-  - Boot the Screaming Penguin image in QEMU with a virtual target disk.
-  - Capture logs and exit status.
-- Define test scenarios in `docs/TESTING_v0.md` (or update to `docs/TESTING_v1.md` if preferred):
-  - Missing config file → installer aborts, logs error.
-  - Target disk not found → installer aborts, logs error.
-  - USB device chosen as target → installer aborts, logs error, does not destroy the USB.
-  - Successful install → system boots into Debian with expected hostname/user/SSH.
-- Provide convenience scripts or make targets to run a subset of tests locally.
+---
 
-**Done When:**
+### Functional Overview
 
-- The harness can be run on a development machine to exercise at least the core v1 scenarios.
-- All v1 tests listed in `docs/V1_CHECKLIST.md` pass for a reference configuration.
+Phase 6 introduces a QEMU-based test harness that can:
+
+1. Build or reuse the Screaming Penguin installer image and Debian rootfs artifacts.
+2. Create a blank virtual disk image as the installation target.
+3. Boot the Screaming Penguin image in QEMU, attaching:
+   - the installer image as the boot device, and
+   - the blank disk image as the target disk,
+   - a /config tree containing a known-good installer config and rootfs tarball.
+4. Allow the installer to run to completion non-interactively.
+5. Boot the installed system in QEMU (using the installed disk image as the boot device).
+6. Capture console logs for both install and post-install boot phases and verify success markers.
+
+The test harness exists purely in the project’s filesystem and must not touch real block devices.
+
+---
+
+### v1 Acceptance Tests (Initial Matrix)
+
+Phase 6 defines a small, explicit set of acceptance scenarios:
+
+1. **Case 1 — Happy Path Basic Install**
+   - Single virtual disk.
+   - SSH enabled with at least one authorized key.
+   - User with sudo permissions.
+   - Expected outcome:
+     - Installer completes all states without error.
+     - Install log shows progression through BOOT_INIT → LOAD_CONFIG → PLAN_INSTALL → CONFIRM_INSTALL → EXECUTE_INSTALL → FINISH.
+     - Installed system boots in QEMU.
+     - Console log from installed system shows the configured hostname.
+
+2. **Case 2 — SSH Disabled, Password Required**
+   - SSH explicitly disabled.
+   - `user.password_hash` provided.
+   - Expected outcome:
+     - Installer accepts the configuration and performs a full install.
+     - No SSH keys required.
+     - Installed system boots successfully.
+
+3. **Case 3 — Safety Failure: Wrong ERASE Word**
+   - `safety.require_erase_word: true`.
+   - Harness provides incorrect ERASE confirmation.
+   - Expected outcome:
+     - Installer aborts in CONFIRM_INSTALL.
+     - No partitioning or filesystem operations are performed on the virtual target disk.
+
+The initial matrix may be expanded in later phases, but Phase 6 considers these three cases sufficient for v1 acceptance.
+
+---
+
+### Artifacts and Harness Layout
+
+Phase 6 will introduce a lightweight harness structure:
+
+- `tests/harness/`
+  - Location for QEMU harness scripts (Phase 6 Prompt B).
+- `config/installer-config.qemu-basic.yml`
+  - Example known-good configuration for the QEMU happy-path install.
+- `build/`
+  - Directory where QEMU disk images and logs are written.
+- `dist/`
+  - Existing directory where the Screaming Penguin image and rootfs tarball are stored.
+
+All harness operations must be confined to the repository’s own directories (`build/`, `dist/`, `tests/`, `config/`) and must not touch real `/dev/sdX` devices.
+
+---
+
+### Out of Scope for Phase 6
+
+- Changes to installer logic or rootfs builder behavior.
+- Network configuration or SSH into the running guest.
+- Performance benchmarking or stress testing.
+- Multi-disk installs, RAID, encryption, or non-Debian distributions.
+- Complex CI orchestration; Phase 6 only introduces the harness design and basic wiring. CI integration is handled in later prompts for this phase.
+
+---
+
+### Definition of Done
+
+Phase 6 is complete when:
+
+- A QEMU test harness exists that can:
+  - Run an end-to-end install onto a virtual disk image.
+  - Boot the resulting installed system in QEMU.
+  - Capture logs for both phases.
+- A documented test matrix describes the v1 acceptance cases and expected outcomes.
+- A Makefile target and/or documented commands can run the harness end-to-end (added in Phase 6 Prompt B/C).
+- SP Bible entries record Phase 6 kickoff and completion.
 
 ---
 

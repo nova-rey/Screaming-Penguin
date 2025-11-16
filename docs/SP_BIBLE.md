@@ -113,3 +113,15 @@ that runs `sh -n` over all installer/runtime shell scripts on relevant pushes
 and pull requests. Updated CI_OVERVIEW.md to document this workflow. No
 runtime behavior changes were made in this checkpoint; it strictly improves
 confidence in the installer shell code.
+
+## Entry 012 — Phase 6 QEMU Harness Kickoff
+
+**Date:** 2025-11-16
+
+Started Phase 6 by defining the QEMU test harness architecture and the initial
+v1 acceptance test matrix. Added QEMU_TESTS.md describing the two-phase QEMU
+flow (install and post-install boot), the planned harness file layout, and
+the three core acceptance cases (happy path, SSH-disabled with password, and
+ERASE-word safety failure). Updated DEV_ROADMAP.md and created a harness
+placeholder under tests/harness/. No executable code or CI workflows were
+introduced in this checkpoint.
