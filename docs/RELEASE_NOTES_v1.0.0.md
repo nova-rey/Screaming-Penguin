@@ -1,48 +1,46 @@
 # Screaming Penguin v1.0.0 — Release Notes
 
-Initial public release of Screaming Penguin, a deterministic, config-driven,
-non-interactive Linux installer targeting Debian Bookworm.
+Initial public release of the Screaming Penguin Installer, a deterministic,
+config-driven Debian installation system.
 
 ---
 
 ## Features
 
-- x86_64 installation support
-- BIOS + UEFI compatibility
-- Full-disk wipe with GPT layout
-- ext4 root filesystem
-- Prebuilt Debian Bookworm rootfs
-- Automated chroot configuration:
-  - hostname
-  - locale/timezone
-  - user creation
-  - SSH (optional)
-  - GRUB installation
-- Headless-friendly operation
-- Optional audio cue support
-- `/config/logs` for persistent installer logs
+- Automated Debian Bookworm installation
+- x86_64 support
+- BIOS + UEFI boot
+- Full-disk wipe (EFI + ext4)
+- Prebuilt Debian rootfs extraction
+- Headless operation
+- Optional audio cues
+- User, SSH, timezone, locale configuration
 
 ---
 
-## Constraints (v1 Limitations)
+## Limitations
 
-- No encryption or LVM
-- No multi-disk or RAID
-- No Secure Boot handling
-- No custom partitioning
-- Single-user provisioning
-- ext4 only
-
----
-
-## Known Issues
-
-- Some hardware may require manual BIOS boot priority
-- Certain USB controllers enumerate inconsistently
-- Secure Boot unsupported
+- Single disk only  
+- ext4 only  
+- No encryption or LVM  
+- No network configuration  
+- No Secure Boot  
+- No multi-user provisioning  
 
 ---
 
-## Recommended Usage
+## Included Artifacts
 
-Use QEMU first to validate your config before running on hardware.
+- `screaming-penguin-v1.0.0.img`  
+- `debian-rootfs-bookworm-amd64-v1.0.0.tar.gz`  
+- `example-configs/`  
+- `SHA256SUMS`
+
+---
+
+## Recommended Validation
+
+- Test in QEMU before real hardware
+- Confirm disk names carefully
+- Examine `/config/logs/` after any failure
+

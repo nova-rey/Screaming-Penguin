@@ -1,40 +1,54 @@
-# Screaming Penguin — Safety & Warnings
+# Screaming Penguin — Safety Guide (v1.0.0)
 
-Screaming Penguin performs destructive, irreversible actions. This document
-summarizes mandatory safety rules for v1.
+Screaming Penguin is intentionally simple and deterministic. It performs a full
+disk wipe and installation based strictly on the supplied configuration file.
 
 ---
 
 ## Disk Wipe Behavior
 
-- The installer wipes the **entire target disk**.
-- There is no undelete, no confirmation beyond optional `ERASE`, and no safety net.
+- Entire target disk is erased.
+- No interactive prompts except optional `ERASE` word.
+- No multi-boot or partial installs.
 
 ---
 
-## Conditions That Abort the Install
+## Installer Abort Conditions
 
-Installer will **refuse to continue** if:
+Installer aborts when:
 
-- Target disk is missing
-- Target disk appears to be the USB device
-- Rootfs tarball missing or unreadable
-- SSH disabled AND no password_hash provided
-- Unsupported filesystem/layout
-- Invalid YAML
-
----
-
-## Recommended Testing Practice
-
-- Always test your config first in QEMU.
-- Keep backups of important data.
-- Use `/config/logs` for diagnosing issues.
-- Prefer predictable disk names (e.g., nvme0n1).
+- Target disk not found  
+- Target disk matches installer USB  
+- Rootfs missing  
+- SSH disabled and no password_hash provided  
+- Invalid YAML  
+- Unsupported filesystem/layout  
 
 ---
 
-## Anti-Footgun Measures
+## Testing Recommendations
 
-- `require_erase_word: true` strongly recommended for physical machines.
-- Install cannot proceed without explicit clarity from the config file.
+- Test all configs in QEMU first.
+- Validate target disk names manually.
+- Always examine logs after failed installs.
+
+---
+
+## Log Retention
+
+Installer writes:
+
+/config/logs/installer-*.log
+
+Logs persist even on failure.
+
+---
+
+## Strongly Recommended
+
+Enable:
+
+safety:
+require_erase_word: true
+
+for real hardware.

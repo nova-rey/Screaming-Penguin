@@ -25,3 +25,7 @@ Screaming Penguin provides a `make dist-release` target to assemble the v1.0.0
 release bundle, including installer image, rootfs tarball, example configs, and
 SHA256 checksums. See `docs/GETTING_STARTED.md` and
 `docs/INSTALLER_USAGE.md` for details.
+
+## Version
+
+This repository is prepared for the v1.0.0 release of Screaming Penguin.
