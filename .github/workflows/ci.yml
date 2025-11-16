@@ -53,7 +53,7 @@ jobs:
       - name: Build installer image (make iso)
         run: |
           echo "[CI] Running 'make iso' to build Screaming Penguin image..."
-          make iso
+          sudo make iso
           ls -lh dist || true
 
       - name: QEMU smoke boot (BIOS)
