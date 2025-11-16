@@ -214,3 +214,17 @@ Troubleshooting Guide, and full v1.0.0 Release Notes. README updated with a
 stable introduction and version reference. No changes were made to installer
 logic or build scripts. This checkpoint positions the project for the Phase 8
 Prompt C release finalization step.
+
+## Entry 020 — Phase 8 Release Finalization Complete
+
+**Date:** 2025-11-16
+
+Completed Phase 8 Prompt C by adding a VERSION file for v1.0.0, documenting the
+human release process in RELEASE_PROCESS.md, and updating CI_OVERVIEW.md with a
+concise release flow summary. This checkpoint formalizes how to build, tag, and
+publish Screaming Penguin releases without changing runtime behavior or CI
+automation. Screaming Penguin is now ready for a v1.0.0 GitHub Release cut on
+top of the current main branch.
+
+
+⸻
