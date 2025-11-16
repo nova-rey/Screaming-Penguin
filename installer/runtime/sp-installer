@@ -1,0 +1,113 @@
+#!/bin/sh
+# Screaming Penguin installer orchestrator (Phase 2).
+# Implements a non-destructive state machine that logs each step.
+
+set -eu
+
+# shellcheck disable=SC1091
+. "$(dirname "$0")/lib/logging.sh"
+# shellcheck disable=SC1091
+. "$(dirname "$0")/lib/config_validation.sh"
+# shellcheck disable=SC1091
+. "$(dirname "$0")/lib/safety_checks.sh"
+# shellcheck disable=SC1091
+. "$(dirname "$0")/sp-disk-plan.sh"
+# shellcheck disable=SC1091
+. "$(dirname "$0")/sp-disk-apply.sh"
+# shellcheck disable=SC1091
+. "$(dirname "$0")/sp-rootfs-apply.sh"
+# shellcheck disable=SC1091
+. "$(dirname "$0")/sp-chroot-setup.sh"
+# shellcheck disable=SC1091
+. "$(dirname "$0")/sp-audio.sh"
+
+SP_STATE_BOOT_INIT="BOOT_INIT"
+SP_STATE_LOAD_CONFIG="LOAD_CONFIG"
+SP_STATE_PLAN_INSTALL="PLAN_INSTALL"
+SP_STATE_CONFIRM_INSTALL="CONFIRM_INSTALL"
+SP_STATE_EXECUTE_INSTALL="EXECUTE_INSTALL"
+SP_STATE_FINISH="FINISH"
+
+sp_state_boot_init() {
+    log_info "State: $SP_STATE_BOOT_INIT (Phase 2 skeleton)."
+    sp_audio_ready || log_warn "Audio ready placeholder failed (continuing)."
+    return 0
+}
+
+sp_state_load_config() {
+    log_info "State: $SP_STATE_LOAD_CONFIG (Phase 2 skeleton)."
+    # In Phase 2, we do not read real config yet.
+    sp_config_validate_placeholder "/config/installer-config.yml"
+    return 0
+}
+
+sp_state_plan_install() {
+    log_info "State: $SP_STATE_PLAN_INSTALL (Phase 2 skeleton)."
+    sp_safety_check_placeholder
+    sp_disk_plan
+    return 0
+}
+
+sp_state_confirm_install() {
+    log_info "State: $SP_STATE_CONFIRM_INSTALL (Phase 2 skeleton)."
+    log_info "Phase 2: skipping erase-word prompt; no destructive actions are possible."
+    return 0
+}
+
+sp_state_execute_install() {
+    log_info "State: $SP_STATE_EXECUTE_INSTALL (Phase 2 skeleton)."
+    log_info "Phase 2: execute path is a no-op; no disk or rootfs operations are performed."
+    sp_disk_apply
+    sp_rootfs_apply
+    sp_chroot_setup
+    return 0
+}
+
+sp_state_finish() {
+    log_info "State: $SP_STATE_FINISH (Phase 2 skeleton)."
+    sp_audio_complete || log_warn "Audio completion placeholder failed (continuing)."
+    log_info "Phase 2: installer skeleton completed. No changes were made to any disks."
+    return 0
+}
+
+sp_run() {
+    log_info "Screaming Penguin installer starting (Phase 2 skeleton)."
+
+    states="
+$SP_STATE_BOOT_INIT
+$SP_STATE_LOAD_CONFIG
+$SP_STATE_PLAN_INSTALL
+$SP_STATE_CONFIRM_INSTALL
+$SP_STATE_EXECUTE_INSTALL
+$SP_STATE_FINISH
+"
+    for state in $states; do
+        case "$state" in
+            "$SP_STATE_BOOT_INIT")
+                sp_state_boot_init
+                ;;
+            "$SP_STATE_LOAD_CONFIG")
+                sp_state_load_config
+                ;;
+            "$SP_STATE_PLAN_INSTALL")
+                sp_state_plan_install
+                ;;
+            "$SP_STATE_CONFIRM_INSTALL")
+                sp_state_confirm_install
+                ;;
+            "$SP_STATE_EXECUTE_INSTALL")
+                sp_state_execute_install
+                ;;
+            "$SP_STATE_FINISH")
+                sp_state_finish
+                ;;
+            *)
+                log_warn "Unknown state encountered: $state"
+                ;;
+        esac
+    done
+
+    log_info "Screaming Penguin installer exiting (Phase 2 skeleton)."
+}
+
+sp_run "$@"

@@ -26,3 +26,9 @@ Screaming Penguin was defined as a config-driven, headless-friendly Debian insta
 **Date:** 2025-11-16
 
 Phase 2 was formally defined and documented. This phase establishes the initramfs structure, runtime skeleton, and state machine framework for the Screaming Penguin installer. No destructive actions are implemented at this stage; the system must only log state transitions and complete a dry run inside QEMU. This documentation provides the structural contract required before implementing any real installation logic.
+
+## Entry 002 — Phase 2 Skeleton Runtime and Initramfs
+
+**Date:** 2025-11-16
+
+The initramfs and runtime skeleton for Screaming Penguin were created, including the non-destructive installer state machine. Initramfs hooks, runtime modules, and logging libraries were added to support a dry-run installer that logs each state transition without touching disks. This establishes the structural foundation required for later phases to add real configuration, safety checks, and installation behavior.
