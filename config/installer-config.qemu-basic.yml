@@ -1,0 +1,34 @@
+version: 0.1
+
+target:
+  disk: vdb          # QEMU target disk (installer image is typically vda)
+  wipe: true
+
+filesystem:
+  layout: single
+  type: ext4
+  boot_mode: auto
+
+rootfs:
+  path: /config/rootfs/debian-rootfs.tar.gz
+
+system:
+  hostname: sp-qemu-basic
+  timezone: America/Chicago
+  locale: en_US.UTF-8
+
+user:
+  name: rey
+  sudo: true
+  # Placeholder hash; suitable only for ephemeral test systems.
+  password_hash: "$6$example-placeholder-hash"
+
+ssh:
+  enable: true
+  authorized_keys:
+    - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIexample-qemu-key-for-testing-only"
+
+safety:
+  require_erase_word: false
+
+

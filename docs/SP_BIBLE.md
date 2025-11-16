@@ -125,3 +125,21 @@ the three core acceptance cases (happy path, SSH-disabled with password, and
 ERASE-word safety failure). Updated DEV_ROADMAP.md and created a harness
 placeholder under tests/harness/. No executable code or CI workflows were
 introduced in this checkpoint.
+
+```markdown
+## Entry 013 — Phase 6 QEMU Harness Implemented
+
+**Date:** 2025-11-16
+
+Implemented the initial QEMU acceptance harness. Added
+`tests/harness/qemu-acceptance.sh` to exercise the installer end-to-end in
+QEMU using a virtual target disk and a QEMU-specific installer-config. The
+harness populates the /config partition inside the installer image with the
+rootfs tarball and config, runs an install phase, then boots the installed
+system and checks logs for success markers (FINISH state, successful install,
+expected hostname). Added `config/installer-config.qemu-basic.yml` as a
+known-good example config and wired everything through a `make qemu-acceptance`
+target. Updated QEMU_TESTS.md with implementation notes. CI integration for
+these tests will be handled in a later checkpoint.
+```
+
