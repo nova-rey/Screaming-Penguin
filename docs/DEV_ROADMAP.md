@@ -448,25 +448,55 @@ Phase 7 is complete when:
 
 ---
 
-### Milestone 8 — v1.0.0 Release
+## Phase 8 — v1.0.0 Release Preparation
 
-**Goal:** Declare v1 complete and publish the artifacts.
+**Goal:**  
+Finalize documentation, polish presentation, and prepare Screaming Penguin for
+its first public release (v1.0.0). No installer logic will change in this
+phase. All work focuses on final user-facing docs, release readiness, and
+ensuring the project presents a stable and complete v1.
 
-**Tasks:**
+---
 
-- Tag the repository with `v1.0.0`.
-- Capture reference artifacts (local-only or release assets):
-  - `screaming-penguin-v1.img` — installer image.
-  - `debian-rootfs-v1.tar.gz` — reference rootfs tarball.
-  - Example configs.
-- Ensure all v1 acceptance criteria in `docs/V1_CHECKLIST.md` are satisfied.
-- Append a new entry to `docs/SP_BIBLE.md` summarizing the v1 release (handled in the PR that actually achieves v1).
+### Deliverables
 
-**Done When:**
+1. Documentation polish across:
+   - README cleanup
+   - `GETTING_STARTED.md`
+   - `INSTALLER_USAGE.md`
+   - `CONFIG_REFERENCE.md`
+   - `SAFETY.md`
+   - `TROUBLESHOOTING.md`
+   - `RELEASE_NOTES_v1.0.0.md`
 
-- The tagged v1.0.0 commit:
-  - Builds cleanly.
-  - Passes all v1 tests.
-  - Has complete, accurate documentation.
+2. Release readiness:
+   - Confirm that all docs accurately describe v1 behavior and workflow
+   - Ensure examples and terminology match final installer behavior
+   - Create a final VERSION file during Phase 8 Prompt C
+
+3. Presentation cleanup:
+   - Remove outdated scaffolding lines from the README
+   - Ensure docs no longer refer to Phase 7 or transitional states
+   - Add a release readiness checklist to CI_OVERVIEW.md or a new doc
+
+---
+
+### Out of Scope
+
+- No behavior or logic changes to the installer or rootfs builder
+- No new features or supported configurations
+- No CI workflow automation for publishing releases
+- No branding or design changes beyond small cleanup
+
+---
+
+### Definition of Done
+
+Phase 8 is complete when:
+- Documents reflect the finished v1 system
+- README reads cleanly and professionally
+- Release notes for v1.0.0 are complete
+- The repo is ready for a human-triggered GitHub Release
+- Bible entries mark both the start and completion of Phase 8
 
 ---
