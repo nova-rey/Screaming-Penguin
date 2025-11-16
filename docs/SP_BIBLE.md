@@ -79,3 +79,13 @@ It installs debootstrap, runs `make rootfs` to produce
 exists, is non-empty, and contains key files such as etc/os-release and bin/sh.
 This CI job does not run on every push or pull request and is intended as a
 periodic validation of the rootfs bakery.
+
+## Entry 009 — Phase 5 Installer Runtime Kickoff
+
+**Date:** 2025-11-16
+
+Began Phase 5 by defining the full installer runtime architecture, state
+machine, safety model, logging requirements, and chroot configuration
+contract. Added INSTALLER_RUNTIME.md, updated DEV_ROADMAP.md and
+CONFIG_SCHEMA.md, and created placeholder directories for the future
+runtime scripts. No executable code was introduced in this checkpoint.

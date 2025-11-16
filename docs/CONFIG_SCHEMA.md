@@ -60,3 +60,16 @@ The installer expects the tarball to be provided at:
 /config/rootfs/debian-rootfs.tar.gz
 
 During later phases, the builder may optionally copy or symlink its output to this location for convenience.
+
+### Phase 5 — Installer Runtime Requirements
+
+The installer enforces the following rules:
+
+- `target.disk` must be provided and must not match the USB device.
+- `rootfs.path` must exist and point to a valid tarball.
+- `user.name` must be provided.
+- If SSH is disabled, `user.password_hash` is required.
+- If SSH is enabled, at least one `authorized_keys` entry is required.
+- If `safety.require_erase_word` is true, the installer will prompt for `ERASE` and abort on mismatch.
+
+These requirements are evaluated during the LOAD_CONFIG state.
