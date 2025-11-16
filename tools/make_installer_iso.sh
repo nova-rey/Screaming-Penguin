@@ -19,8 +19,9 @@ P2_SIZE_MB=2048                        # Config partition
 mkdir -p "$BUILD_DIR" dist
 
 echo "[SP-IMG] Cleaning build directory…"
-rm -rf "$BUILD_DIR"/*
-mkdir -p "$BOOT_TREE"
+# Remove the entire build directory safely, then recreate it to avoid rm /* risks.
+rm -rf "$BUILD_DIR"
+mkdir -p "$BUILD_DIR" "$BOOT_TREE"
 
 echo "[SP-IMG] Creating raw disk image $IMG_OUT…"
 truncate -s "$IMG_SIZE" "$IMG_OUT"
@@ -40,7 +41,14 @@ parted -s "$IMG_OUT" mkpart primary "${P1_SIZE_MB}MiB" "$((P1_SIZE_MB + P2_SIZE_
 ### LOOP DEVICE SETUP ###
 echo "[SP-IMG] Attaching loop device…"
 LOOPDEV=$(losetup --find --show "$IMG_OUT")
-trap 'losetup -d "$LOOPDEV" || true' EXIT
+cleanup() {
+    echo "[SP-IMG] Cleaning up loop devices…"
+    # Best-effort cleanup; ignore errors.
+    kpartx -dv "$LOOPDEV" >/dev/null 2>&1 || true
+    losetup -d "$LOOPDEV" 2>/dev/null || true
+}
+trap cleanup EXIT
+
 
 echo "[SP-IMG] Mapping partitions…"
 kpartx -av "$LOOPDEV" >/dev/null
@@ -55,7 +63,7 @@ mkfs.vfat -n SP_CONFIG "$P2_DEV"
 
 ### BUILD BOOT TREE ###
 # NOTE: p1 population (kernel, initramfs, GRUB) is minimal in Phase 3.
-#       Real bootloader wiring arrives in Phase 4 or 5.
+#       Real bootloader wiring arrives in later phases.
 
 echo "[SP-IMG] Building minimal boot tree…"
 
@@ -68,11 +76,14 @@ echo "Placeholder kernel" > "$BOOT_TREE/boot/vmlinuz-sp"
 echo "Placeholder initramfs" > "$BOOT_TREE/boot/initrd.img-sp"
 
 # Minimal GRUB directory for future expansion.
-mkdir -p "$BOOT_TREE/EFI/BOOT"
-echo "search --file --set=root /boot/vmlinuz-sp" > "$BOOT_TREE/boot/grub.cfg"
-echo "linux /boot/vmlinuz-sp quiet" >> "$BOOT_TREE/boot/grub.cfg"
-echo "initrd /boot/initrd.img-sp" >> "$BOOT_TREE/boot/grub.cfg"
-echo "boot" >> "$BOOT_TREE/boot/grub.cfg"
+mkdir -p "$BOOT_TREE/boot" "$BOOT_TREE/EFI/BOOT"
+
+{
+    echo "search --file --set=root /boot/vmlinuz-sp"
+    echo "linux /boot/vmlinuz-sp quiet"
+    echo "initrd /boot/initrd.img-sp"
+    echo "boot"
+} > "$BOOT_TREE/boot/grub.cfg"
 
 ### POPULATE P1 ###
 echo "[SP-IMG] Populating boot partition p1…"
@@ -86,9 +97,6 @@ sync
 umount "$BUILD_DIR/mount-p1"
 
 ### FINALIZE ###
-echo "[SP-IMG] Cleaning up loop devices…"
-kpartx -dv "$LOOPDEV" >/dev/null
-losetup -d "$LOOPDEV"
-
+# Cleanup is handled by the trap.
 echo "[SP-IMG] Image build complete."
 echo "[SP-IMG] Output: $IMG_OUT"
