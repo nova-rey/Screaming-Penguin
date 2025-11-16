@@ -232,3 +232,23 @@ cutting a v1.0.0 release of Screaming Penguin:
 - CI workflows (main + dist-release) run without errors
 - Logs are correctly written to `/config/logs/`
 - No temporary or transitional references to Phases 5–7 remain in docs
+## Release Flow Summary (v1.0.0)
+
+For Screaming Penguin v1.0.0, the recommended release flow is:
+
+1. Ensure main CI is green on the target release commit.
+2. Optionally run:
+   - QEMU acceptance workflow
+   - Dist-release CI workflow
+3. Build the local release bundle with `make dist-release`.
+4. Verify checksums in `dist/release/SHA256SUMS`.
+5. Tag the release commit (e.g. `v1.0.0`) and push the tag.
+6. Create a GitHub Release using:
+   - Release artifacts from `dist/release/`
+   - Content from `docs/RELEASE_NOTES_v1.0.0.md`.
+
+CI does not currently publish releases automatically; the release step is
+intentionally human-driven.
+
+
+⸻
