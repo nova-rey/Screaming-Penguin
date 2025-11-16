@@ -1,0 +1,22 @@
+This file is an additive history log. Future agents must only append entries; they must not edit or delete existing content.
+
+# Screaming Penguin Bible
+
+This document is the long-term narrative log for Screaming Penguin development.
+
+**Rules:**
+
+- This file is **additive only**.
+- Do **not** rewrite, reorder, or delete existing entries.
+- Each meaningful pull request or major change should add a short entry at the end:
+  - Date (ISO format).
+  - Short title.
+  - 2–5 sentences describing what changed and why.
+
+---
+
+## Entry 000 — Project Kickoff and v0 Definition
+
+**Date:** 2025-11-15
+
+Screaming Penguin was defined as a config-driven, headless-friendly Debian installer delivered as a USB image. The v0 scope focuses on x86_64, full-disk wipe installs, and a two-partition USB layout with a read-only boot environment and a writable `/config` partition. The design emphasizes safety (no disk guessing, USB protection, erase word confirmation) and repeatability via a prebuilt rootfs tarball. Initial documentation (design, roadmap, philosophy, Bible, and agent entrypoint) was specified to anchor all future development steps.
