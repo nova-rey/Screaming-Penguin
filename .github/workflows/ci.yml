@@ -1,0 +1,63 @@
+name: Screaming Penguin CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+      - "**/feature/**"
+  pull_request:
+
+jobs:
+  ci:
+    name: Lint, Build Image, QEMU Smoke
+    runs-on: ubuntu-latest
+
+    env:
+      DEBIAN_FRONTEND: noninteractive
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show environment info
+        run: |
+          uname -a
+          lsb_release -a || true
+          echo "Shell: $SHELL"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            shellcheck \
+            qemu-system-x86 \
+            parted \
+            kpartx \
+            dosfstools \
+            util-linux \
+            mount \
+            xz-utils
+
+      - name: ShellCheck all shell scripts
+        run: |
+          echo "[CI] Running ShellCheck on all *.sh files..."
+          SH_FILES="$(git ls-files '*.sh')"
+          if [ -n "$SH_FILES" ]; then
+            shellcheck $SH_FILES
+          else
+            echo "[CI] No shell scripts found; skipping ShellCheck."
+          fi
+
+      - name: Build installer image (make iso)
+        run: |
+          echo "[CI] Running 'make iso' to build Screaming Penguin image..."
+          make iso
+          ls -lh dist || true
+
+      - name: QEMU smoke boot (BIOS)
+        run: |
+          echo "[CI] Running QEMU smoke test..."
+          chmod +x ci/qemu_smoke_ci.sh
+          ci/qemu_smoke_ci.sh

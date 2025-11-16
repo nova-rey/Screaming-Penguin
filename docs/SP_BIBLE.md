@@ -44,3 +44,9 @@ Phase 3 was formally defined as the ISO / USB image builder milestone for Scream
 **Date:** 2025-11-16
 
 Implemented the Screaming Penguin raw image builder (Phase 3). Added tools/make_installer_iso.sh, Makefile build targets, and the QEMU smoke test harness. The builder safely creates a GPT-based image with a bootable partition and a writable FAT32 /config partition entirely within local files. No destructive operations target real block devices. The resulting image boots in QEMU and reaches the Phase 2 installer skeleton.
+
+## Entry 005 — CI Pipeline Established
+
+**Date:** 2025-11-16
+
+A GitHub Actions CI pipeline was added for Screaming Penguin. The workflow runs ShellCheck on all shell scripts, builds the installer image via `make iso`, and performs a QEMU-based smoke test using the generated raw image. The QEMU smoke test boots the image in a virtual machine, captures logs, and verifies that the Phase 2 installer skeleton runs through its primary states (including BOOT_INIT and FINISH). All CI operations are confined to repository files, build artifacts, and loop devices created from the image; no real block devices are ever touched.
