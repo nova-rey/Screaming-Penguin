@@ -216,3 +216,19 @@ The dist-release job:
 This workflow is designed as a packaging dry run and is not used as a strict
 per-PR gate. It provides periodic confidence that the release bundle remains
 buildable from the main branch.
+
+## v1 Release Readiness Checklist (Phase 8)
+
+This checklist describes the minimal conditions that must be satisfied before
+cutting a v1.0.0 release of Screaming Penguin:
+
+- `make dist-release` successfully assembles a complete release bundle
+- ISO builds successfully and boots under QEMU
+- Rootfs tarball builds successfully
+- All user-facing documentation is accurate and free of placeholder language
+- README reflects the final state of the project
+- Example configs are valid and tested under QEMU
+- Release notes for v1.0.0 are finalized
+- CI workflows (main + dist-release) run without errors
+- Logs are correctly written to `/config/logs/`
+- No temporary or transitional references to Phases 5–7 remain in docs

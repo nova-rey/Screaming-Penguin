@@ -1,8 +1,9 @@
 # Screaming Penguin
 
-Screaming Penguin is a config-driven, automated Debian installer delivered as a
-bootable USB image. This README will be refined alongside the Phase 7
-documentation work.
+Screaming Penguin is a deterministic, configuration-driven automated Debian
+installer designed for headless environments, homelabs, labs, and unattended
+deployments. It installs a prebuilt Debian Bookworm root filesystem onto a
+target disk using a YAML configuration stored on the USB's `/config` partition.
 
 ## Documentation
 

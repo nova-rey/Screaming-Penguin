@@ -192,3 +192,14 @@ and uploads the assembled bundle and checksums as CI artifacts. Updated
 CI_OVERVIEW.md to describe this workflow and its weekly + manual triggers.
 Phase 7 is now fully represented in documentation, packaging targets, and CI
 coverage without altering installer or rootfs runtime behavior.
+
+## Entry 018 — Phase 8 Release Preparation Kickoff
+
+**Date:** 2025-11-16
+
+Began Phase 8 by refining documentation structure, updating the development
+roadmap for the v1.0.0 release phase, cleaning the README to remove transitional
+language, and adding a release readiness checklist to CI_OVERVIEW.md. This
+checkpoint prepares the repository for final packaging, documentation polish,
+and the forthcoming v1.0.0 release assembly. No installer or build behavior was
+modified in this step.
