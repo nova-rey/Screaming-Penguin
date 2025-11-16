@@ -74,3 +74,25 @@ Later phases may add:
 - Rootfs CI pipelines (optional)
 
 Phase 4 intentionally keeps the scope narrow to ensure stability and reproducibility.
+## Implementation Notes (Phase 4)
+
+The rootfs builder script is located at:
+
+tools/build_debian_rootfs.sh
+
+It builds a Debian Bookworm (amd64) root filesystem using `mmdebstrap`
+(if available) or `debootstrap` as a fallback.
+
+Output tarballs are stored under:
+
+dist/debian-rootfs-bookworm-amd64.tar.gz
+
+The script ensures:
+- All work is confined to `build/` and `dist/`
+- The root password is locked by default
+- A generic hostname is set
+- `/etc/os-release` is present
+
+This builder does not perform any target-disk installation steps. Those
+are handled in Phase 5.
+

@@ -56,3 +56,14 @@ A GitHub Actions CI pipeline was added for Screaming Penguin. The workflow runs 
 **Date:** 2025-11-16
 
 Defined the full design for Phase 4 of Screaming Penguin: the Debian rootfs builder. Added ROOTFS_BUILD.md with a detailed description of build constraints, default suite (Debian Bookworm), architecture (amd64), safety guarantees, and expected artifact layout under build/ and dist/. Updated DEV_ROADMAP.md and CONFIG_SCHEMA.md accordingly. No scripts or Makefile changes were introduced in this checkpoint.
+## Entry 007 — Phase 4 Rootfs Builder Implemented
+
+**Date:** 2025-11-16
+
+Implemented the Debian rootfs builder (Phase 4). Added the executable script
+`tools/build_debian_rootfs.sh`, the `make rootfs` target, and updated gitignore
+accordingly. The builder creates a minimal Debian Bookworm (amd64) filesystem
+under build/ and packages it into a versioned tarball under dist/. Safety
+constraints are enforced: no host system modification and no real block device
+access. Documentation updated to describe the implemented pipeline.
+

@@ -1,0 +1,3 @@
+# Rootfs builder artifacts
+build/rootfs-*/
+dist/debian-rootfs-*.tar.gz
