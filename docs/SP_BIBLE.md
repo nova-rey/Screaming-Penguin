@@ -38,3 +38,9 @@ The initramfs and runtime skeleton for Screaming Penguin were created, including
 **Date:** 2025-11-16
 
 Phase 3 was formally defined as the ISO / USB image builder milestone for Screaming Penguin. The roadmap and ISO build plan were updated to describe a GPT-based raw image with a bootable read-only partition and a writable FAT32 `/config` partition. This phase is explicitly limited to producing the installer image itself, leaving target disk installation and configuration logic to later milestones.
+
+## Entry 004 — Phase 3 Image Builder Implementation
+
+**Date:** 2025-11-16
+
+Implemented the Screaming Penguin raw image builder (Phase 3). Added tools/make_installer_iso.sh, Makefile build targets, and the QEMU smoke test harness. The builder safely creates a GPT-based image with a bootable partition and a writable FAT32 /config partition entirely within local files. No destructive operations target real block devices. The resulting image boots in QEMU and reaches the Phase 2 installer skeleton.
