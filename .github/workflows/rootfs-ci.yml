@@ -1,0 +1,74 @@
+name: Screaming Penguin Rootfs CI
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 0"  # Weekly on Sunday at 03:00 UTC
+
+jobs:
+  rootfs:
+    name: Build and Validate Debian Rootfs (Bookworm)
+    runs-on: ubuntu-latest
+
+    env:
+      DEBIAN_FRONTEND: noninteractive
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show environment info
+        run: |
+          uname -a
+          lsb_release -a || true
+          echo "Shell: $SHELL"
+
+      - name: Install rootfs build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            debootstrap \
+            xz-utils \
+            tar
+
+      - name: Build Debian rootfs (make rootfs)
+        run: |
+          echo "[ROOTFS-CI] Running 'make rootfs' to build Debian Bookworm rootfs…"
+          make rootfs
+          echo "[ROOTFS-CI] Listing dist/ contents:"
+          ls -lh dist || true
+
+      - name: Verify rootfs tarball exists
+        run: |
+          TARBALL="dist/debian-rootfs-bookworm-amd64.tar.gz"
+          echo "[ROOTFS-CI] Checking for tarball: $TARBALL"
+          if [ ! -f "$TARBALL" ]; then
+            echo "[ROOTFS-CI] ERROR: Rootfs tarball not found."
+            exit 1
+          fi
+          if [ ! -s "$TARBALL" ]; then
+            echo "[ROOTFS-CI] ERROR: Rootfs tarball is empty."
+            exit 1
+          fi
+          echo "[ROOTFS-CI] Rootfs tarball found and non-empty."
+
+      - name: Inspect rootfs tarball contents
+        run: |
+          TARBALL="dist/debian-rootfs-bookworm-amd64.tar.gz"
+          echo "[ROOTFS-CI] Inspecting tarball for key files…"
+          tar -tzf "$TARBALL" | head -n 40 || true
+
+          check_path() {
+            local path="$1"
+            if tar -tzf "$TARBALL" | grep -q "^$path"; then
+              echo "[ROOTFS-CI] OK: Found $path"
+            else
+              echo "[ROOTFS-CI] ERROR: Missing required path: $path"
+              exit 1
+            fi
+          }
+
+          check_path "etc/os-release"
+          check_path "bin/sh"
+
+          echo "[ROOTFS-CI] Rootfs content checks passed."

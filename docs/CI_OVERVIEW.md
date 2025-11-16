@@ -113,3 +113,27 @@ The Screaming Penguin CI pipeline provides:
 This combination helps prevent regressions in the installer image and catches errors early, while respecting the unique constraints of an installer-focused repository.
 
 ---
+
+## Rootfs CI Harness (Phase 4 Optional)
+
+A separate CI workflow validates the Debian rootfs builder:
+
+- **Workflow file:** `.github/workflows/rootfs-ci.yml`
+- **Triggers:**
+  - Manual (`workflow_dispatch`)
+  - Weekly cron schedule (`0 3 * * 0`)
+
+The rootfs CI job:
+
+1. Installs `debootstrap` and related tools on the CI runner.
+2. Runs `make rootfs` to build the Debian Bookworm (amd64) root filesystem.
+3. Verifies that the expected tarball exists and is non-empty:
+   - `dist/debian-rootfs-bookworm-amd64.tar.gz`
+4. Inspects the tarball contents and asserts the presence of:
+   - `etc/os-release`
+   - `bin/sh`
+
+This workflow does not run on every push or pull request to avoid
+overloading Debian mirrors and to keep PR latency low. It is intended
+for periodic validation of the rootfs builder and can be triggered
+manually when needed.
