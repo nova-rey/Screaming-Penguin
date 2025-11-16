@@ -67,3 +67,15 @@ under build/ and packages it into a versioned tarball under dist/. Safety
 constraints are enforced: no host system modification and no real block device
 access. Documentation updated to describe the implemented pipeline.
 
+
+## Entry 008 — Rootfs CI Harness Added
+
+**Date:** 2025-11-16
+
+Added a dedicated GitHub Actions workflow for the Debian rootfs builder.
+The `rootfs-ci` workflow can be triggered manually or on a weekly schedule.
+It installs debootstrap, runs `make rootfs` to produce
+`dist/debian-rootfs-bookworm-amd64.tar.gz`, and verifies that the tarball
+exists, is non-empty, and contains key files such as etc/os-release and bin/sh.
+This CI job does not run on every push or pull request and is intended as a
+periodic validation of the rootfs bakery.
