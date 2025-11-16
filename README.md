@@ -1,3 +1,6 @@
+<p align="center">
+  <img src="assets/logo/screaming-penguin.PNG" width="200" alt="Screaming Penguin Logo">
+</p>
 # Screaming Penguin
 
 Screaming Penguin is a deterministic, configuration-driven automated Debian
