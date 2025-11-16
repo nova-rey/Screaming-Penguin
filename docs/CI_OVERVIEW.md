@@ -137,3 +137,21 @@ This workflow does not run on every push or pull request to avoid
 overloading Debian mirrors and to keep PR latency low. It is intended
 for periodic validation of the rootfs builder and can be triggered
 manually when needed.
+
+## Installer Runtime CI (Phase 5)
+
+The installer runtime shell scripts are validated by a dedicated CI workflow:
+
+- **Workflow file:** `.github/workflows/installer-runtime-ci.yml`
+- **Triggers:**
+  - On push and pull request affecting `installer/runtime/**`
+  - Manual (`workflow_dispatch`)
+
+The job performs a POSIX shell syntax check using `sh -n` over all
+`installer/runtime/*.sh` files. This ensures that the installer orchestration
+and helper scripts remain syntactically valid without executing them or
+touching any block devices.
+
+This workflow complements the main image build and QEMU smoke tests by
+providing a fast, low-risk verification path focused specifically on the
+installer runtime.
