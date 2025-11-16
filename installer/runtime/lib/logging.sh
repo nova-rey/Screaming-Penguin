@@ -1,7 +1,8 @@
 #!/bin/sh
-# Screaming Penguin logging library (Phase 2 skeleton).
-# Provides simple log functions for runtime scripts.
-# Non-destructive, safe to source from any context.
+# Screaming Penguin logging library (Phase 5).
+# Provides simple logging to console and an optional log file.
+#
+# Safe to source from any context (initramfs or runtime).
 
 set -u
 
@@ -12,11 +13,19 @@ _sp_log() {
     shift
     timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "no-time")"
     msg="[$timestamp] [$level] $*"
+
+    # Console log
     echo "$msg"
+
     # Best-effort file logging; ignore failures.
-    {
-        echo "$msg" >>"$SP_LOG_FILE"
-    } 2>/dev/null || :
+    (
+        umask 077
+        log_dir="$(dirname "$SP_LOG_FILE")"
+        if [ -n "$log_dir" ] && [ "$log_dir" != "." ]; then
+            mkdir -p "$log_dir"
+        fi
+        printf "%s\n" "$msg" >>"$SP_LOG_FILE"
+    ) 2>/dev/null || :
 }
 
 log_info() {
