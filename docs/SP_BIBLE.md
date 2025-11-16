@@ -228,3 +228,8 @@ top of the current main branch.
 
 
 ⸻
+
+### Dist-Release Checksum Fix (Bookworm v1.0.0)
+
+- Fixed the `make dist-release` target so that SHA256SUMS is generated only for top-level files in `dist/release` (installer image, rootfs tarball, etc.), ignoring the `example-configs/` directory.
+- This resolves the `sha256sum: example-configs: Is a directory` failure seen in the `Screaming Penguin Dist-Release Check` workflow and allows the release bundle artifact to be produced cleanly.
