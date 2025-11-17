@@ -69,6 +69,10 @@ jobs:
           chmod +x ci/qemu_smoke_ci.sh
           ci/qemu_smoke_ci.sh
 
+  # ISO CI job:
+  # Builds a hybrid BIOS/UEFI-bootable ISO using grub-mkrescue.
+  # Does not perform QEMU runtime tests yet.
+  # Produces screaming-penguin.iso as an artifact.
   build_iso:
     name: "Build ISO Artifact"
     runs-on: ubuntu-latest

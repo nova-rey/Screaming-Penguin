@@ -205,7 +205,7 @@ The dist-release job:
    - Builds the Screaming Penguin installer image (if needed).
    - Builds the Debian Bookworm rootfs tarball (if needed).
    - Assembles the v1.0.0 release bundle under `dist/release/`, including:
-     - Installer image
+     - Installer images (`screaming-penguin.iso` and `screaming-penguin.img`)
      - Rootfs tarball
      - Example configs
      - `SHA256SUMS`
