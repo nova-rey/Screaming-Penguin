@@ -50,6 +50,11 @@ jobs:
             echo "[CI] No shell scripts found; skipping ShellCheck."
           fi
 
+      - name: Install ISO build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y debootstrap
+
       - name: Build installer image (make iso)
         run: |
           echo "[CI] Running 'make iso' to build Screaming Penguin image..."
