@@ -73,25 +73,39 @@ jobs:
   # Builds a hybrid BIOS/UEFI-bootable ISO using grub-mkrescue.
   # Does not perform QEMU runtime tests yet.
   # Produces screaming-penguin.iso as an artifact.
-  build_iso:
-    name: "Build ISO Artifact"
+  iso-build:
+    name: "ISO Build and Artifact"
     runs-on: ubuntu-latest
+    needs: [ci]
+    env:
+      DEBIAN_FRONTEND: noninteractive
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Install GRUB + tools
+      - name: Install dependencies for ISO build
         run: |
           sudo apt-get update
-          sudo apt-get install -y grub-pc-bin grub-efi-amd64-bin xorriso mtools
+          sudo apt-get install -y \
+            xorriso \
+            isolinux \
+            syslinux-common \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            grub-efi-amd64-signed \
+            mtools \
+            debootstrap
 
-      - name: Build ISO
+      - name: Build ISO image
         run: |
           echo "[CI-ISO] Running 'make iso'..."
           sudo make iso
-          ls -lh dist
+          echo "[CI-ISO] Listing dist/ contents…"
+          ls -lh dist || true
 
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
         with:
           name: screaming-penguin-iso
-          path: dist/screaming-penguin.iso
+          path: dist/*.iso
+          if-no-files-found: error

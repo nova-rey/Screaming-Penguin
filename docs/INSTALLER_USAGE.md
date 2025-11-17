@@ -65,6 +65,47 @@ a file named `installer-config.yml`.
 
 Refer to `USING_IMG.md` or `USING_ISO.md` for full instructions.
 
+### Path A: Raw .img (Linux / macOS, recommended)
+
+On Linux (and other Unix-like systems), the simplest path is to use the
+raw `.img` artifact:
+
+1. Download the release bundle and locate `screaming-penguin.img`.
+2. Identify your USB device (for example `/dev/sdX` or `/dev/diskN`).
+3. Write the image:
+
+   ```sh
+   sudo dd if=screaming-penguin.img of=/dev/sdX bs=4M conv=fsync status=progress
+   ```
+
+4. Safely eject the USB stick.
+
+The raw image already contains a small CONFIG partition. Mount that
+partition and copy your installer-config.yml (or installer-config.yaml)
+into the root of the CONFIG volume before booting the target machine.
+
+### Path B: ISO (Windows / generic USB tools)
+
+For Windows users (and anyone who prefers ISO-centric tools such as Rufus),
+use the `screaming-penguin.iso` artifact:
+
+1. Download `screaming-penguin.iso` from the release or CI artifacts.
+2. Use your preferred USB tool (e.g. Rufus, Balena Etcher, etc.) to write
+   the ISO to a USB stick. A single large bootable partition will be created.
+3. After flashing, **shrink** the main partition to free ~1–2 GiB of space:
+   - On Windows, open **Disk Management**.
+   - Locate the USB device and right-click the main volume.
+   - Choose **Shrink Volume…** and free at least 1024–2048 MB.
+4. Create a new partition in the freed space:
+   - Format it as **FAT32**.
+   - Label it `CONFIG`.
+5. Mount the new `CONFIG` partition and copy your `installer-config.yml`
+   (or `installer-config.yaml`) into its root.
+6. Safely eject the USB stick and boot the target machine from USB.
+
+At boot time, Screaming Penguin will look for a FAT32 partition labeled
+`CONFIG` and load the installer configuration from there.
+
 ---
 
 ## Headless Behavior
@@ -81,25 +122,3 @@ Screaming Penguin is designed for unattended environments:
 
 See `TROUBLESHOOTING.md` for detailed failure modes and log extraction.
 
-## Using the ISO on Windows/macOS
-
-After flashing the ISO to a USB drive, the device will contain a single ISO9660
-read-only partition. To supply configuration, create a second FAT32 partition:
-
-1. Shrink the USB drive by 1–2 GB (Disk Management on Windows, Disk Utility on macOS).
-2. Create a new FAT32 partition.
-3. Name the partition `CONFIG` (uppercase recommended).
-4. Copy your `installer-config.yml` and any optional files into the root of that partition.
-
-The installer will automatically detect the `CONFIG` partition at boot.
-
-## Using the IMG on Linux
-
-Flashing the `.img` file with `dd` or GNOME Disks will create:
-
-- A boot partition
-- A writable config partition (`CONFIG`)
-- The runtime filesystem
-
-You may immediately place your `installer-config.yml` into the `CONFIG` partition
-from Linux or any OS that can mount FAT32.
