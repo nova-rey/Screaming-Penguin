@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck shell=bash
 set -euo pipefail
 
 echo "[SP-ISO] Building hybrid ISO image…"
@@ -11,7 +12,7 @@ ISO="$DIST_DIR/screaming-penguin.iso"
 mkdir -p "$BUILD_DIR" "$DIST_DIR"
 
 echo "[SP-ISO] Preparing ISO tree…"
-rm -rf "$BUILD_DIR"/*
+rm -rf "${BUILD_DIR:?}"/*
 mkdir -p "$BUILD_DIR/iso/boot"
 mkdir -p "$BUILD_DIR/iso/EFI/boot"
 
