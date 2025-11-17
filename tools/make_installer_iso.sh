@@ -1,102 +1,54 @@
-#!/bin/sh
-# Screaming Penguin - Image Builder (Phase 3 C1–C3)
-# Safe, file-only raw disk image builder.
-# This script MUST NOT touch real block devices.
-#
-# All destructive operations operate ONLY on files under ./build or ./dist.
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -eu
+echo "[SP-ISO] Building hybrid ISO image…"
 
-### CONFIGURATION ###
-IMG_OUT="dist/screaming-penguin.img"
-IMG_SIZE="3G"              # Adjustable
-BUILD_DIR="build"
-BOOT_TREE="$BUILD_DIR/boot-tree"     # Temporary boot environment
-P1_SIZE_MB=512                         # Boot partition
-P2_SIZE_MB=2048                        # Config partition
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+BUILD_DIR="$ROOT/build/iso"
+DIST_DIR="$ROOT/dist"
+ISO="$DIST_DIR/screaming-penguin.iso"
 
-### PREP ###
-mkdir -p "$BUILD_DIR" dist
+mkdir -p "$BUILD_DIR" "$DIST_DIR"
 
-echo "[SP-IMG] Cleaning build directory…"
-# Remove the entire build directory safely, then recreate it to avoid rm /* risks.
-rm -rf "$BUILD_DIR"
-mkdir -p "$BUILD_DIR" "$BOOT_TREE"
+echo "[SP-ISO] Preparing ISO tree…"
+rm -rf "$BUILD_DIR"/*
+mkdir -p "$BUILD_DIR/iso/boot"
+mkdir -p "$BUILD_DIR/iso/EFI/boot"
 
-echo "[SP-IMG] Creating raw disk image $IMG_OUT…"
-truncate -s "$IMG_SIZE" "$IMG_OUT"
+# Copy kernel + initramfs from the existing runtime build
+cp "$ROOT/build/runtime/vmlinuz" "$BUILD_DIR/iso/boot/vmlinuz"
+cp "$ROOT/build/runtime/initrd.img" "$BUILD_DIR/iso/boot/initrd.img"
 
-### PARTITIONING ###
-echo "[SP-IMG] Creating GPT table…"
-parted -s "$IMG_OUT" mklabel gpt
-
-echo "[SP-IMG] Creating boot partition (p1)…"
-parted -s "$IMG_OUT" mkpart primary 1MiB "${P1_SIZE_MB}MiB"
-echo "[SP-IMG] Setting legacy_boot flag (BIOS)…"
-parted -s "$IMG_OUT" set 1 legacy_boot on
-
-echo "[SP-IMG] Creating config partition (p2)…"
-parted -s "$IMG_OUT" mkpart primary "${P1_SIZE_MB}MiB" "$((P1_SIZE_MB + P2_SIZE_MB))MiB"
-
-### LOOP DEVICE SETUP ###
-echo "[SP-IMG] Attaching loop device…"
-LOOPDEV=$(losetup --find --show "$IMG_OUT")
-cleanup() {
-    echo "[SP-IMG] Cleaning up loop devices…"
-    # Best-effort cleanup; ignore errors.
-    kpartx -dv "$LOOPDEV" >/dev/null 2>&1 || true
-    losetup -d "$LOOPDEV" 2>/dev/null || true
+# Minimal GRUB configs
+cat > "$BUILD_DIR/iso/boot/grub.cfg" <<EOF
+set default=0
+set timeout=3
+menuentry "Screaming Penguin Installer" {
+    linux /boot/vmlinuz quiet
+    initrd /boot/initrd.img
 }
-trap cleanup EXIT
+EOF
 
+cat > "$BUILD_DIR/iso/EFI/boot/grub.cfg" <<EOF
+search --file --no-floppy --set=root /boot/vmlinuz
+set default=0
+set timeout=3
+menuentry "Screaming Penguin Installer" {
+    linux /boot/vmlinuz quiet
+    initrd /boot/initrd.img
+}
+EOF
 
-echo "[SP-IMG] Mapping partitions…"
-kpartx -av "$LOOPDEV" >/dev/null
-sleep 1
+# Copy GRUB EFI binary (use system grub-mkstandalone)
+echo "[SP-ISO] Building EFI bootloader…"
+grub-mkstandalone \
+    --format=x86_64-efi \
+    --output="$BUILD_DIR/iso/EFI/boot/bootx64.efi" \
+    "boot/grub/grub.cfg=$BUILD_DIR/iso/EFI/boot/grub.cfg"
 
-P1_DEV="/dev/mapper/$(basename "$LOOPDEV")p1"
-P2_DEV="/dev/mapper/$(basename "$LOOPDEV")p2"
+echo "[SP-ISO] Generating hybrid ISO…"
+grub-mkrescue \
+    -o "$ISO" \
+    "$BUILD_DIR/iso"
 
-### FORMAT P2 (FAT32) ###
-echo "[SP-IMG] Formatting p2 as FAT32…"
-mkfs.vfat -n SP_CONFIG "$P2_DEV"
-
-### BUILD BOOT TREE ###
-# NOTE: p1 population (kernel, initramfs, GRUB) is minimal in Phase 3.
-#       Real bootloader wiring arrives in later phases.
-
-echo "[SP-IMG] Building minimal boot tree…"
-
-mkdir -p "$BOOT_TREE/boot"
-
-# Kernel and initramfs are expected to exist under installer/initramfs output.
-# For Phase 3, we accept placeholders.
-cp -a installer/initramfs "$BOOT_TREE/initramfs" 2>/dev/null || true
-echo "Placeholder kernel" > "$BOOT_TREE/boot/vmlinuz-sp"
-echo "Placeholder initramfs" > "$BOOT_TREE/boot/initrd.img-sp"
-
-# Minimal GRUB directory for future expansion.
-mkdir -p "$BOOT_TREE/boot" "$BOOT_TREE/EFI/BOOT"
-
-{
-    echo "search --file --set=root /boot/vmlinuz-sp"
-    echo "linux /boot/vmlinuz-sp quiet"
-    echo "initrd /boot/initrd.img-sp"
-    echo "boot"
-} > "$BOOT_TREE/boot/grub.cfg"
-
-### POPULATE P1 ###
-echo "[SP-IMG] Populating boot partition p1…"
-mkfs.ext2 "$P1_DEV"
-mkdir -p "$BUILD_DIR/mount-p1"
-mount "$P1_DEV" "$BUILD_DIR/mount-p1"
-
-cp -a "$BOOT_TREE"/* "$BUILD_DIR/mount-p1/"
-
-sync
-umount "$BUILD_DIR/mount-p1"
-
-### FINALIZE ###
-# Cleanup is handled by the trap.
-echo "[SP-IMG] Image build complete."
-echo "[SP-IMG] Output: $IMG_OUT"
+echo "[SP-ISO] ISO created: $ISO"

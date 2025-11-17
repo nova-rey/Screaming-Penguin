@@ -241,3 +241,13 @@ top of the current main branch.
 Introduced documentation for ISO and IMG build paths. Added USING_ISO.md and
 USING_IMG.md. Updated README, GETTING_STARTED.md, INSTALLER_USAGE.md, and
 TROUBLESHOOTING.md. Prepared scaffolding for later build changes.
+
+## Entry 022 — Phase 9 Dual Artifact Build System
+
+**Date:** 2025-11-17
+
+Implemented Phase 9 Prompt B by adding a hybrid ISO build script, integrating
+ISO generation into the Makefile and dist-release packaging, and appending a new
+GitHub Actions job to build and upload the ISO artifact. The existing raw IMG
+build remains available via a dedicated target while CI now produces both
+artifacts.

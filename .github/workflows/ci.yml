@@ -68,3 +68,26 @@ jobs:
           echo "[CI] Running QEMU smoke test..."
           chmod +x ci/qemu_smoke_ci.sh
           ci/qemu_smoke_ci.sh
+
+  build_iso:
+    name: "Build ISO Artifact"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GRUB + tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y grub-pc-bin grub-efi-amd64-bin xorriso mtools
+
+      - name: Build ISO
+        run: |
+          echo "[CI-ISO] Running 'make iso'..."
+          sudo make iso
+          ls -lh dist
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: screaming-penguin-iso
+          path: dist/screaming-penguin.iso

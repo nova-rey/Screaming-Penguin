@@ -1,9 +1,13 @@
 # Screaming Penguin - Makefile
 
-.PHONY: iso rootfs clean qemu-acceptance
+.PHONY: img iso rootfs clean qemu-acceptance
+
+img:
+	@echo "[MAKE] Building Screaming Penguin installer image…"
+	sh tools/make_installer_img.sh
 
 iso:
-	@echo "[MAKE] Building Screaming Penguin installer image…"
+	@echo "[MAKE] Building Screaming Penguin ISO…"
 	sh tools/make_installer_iso.sh
 
 rootfs:
@@ -22,17 +26,12 @@ qemu-acceptance:
 # Phase 7 — Release Packaging
 # Assemble installer ISO, rootfs tarball, example configs, and checksums into dist/release/
 
-dist-release: iso rootfs
+dist-release: img iso rootfs
 	@echo "[DIST] Assembling v1.0.0 release directory..."
 	mkdir -p dist/release
 	cp dist/screaming-penguin.img dist/release/screaming-penguin-v1.0.0.img
+	cp dist/screaming-penguin.iso dist/release/screaming-penguin-v1.0.0.iso
 	cp dist/debian-rootfs-bookworm-amd64.tar.gz dist/release/debian-rootfs-bookworm-amd64-v1.0.0.tar.gz
-	
-	# Example configuration bundle
 	mkdir -p dist/release/example-configs
 	cp -r config/examples/*.yml dist/release/example-configs/
-	
-	# Generate SHA256 checksums
-	cd dist/release && find . -maxdepth 1 -type f ! -name 'SHA256SUMS' -exec sha256sum {} + > SHA256SUMS
-	
-	@echo "[DIST] Release bundle assembled under dist/release/"
+	cd dist/release && find . -type f -maxdepth 1 -print0 | xargs -0 sha256sum > SHA256SUMS

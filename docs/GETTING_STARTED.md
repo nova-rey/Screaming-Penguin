@@ -130,3 +130,12 @@ See config/examples/ or the release bundle’s example-configs directory.
 Proceed to INSTALLER_USAGE.md for detailed workflow and troubleshooting.
 
 ---
+
+## ISO Builds in CI
+
+The CI pipeline now produces both:
+
+- `screaming-penguin.img`
+- `screaming-penguin.iso`
+
+ISO builds are recommended for Windows/macOS users.
