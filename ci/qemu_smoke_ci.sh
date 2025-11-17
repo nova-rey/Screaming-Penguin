@@ -3,7 +3,7 @@
 # This script is intended to run in CI and must remain safe and self-contained.
 #
 # Current behavior (pre-bootloader wiring):
-#   - Verifies that dist/screaming-penguin.img exists.
+#   - Verifies that dist/screaming-penguin.img or dist/screaming-penguin.iso exists.
 #   - Boots the image in QEMU (BIOS mode) with a timeout.
 #   - Captures serial logs to build/qemu-ci.log.
 #   - Treats successful QEMU execution (even if only partial) as a pass.
@@ -13,20 +13,34 @@
 
 set -eu
 
-IMG="dist/screaming-penguin.img"
+IMG_PATH="dist/screaming-penguin.img"
+ISO_PATH="dist/screaming-penguin.iso"
+IMAGE=""
+QEMU_OPTS=""
 BUILD_DIR="build"
 LOG_FILE="$BUILD_DIR/qemu-ci.log"
 
 mkdir -p "$BUILD_DIR"
 
-if [ ! -f "$IMG" ]; then
-    echo "[QEMU-CI] Image not found: $IMG"
-    echo "[QEMU-CI] Run 'make iso' before invoking this smoke test."
+if [ -f "$IMG_PATH" ]; then
+    IMAGE="$IMG_PATH"
+    echo "[QEMU-CI] Found raw image: $IMAGE"
+    QEMU_OPTS="-drive file=$IMAGE,format=raw"
+elif [ -f "$ISO_PATH" ]; then
+    IMAGE="$ISO_PATH"
+    echo "[QEMU-CI] Found ISO image: $IMAGE"
+    QEMU_OPTS="-cdrom $IMAGE"
+else
+    echo "[QEMU-CI] No bootable image found."
+    echo "[QEMU-CI] Expected one of:"
+    echo "  - $IMG_PATH"
+    echo "  - $ISO_PATH"
+    echo "[QEMU-CI] Run 'make img' or 'make iso' before invoking this smoke test."
     exit 1
 fi
 
 echo "[QEMU-CI] Starting QEMU smoke test (BIOS mode)…"
-echo "[QEMU-CI] Image: $IMG"
+echo "[QEMU-CI] Image: $IMAGE"
 echo "[QEMU-CI] Logs:  $LOG_FILE"
 
 # Clean previous log
@@ -37,7 +51,7 @@ echo "[QEMU-CI] Logs:  $LOG_FILE"
 set +e
 timeout 60s qemu-system-x86_64 \
     -m 1024 \
-    -drive file="$IMG",format=raw \
+    $QEMU_OPTS \
     -serial stdio \
     -display none \
     2>&1 | tee "$LOG_FILE"
