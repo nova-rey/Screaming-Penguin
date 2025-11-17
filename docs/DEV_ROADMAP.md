@@ -500,3 +500,17 @@ Phase 8 is complete when:
 - Bible entries mark both the start and completion of Phase 8
 
 ---
+
+## Phase 10 — Minimal Boot Runtime for ISO Builds
+
+This phase introduces a proper boot runtime for the ISO build pipeline.  
+The goals are:
+
+- Implement a minimal Debian-based runtime containing `vmlinuz` and `initrd.img`.
+- Add a `make runtime` target to produce these artifacts.
+- Wire ISO generation so it depends on the runtime being built.
+- Repair and harden the NOVA_AGENT_ENTRYPOINT.md file.
+- Update documentation to reflect the new ISO build chain.
+
+No installer behavior changes are planned for this phase.
+
