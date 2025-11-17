@@ -108,4 +108,10 @@ Complete Examples
 See config/examples/ or the release bundle’s example-configs directory for
 fully working configurations.
 
+## ISO Workflow Notes
+
+When using ISO builds, the installer does not embed any configuration.  
+A standalone `CONFIG` partition must exist on the USB drive for the installer to
+load settings. The partition label must be exactly `CONFIG`, case-insensitive.
+
 ---
