@@ -80,3 +80,26 @@ Screaming Penguin is designed for unattended environments:
 ## Troubleshooting
 
 See `TROUBLESHOOTING.md` for detailed failure modes and log extraction.
+
+## Using the ISO on Windows/macOS
+
+After flashing the ISO to a USB drive, the device will contain a single ISO9660
+read-only partition. To supply configuration, create a second FAT32 partition:
+
+1. Shrink the USB drive by 1–2 GB (Disk Management on Windows, Disk Utility on macOS).
+2. Create a new FAT32 partition.
+3. Name the partition `CONFIG` (uppercase recommended).
+4. Copy your `installer-config.yml` and any optional files into the root of that partition.
+
+The installer will automatically detect the `CONFIG` partition at boot.
+
+## Using the IMG on Linux
+
+Flashing the `.img` file with `dd` or GNOME Disks will create:
+
+- A boot partition
+- A writable config partition (`CONFIG`)
+- The runtime filesystem
+
+You may immediately place your `installer-config.yml` into the `CONFIG` partition
+from Linux or any OS that can mount FAT32.

@@ -139,3 +139,15 @@ The CI pipeline now produces both:
 - `screaming-penguin.iso`
 
 ISO builds are recommended for Windows/macOS users.
+
+## ISO vs IMG Overview
+
+Screaming Penguin now ships two installer artifacts:
+
+- **screaming-penguin.img** — Best for Linux users who can `dd` or use GNOME Disks.  
+- **screaming-penguin.iso** — Best for Windows and macOS users. Works in Rufus, BalenaEtcher, and standard ISO flashers.
+
+The ISO contains the installer runtime but does **not** contain a config partition.  
+Windows/macOS users must create one manually after flashing the ISO.
+
+Linux users flashing the IMG automatically receive the correct partition layout, including the `config` partition.

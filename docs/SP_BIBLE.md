@@ -251,3 +251,21 @@ ISO generation into the Makefile and dist-release packaging, and appending a new
 GitHub Actions job to build and upload the ISO artifact. The existing raw IMG
 build remains available via a dedicated target while CI now produces both
 artifacts.
+
+## Entry 023 — Phase 9 Checkpoint C Documentation Sync
+
+**Date:** 2025-11-17
+
+Aligned documentation for the dual ISO/IMG artifacts, added platform-specific
+USB preparation guidance, clarified ISO workflow requirements, updated CI
+descriptions to match current jobs, and refreshed the agent entrypoint metadata
+for Phase 9 checkpoint C.
+
+## Entry 024 — Phase 9 Checkpoint C Entry Point Restore
+
+**Date:** 2025-11-17
+
+Restored `docs/NOVA_AGENT_ENTRYPOINT.md` to preserve the full standing agent
+instructions while keeping the Phase 9 Checkpoint C documentation and CI
+updates intact. Checklist language now reflects the documentation and CI sync
+without modifying the entrypoint metadata.
