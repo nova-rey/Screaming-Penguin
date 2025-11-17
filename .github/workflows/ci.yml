@@ -53,7 +53,12 @@ jobs:
       - name: Install ISO build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y debootstrap
+          sudo apt-get install -y \
+            debootstrap \
+            xorriso \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            mtools
 
       - name: Build installer image (make iso)
         run: |
