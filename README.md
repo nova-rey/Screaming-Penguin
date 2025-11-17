@@ -3,32 +3,17 @@
 </p>
 # Screaming Penguin
 
-Screaming Penguin is a deterministic, configuration-driven automated Debian
-installer designed for headless environments, homelabs, labs, and unattended
-deployments. It installs a prebuilt Debian Bookworm root filesystem onto a
-target disk using a YAML configuration stored on the USB's `/config` partition.
+Screaming Penguin is a config-driven, automated Debian installer delivered as
+either a raw `.img` (Linux-friendly) or a hybrid `.iso` (Windows/macOS-friendly).
 
-## Documentation
+See the `docs/` directory for full usage guides:
 
-User-facing documentation for Screaming Penguin is located under the `docs/`
-directory:
-
+- `USING_IMG.md`
+- `USING_ISO.md`
 - `GETTING_STARTED.md`
 - `INSTALLER_USAGE.md`
 - `CONFIG_REFERENCE.md`
-- `SAFETY.md`
-- `TROUBLESHOOTING.md`
 
-These documents provide detailed guidance for preparing the installer media,
-supplying configuration, and troubleshooting installs.
-
-## Release Packaging
-
-Screaming Penguin provides a `make dist-release` target to assemble the v1.0.0
-release bundle, including installer image, rootfs tarball, example configs, and
-SHA256 checksums. See `docs/GETTING_STARTED.md` and
-`docs/INSTALLER_USAGE.md` for details.
-
-## Version
-
-This repository is prepared for the v1.0.0 release of Screaming Penguin.
+Both installer formats provide the same automated Debian runtime environment.
+The IMG path includes a prebuilt CONFIG partition; the ISO path requires the
+user to create one manually after flashing.

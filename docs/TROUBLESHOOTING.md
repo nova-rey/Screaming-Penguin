@@ -27,6 +27,18 @@ Switch boot_mode between `auto`, `bios`, or `uefi`.
 
 ---
 
+## CONFIG Not Detected
+
+If the installer cannot find `/config/installer-config.yml`:
+
+- Ensure the partition label is exactly `CONFIG`
+- Ensure the filesystem is FAT32 (vfat)
+- Ensure the YAML file is named correctly
+- For ISO installs, verify you created the CONFIG partition after flashing
+- Check that Secure Boot is disabled (UEFI may hide partitions)
+
+---
+
 ## Debug Checklist
 
 - Save the full log

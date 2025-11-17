@@ -233,3 +233,11 @@ top of the current main branch.
 
 - Fixed the `make dist-release` target so that SHA256SUMS is generated only for top-level files in `dist/release` (installer image, rootfs tarball, etc.), ignoring the `example-configs/` directory.
 - This resolves the `sha256sum: example-configs: Is a directory` failure seen in the `Screaming Penguin Dist-Release Check` workflow and allows the release bundle artifact to be produced cleanly.
+
+## Entry 021 — Phase 9 Dual Artifact Documentation
+
+**Date:** 2025-11-17
+
+Introduced documentation for ISO and IMG build paths. Added USING_ISO.md and
+USING_IMG.md. Updated README, GETTING_STARTED.md, INSTALLER_USAGE.md, and
+TROUBLESHOOTING.md. Prepared scaffolding for later build changes.

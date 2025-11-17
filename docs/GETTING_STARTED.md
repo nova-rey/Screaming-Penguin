@@ -25,15 +25,35 @@ installation.
 
 From the Screaming Penguin GitHub Release page download:
 
-- `screaming-penguin-v1.0.0.img`  
-- `debian-rootfs-bookworm-amd64-v1.0.0.tar.gz`  
-- `example-configs/` bundle  
+- `screaming-penguin-v1.0.0.img`
+- `debian-rootfs-bookworm-amd64-v1.0.0.tar.gz`
+- `example-configs/` bundle
 - `SHA256SUMS`
 
 Verify checksums using:
 
 ```sh
 sha256sum -c SHA256SUMS
+```
+
+## Choosing an Installer Format: IMG vs ISO
+
+Screaming Penguin now ships two installer artifacts:
+
+### `.img`
+- Best for Linux users
+- Flash directly with `dd`
+- Includes prebuilt CONFIG partition
+- Easiest fully-automated workflow
+
+### `.iso`
+- Best for Windows (Rufus) and macOS (Etcher)
+- Requires user to manually create a CONFIG partition after flashing
+- Compatible with BIOS + UEFI
+- Same installer environment as IMG
+
+If you are on Windows, choose the ISO path.  
+If you are on Linux, choose the IMG path.
 
 
 ⸻
