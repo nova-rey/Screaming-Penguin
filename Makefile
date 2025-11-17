@@ -42,3 +42,4 @@ dist-release: img iso rootfs
 	mkdir -p dist/release/example-configs
 	cp -r config/examples/*.yml dist/release/example-configs/
 	cd dist/release && find . -type f -maxdepth 1 -print0 | xargs -0 sha256sum > SHA256SUMS
+
