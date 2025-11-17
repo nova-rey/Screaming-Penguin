@@ -265,7 +265,17 @@ for Phase 9 checkpoint C.
 
 **Date:** 2025-11-17
 
-Phase 10 begins work on the minimal boot runtime required for ISO builds.  
+Phase 10 begins work on the minimal boot runtime required for ISO builds.
 This includes documentation of the runtime design, repair of the agent entrypoint file,
 and updates to the roadmap and development philosophy. No code changes yet.
+
+## Entry 025 — ISO path and CI wiring
+
+**Date:** 2025-11-17
+
+Added a minimal ISO build path on top of the existing raw `.img` flow.
+`make iso` now consumes the boot runtime (kernel + initrd) and produces a
+hybrid ISO artifact suitable for Windows USB tools, and CI uploads the
+result. Documentation was updated to describe when to use `.img` versus
+`.iso`, including the Windows “shrink + CONFIG partition” workflow.
 

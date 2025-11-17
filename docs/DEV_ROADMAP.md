@@ -512,5 +512,8 @@ The goals are:
 - Repair and harden the NOVA_AGENT_ENTRYPOINT.md file.
 - Update documentation to reflect the new ISO build chain.
 
+- [x] Add parallel ISO build path (`make iso`) using a minimal Debian
+      boot runtime and hybrid ISO image, suitable for Windows USB tools.
+
 No installer behavior changes are planned for this phase.
 

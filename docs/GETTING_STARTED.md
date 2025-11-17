@@ -36,25 +36,24 @@ Verify checksums using:
 sha256sum -c SHA256SUMS
 ```
 
-## Choosing an Installer Format: IMG vs ISO
+## Installer Artifacts: .img vs .iso
 
-Screaming Penguin now ships two installer artifacts:
+Screaming Penguin currently ships two primary artifacts:
 
-### `.img`
-- Best for Linux users
-- Flash directly with `dd`
-- Includes prebuilt CONFIG partition
-- Easiest fully-automated workflow
+- A raw disk image: `screaming-penguin.img`
+- A hybrid ISO: `screaming-penguin.iso`
 
-### `.iso`
-- Best for Windows (Rufus) and macOS (Etcher)
-- Requires user to manually create a CONFIG partition after flashing
-- Compatible with BIOS + UEFI
-- Same installer environment as IMG
+As a rule of thumb:
 
-If you are on Windows, choose the ISO path.  
-If you are on Linux, choose the IMG path.
+- **Linux / macOS** users who are comfortable with `dd`, `lsblk`, and
+  basic disk tools should prefer the **`.img`**. It writes directly to a
+  USB device and produces a bootable stick with a separate `CONFIG`
+  partition ready for `installer-config.yml`.
 
+- **Windows** users, and anyone who prefers GUI USB tools such as Rufus,
+  can use the **`.iso`**. After flashing the ISO to a USB stick, you will
+  create the `CONFIG` partition manually (see below) and drop your
+  `installer-config.yml` there.
 
 ⸻
 
@@ -139,15 +138,3 @@ The CI pipeline now produces both:
 - `screaming-penguin.iso`
 
 ISO builds are recommended for Windows/macOS users.
-
-## ISO vs IMG Overview
-
-Screaming Penguin now ships two installer artifacts:
-
-- **screaming-penguin.img** — Best for Linux users who can `dd` or use GNOME Disks.  
-- **screaming-penguin.iso** — Best for Windows and macOS users. Works in Rufus, BalenaEtcher, and standard ISO flashers.
-
-The ISO contains the installer runtime but does **not** contain a config partition.  
-Windows/macOS users must create one manually after flashing the ISO.
-
-Linux users flashing the IMG automatically receive the correct partition layout, including the `config` partition.
