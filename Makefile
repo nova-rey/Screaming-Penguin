@@ -1,14 +1,21 @@
 # Screaming Penguin - Makefile
 
-.PHONY: img iso rootfs clean qemu-acceptance
+RUNTIME_DIR := build/runtime
+
+.PHONY: img iso rootfs clean qemu-acceptance runtime
 
 img:
-	@echo "[MAKE] Building Screaming Penguin installer image…"
-	sh tools/make_installer_img.sh
+        @echo "[MAKE] Building Screaming Penguin installer image…"
+        sh tools/make_installer_img.sh
 
-iso:
-	@echo "[MAKE] Building Screaming Penguin ISO…"
-	bash tools/make_installer_iso.sh
+iso: runtime
+        @echo "[MAKE] Building Screaming Penguin ISO…"
+        bash tools/make_installer_iso.sh
+
+.PHONY: runtime
+runtime:
+	@echo "[MAKE] Building minimal boot runtime…"
+	bash tools/build_runtime.sh
 
 rootfs:
 	@echo "[MAKE] Building Debian rootfs (bookworm-amd64)…"
