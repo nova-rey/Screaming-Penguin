@@ -51,6 +51,7 @@ echo "[QEMU-CI] Logs:  $LOG_FILE"
 set +e
 timeout 60s qemu-system-x86_64 \
     -m 1024 \
+    # shellcheck disable=SC2086  # QEMU_OPTS intentionally word-split into multiple args
     $QEMU_OPTS \
     -serial stdio \
     -display none \
