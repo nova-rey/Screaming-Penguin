@@ -74,3 +74,10 @@ This document defines the guiding principles for developing and maintaining Scre
 - “Boring” is a feature for low-level system installers.
 
 These principles are intended to remain stable over time. If the project’s scope changes radically, update this document consciously rather than allowing implicit drift.
+
+## Entrypoint File Handling
+
+`NOVA_AGENT_ENTRYPOINT.md` is a read-only control surface for automated agents.  
+Agents must not modify this file unless explicitly instructed by a prompt.  
+All workflow or process evolution should occur in the main dev docs, not in the entrypoint.
+

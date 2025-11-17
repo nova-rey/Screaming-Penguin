@@ -260,3 +260,12 @@ Aligned documentation for the dual ISO/IMG artifacts, added platform-specific
 USB preparation guidance, clarified ISO workflow requirements, updated CI
 descriptions to match current jobs, and refreshed the agent entrypoint metadata
 for Phase 9 checkpoint C.
+
+## Entry 024 — Phase 10 Kickoff
+
+**Date:** 2025-11-17
+
+Phase 10 begins work on the minimal boot runtime required for ISO builds.  
+This includes documentation of the runtime design, repair of the agent entrypoint file,
+and updates to the roadmap and development philosophy. No code changes yet.
+
