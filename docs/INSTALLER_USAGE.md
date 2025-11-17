@@ -50,8 +50,20 @@ Installer creates `logs/` automatically.
    - Create user and SSH config
    - Install GRUB
 
-6. **FINISH**  
+6. **FINISH**
    Writes persistent logs and reboots or shuts down.
+
+---
+
+## CONFIG Partition Requirements
+
+The installer reads configuration from a partition labeled `CONFIG`, containing
+a file named `installer-config.yml`.
+
+- IMG builds: CONFIG partition included
+- ISO builds: user must create CONFIG partition after flashing
+
+Refer to `USING_IMG.md` or `USING_ISO.md` for full instructions.
 
 ---
 
