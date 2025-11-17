@@ -8,7 +8,7 @@ img:
 
 iso:
 	@echo "[MAKE] Building Screaming Penguin ISO…"
-	sh tools/make_installer_iso.sh
+	bash tools/make_installer_iso.sh
 
 rootfs:
 	@echo "[MAKE] Building Debian rootfs (bookworm-amd64)…"
