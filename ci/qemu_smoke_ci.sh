@@ -19,6 +19,8 @@ IMAGE=""
 QEMU_OPTS=""
 BUILD_DIR="build"
 LOG_FILE="$BUILD_DIR/qemu-ci.log"
+KERNEL_PATH="build/runtime/vmlinuz"
+INITRD_PATH="build/runtime/initrd.img"
 
 mkdir -p "$BUILD_DIR"
 
@@ -39,6 +41,12 @@ else
     exit 1
 fi
 
+if [ ! -f "$KERNEL_PATH" ] || [ ! -f "$INITRD_PATH" ]; then
+    echo "[QEMU-CI] Missing runtime kernel or initrd." >&2
+    echo "[QEMU-CI] Ensure build/runtime/vmlinuz and build/runtime/initrd.img exist (run 'make runtime')." >&2
+    exit 1
+fi
+
 echo "[QEMU-CI] Starting QEMU smoke test (BIOS mode)…"
 echo "[QEMU-CI] Image: $IMAGE"
 echo "[QEMU-CI] Logs:  $LOG_FILE"
@@ -49,9 +57,14 @@ echo "[QEMU-CI] Logs:  $LOG_FILE"
 # Run QEMU with a timeout to avoid hanging CI indefinitely.
 # We allow QEMU to be killed by timeout; for now we only care that it runs at all.
 set +e
+# Common kernel command line used by both QEMU smoke test and ISO GRUB config.
+SP_KERNEL_CMDLINE="quiet"
 # shellcheck disable=SC2086  # QEMU_OPTS intentionally word-split into multiple args
 timeout 60s qemu-system-x86_64 \
     -m 1024 \
+    -kernel "$KERNEL_PATH" \
+    -initrd "$INITRD_PATH" \
+    -append "$SP_KERNEL_CMDLINE" \
     $QEMU_OPTS \
     -serial stdio \
     -display none \
