@@ -81,3 +81,20 @@ These principles are intended to remain stable over time. If the project’s sco
 Agents must not modify this file unless explicitly instructed by a prompt.  
 All workflow or process evolution should occur in the main dev docs, not in the entrypoint.
 
+
+## Installer Initramfs Ownership
+
+Screaming Penguin owns the installer boot path end-to-end.
+
+- We do **not** rely on a distribution’s stock initramfs to discover or mount our target root filesystem.
+- The Screaming Penguin installer initramfs is the single source of truth for:
+  - Locating the CONFIG partition.
+  - Reading the YAML config and rootfs tarball.
+  - Partitioning and formatting the target disk.
+  - Installing the base Debian system and GRUB.
+
+Design rule:
+
+> If the ISO boots, it must be via our installer `/init`, not a generic distro initramfs.
+
+This rule avoids subtle boot regressions and ensures that our installer remains deterministic, reproducible, and independent of upstream distro tooling changes.
