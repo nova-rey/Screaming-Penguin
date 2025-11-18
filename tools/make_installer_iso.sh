@@ -35,11 +35,15 @@ EOF_GRUB
 echo "[SP-ISO] Building BIOS GRUB core image..."
 GRUB_CFG="${BUILD_DIR}/boot/grub/grub.cfg"
 GRUB_BIOS_IMG="${BUILD_DIR}/boot/grub/grub.img"
+# BIOS GRUB core must fit in the legacy size limit (~0x78000 bytes).
+# Use a minimal module set and no fonts/locales to avoid "core image is too big".
 grub-mkstandalone \
-  --format=i386-pc \
-  --output="${GRUB_BIOS_IMG}" \
-  --locales="" \
+  -O i386-pc \
+  -o "${GRUB_BIOS_IMG}" \
+  --compress=xz \
   --fonts="" \
+  --locales="" \
+  --modules="biosdisk part_msdos part_gpt iso9660 normal linux search echo configfile" \
   "boot/grub/grub.cfg=${GRUB_CFG}"
 
 echo "[SP-ISO] Creating EFI boot image..."
