@@ -32,19 +32,24 @@ menuentry "Screaming Penguin Installer" {
 }
 EOF_GRUB
 
-echo "[SP-ISO] Building BIOS GRUB core image..."
 GRUB_CFG="${BUILD_DIR}/boot/grub/grub.cfg"
+
+echo "[SP-ISO] Building BIOS GRUB core image..."
 GRUB_BIOS_IMG="${BUILD_DIR}/boot/grub/grub.img"
-# BIOS GRUB core must fit in the legacy size limit (~0x78000 bytes).
-# Use a minimal module set and no fonts/locales to avoid "core image is too big".
+
+# Keep the BIOS core image minimal: only the modules we actually need
+# and the embedded grub.cfg. Do NOT embed the kernel or initrd here,
+# or the core image will exceed the BIOS size limit (~0x78000 bytes).
 grub-mkstandalone \
   -O i386-pc \
   -o "${GRUB_BIOS_IMG}" \
-  --compress=xz \
-  --fonts="" \
+  --modules="biosdisk part_msdos part_gpt iso9660 normal linux echo configfile search search_fs_uuid search_label" \
   --locales="" \
-  --modules="biosdisk part_msdos part_gpt iso9660 normal linux search echo configfile" \
+  --fonts="" \
   "boot/grub/grub.cfg=${GRUB_CFG}"
+
+# The kernel and initrd are *not* part of the BIOS core image; they are
+# added to the ISO tree separately and loaded by grub.cfg at boot time.
 
 echo "[SP-ISO] Creating EFI boot image..."
 mkdir -p "${BUILD_DIR}/efi/boot"
