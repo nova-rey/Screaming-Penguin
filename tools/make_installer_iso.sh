@@ -38,7 +38,7 @@ GRUB_CFG="${BUILD_DIR}/boot/grub/grub.cfg"
 # and the embedded grub.cfg. If we load too many modules here, the
 # resulting core image can exceed the BIOS size limit (~0x78000 bytes)
 # and grub-mkstandalone will fail with "core image is too big".
-GRUB_BIOS_MODULES="biosdisk iso9660 normal linux"
+GRUB_BIOS_MODULES="biosdisk part_msdos part_gpt iso9660 normal linux search search_fs_uuid search_fs_file configfile"
 
 echo "[SP-ISO] Building BIOS GRUB core image..."
 GRUB_BIOS_IMG="${BUILD_DIR}/boot/grub/grub.img"
@@ -46,10 +46,16 @@ GRUB_BIOS_IMG="${BUILD_DIR}/boot/grub/grub.img"
 grub-mkstandalone \
   -O i386-pc \
   -o "${GRUB_BIOS_IMG}" \
+  --install-modules="${GRUB_BIOS_MODULES}" \
   --modules="${GRUB_BIOS_MODULES}" \
+  --compress=xz \
   --locales="" \
   --fonts="" \
   "boot/grub/grub.cfg=${GRUB_CFG}"
+
+if [ -f "${GRUB_BIOS_IMG}" ]; then
+  echo "[SP-ISO] BIOS core size: $(stat -c '%s' "${GRUB_BIOS_IMG}") bytes (limit: 491520)"
+fi
 
 # The kernel and initrd are *not* part of the BIOS core image; they are
 # added to the ISO tree separately and loaded by grub.cfg at boot time.
