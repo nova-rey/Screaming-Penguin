@@ -4,6 +4,14 @@
 
 set -eu
 
+# Ensure /dev/console exists so we can always talk to the primary console.
+if [ ! -c /dev/console ]; then
+    mknod /dev/console c 5 1 2>/dev/null || true
+fi
+
+echo "[SP-INSTALLER] init starting (hello from /init)" > /dev/console
+echo "[SP-INSTALLER] init starting..."
+
 SP_HOOKS_DIR="/installer/initramfs/hooks"
 SP_LOG_DEV="/dev/console"
 

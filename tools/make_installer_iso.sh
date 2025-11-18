@@ -30,7 +30,7 @@ terminal_output console serial
 serial --unit=0 --speed=115200 --word=8 --parity=no --stop=1
 
 menuentry "Screaming Penguin Installer" {
-    linux /boot/vmlinuz root=/dev/ram0 rdinit=/init console=ttyS0,115200n8
+    linux /boot/vmlinuz root=/dev/ram0 rdinit=/init console=ttyS0,115200 console=tty0 init=/init
     initrd /boot/initrd-install.img
 }
 EOF_GRUB
