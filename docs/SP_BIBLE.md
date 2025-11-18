@@ -279,3 +279,35 @@ hybrid ISO artifact suitable for Windows USB tools, and CI uploads the
 result. Documentation was updated to describe when to use `.img` versus
 `.iso`, including the Windows “shrink + CONFIG partition” workflow.
 
+
+## Checkpoint P10.5·A — ISO Boot Failure Logged (Initramfs Plan)
+
+Date: 2025-11-18
+
+We validated the first Screaming Penguin ISO image on real hardware and confirmed a hard boot failure. GRUB successfully detects and loads the `screaming-penguin` entry from the ISO, but the kernel immediately drops into an initramfs shell with:
+
+> No root device specified. Boot arguments must include a root= parameter.
+
+Root cause:
+
+- The ISO builder currently embeds a **stock Debian initrd** instead of a Screaming Penguin–specific installer initramfs.
+- GRUB does not provide a usable `root=` or `rdinit=` argument.
+- As a result, the initramfs never hands off to our installer logic, and the CONFIG partition is never scanned.
+
+Decision:
+
+- Screaming Penguin will own the entire initramfs path for the installer.
+- We will build a custom installer initramfs that:
+  - Boots with `root=/dev/ram0 rdinit=/init`.
+  - Locates the CONFIG partition by label.
+  - Reads `installer-config.yml` and the Debian rootfs tarball.
+  - Partitions and provisions the target disk, then installs GRUB.
+
+Plan:
+
+- Add `tools/build_installer_initramfs.sh` to assemble a tiny BusyBox-based initramfs with our installer `/init` script.
+- Update the ISO builder to bundle this initramfs as `/boot/initrd-installer.img`.
+- Replace the GRUB template so the only menu entry is “Screaming Penguin Installer”, wired to our kernel and installer initramfs.
+- Add CI smoke tests to assert that the ISO contains the installer initrd and that the initramfs contains `/init`.
+
+This checkpoint is documentation-only. No runtime behaviour changes are introduced here, but the failure mode and the intended fix are now captured for future work.

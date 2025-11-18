@@ -517,3 +517,9 @@ The goals are:
 
 No installer behavior changes are planned for this phase.
 
+
+## Hotfix Phase 10.5 — ISO Boot / Initramfs Wiring
+
+- **P10.5·A** — Document the current ISO boot failure (kernel dropping to initramfs) and design the custom installer initramfs / GRUB wiring.
+- **P10.5·B** — Implement `build_installer_initramfs.sh`, integrate the custom installer initrd into the ISO builder, and update GRUB to boot with `root=/dev/ram0 rdinit=/init`.
+- **P10.5·C** — Add CI smoke tests for the installer initramfs and GRUB config; run QEMU-based sanity tests to validate the full boot path.
