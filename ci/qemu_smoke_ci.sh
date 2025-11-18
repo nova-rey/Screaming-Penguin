@@ -49,9 +49,9 @@ echo "[QEMU-CI] Logs:  $LOG_FILE"
 # Run QEMU with a timeout to avoid hanging CI indefinitely.
 # We allow QEMU to be killed by timeout; for now we only care that it runs at all.
 set +e
+# shellcheck disable=SC2086  # QEMU_OPTS intentionally word-split into multiple args
 timeout 60s qemu-system-x86_64 \
     -m 1024 \
-    # shellcheck disable=SC2086  # QEMU_OPTS intentionally word-split into multiple args
     $QEMU_OPTS \
     -serial stdio \
     -display none \
