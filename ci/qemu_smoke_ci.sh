@@ -3,6 +3,7 @@ set -euo pipefail
 
 ISO_PATH="${ISO_PATH:-dist/screaming-penguin.iso}"
 QEMU_BIN="${QEMU_BIN:-qemu-system-x86_64}"
+# Marker string printed by the installer to the console/serial log
 INSTALLER_MARKER='[SP-INSTALLER] init starting'
 QEMU_LOG="qemu-output.log"
 
@@ -43,13 +44,22 @@ else
   echo "[QEMU-CI] QEMU exited (possibly due to timeout)."
 fi
 
+echo "[QEMU-CI] QEMU exited (possibly due to timeout)."
 echo "[QEMU-CI] QEMU output (tail):"
-tail -n 100 "$QEMU_LOG" || true
+tail -n 50 "$QEMU_LOG" || true
 
-if grep -q "$INSTALLER_MARKER" "$QEMU_LOG"; then
+echo "[QEMU-CI] Checking for installer marker: $INSTALLER_MARKER"
+
+# Use fixed-string grep (-F) so special characters like [ ] and - are not
+# interpreted as regex. The if/else structure also avoids bash -e killing
+# the script on a non-zero grep exit status.
+if grep -Fq -- "$INSTALLER_MARKER" "$QEMU_LOG"; then
     echo "[QEMU-CI] Installer banner detected: $INSTALLER_MARKER"
     exit 0
+else
+    echo "[QEMU-CI] ERROR: Installer did not launch (marker not found)."
+    # Optionally show a slightly larger tail for debugging
+    echo "[QEMU-CI] Last 100 lines of QEMU log:"
+    tail -n 100 "$QEMU_LOG" || true
+    exit 1
 fi
-
-echo "[QEMU-CI] ERROR: Installer did not launch (marker not found)."
-exit 1
