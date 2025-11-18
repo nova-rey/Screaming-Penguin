@@ -37,6 +37,8 @@ mkdir -p "${BUILD_DIR}/efi/boot"
 cp /usr/lib/grub/x86_64-efi/monolithic/grubx64.efi "${BUILD_DIR}/efi/boot/bootx64.efi"
 
 echo "[SP-ISO] Building final ISO..."
+# Ensure output directory exists for the ISO
+mkdir -p "$(dirname "${ISO_OUT}")"
 xorriso -as mkisofs \
   -iso-level 3 \
   -o "${ISO_OUT}" \
