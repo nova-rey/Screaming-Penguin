@@ -32,6 +32,16 @@ menuentry "Screaming Penguin Installer" {
 }
 EOF_GRUB
 
+echo "[SP-ISO] Building BIOS GRUB core image..."
+GRUB_CFG="${BUILD_DIR}/boot/grub/grub.cfg"
+GRUB_BIOS_IMG="${BUILD_DIR}/boot/grub/grub.img"
+grub-mkstandalone \
+  --format=i386-pc \
+  --output="${GRUB_BIOS_IMG}" \
+  --locales="" \
+  --fonts="" \
+  "boot/grub/grub.cfg=${GRUB_CFG}"
+
 echo "[SP-ISO] Creating EFI boot image..."
 mkdir -p "${BUILD_DIR}/efi/boot"
 cp /usr/lib/grub/x86_64-efi/monolithic/grubx64.efi "${BUILD_DIR}/efi/boot/bootx64.efi"

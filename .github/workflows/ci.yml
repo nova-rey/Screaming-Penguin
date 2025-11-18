@@ -39,7 +39,8 @@ jobs:
             dosfstools \
             util-linux \
             mount \
-            xz-utils
+            xz-utils \
+            grub-pc-bin
 
       - name: ShellCheck all shell scripts
         run: |
