@@ -33,6 +33,7 @@ jobs:
           sudo apt-get install -y \
             shellcheck \
             qemu-system-x86 \
+            debootstrap \
             parted \
             kpartx \
             dosfstools \
@@ -54,11 +55,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            debootstrap \
             xorriso \
-            grub-pc-bin \
             grub-efi-amd64-bin \
-            mtools
+            grub-pc-bin \
+            mtools \
+            dosfstools \
+            busybox \
+            qemu-system-x86 \
+            cpio \
+            gzip
 
       - name: Build installer image (make iso)
         run: |
@@ -73,9 +78,8 @@ jobs:
           fi
           ls -lh dist || true
 
-      - name: QEMU smoke boot (BIOS)
+      - name: Run QEMU smoke test
         run: |
-          echo "[CI] Running QEMU smoke test..."
           chmod +x ci/qemu_smoke_ci.sh
           ci/qemu_smoke_ci.sh
 

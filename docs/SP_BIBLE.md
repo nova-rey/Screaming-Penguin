@@ -317,3 +317,9 @@ This checkpoint is documentation-only. No runtime behaviour changes are introduc
 Date: 2025-11-18
 
 Implemented the first Screaming Penguin–owned installer initramfs and replaced the ISO boot path. Added `build_installer_initramfs.sh` to create a BusyBox-based boot environment with an `/init` script that locates the CONFIG partition. Updated `make_installer_iso.sh` to embed the custom initrd and replaced the GRUB menu with a single installer entry using `root=/dev/ram0 rdinit=/init`. Updated CI to boot the ISO in QEMU and detect the installer banner. This checkpoint fully replaces the Debian initramfs and establishes the correct boot pipeline.
+
+## Entry P10.5·C — CI Integration and Documentation Sync
+
+**Date:** 2025-11-18
+
+Integrated ISO-building dependencies into CI, enabled automated QEMU smoke tests, and added a first-pass user-facing document (`ISO_BUILD.md`) describing the ISO architecture and manual testing workflow. Finalized the hotfix cycle for the installer boot path and confirmed the custom initramfs is bootable in automated environments.
