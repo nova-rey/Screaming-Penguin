@@ -27,6 +27,8 @@ mount -t proc proc /proc
 mount -t sysfs sys /sys
 mount -t devtmpfs dev /dev
 
+echo "[SP-INSTALLER] Init starting on $(tty)"
+
 echo "[SP-INSTALLER] Locating CONFIG partition..."
 CONFIG_DEV="$(blkid -L CONFIG || true)"
 

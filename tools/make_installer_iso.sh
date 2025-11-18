@@ -26,8 +26,11 @@ cat > "${BUILD_DIR}/boot/grub/grub.cfg" <<'EOF_GRUB'
 set default=0
 set timeout=0
 
+terminal_output console serial
+serial --unit=0 --speed=115200 --word=8 --parity=no --stop=1
+
 menuentry "Screaming Penguin Installer" {
-    linux /boot/vmlinuz root=/dev/ram0 rdinit=/init quiet
+    linux /boot/vmlinuz root=/dev/ram0 rdinit=/init console=ttyS0,115200n8
     initrd /boot/initrd-install.img
 }
 EOF_GRUB
