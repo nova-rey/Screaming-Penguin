@@ -1,58 +1,54 @@
 #!/usr/bin/env bash
-# shellcheck shell=bash
 set -euo pipefail
 
-echo "[SP-ISO] Building hybrid ISO image…"
+ROOTDIR="$(pwd)"
+BUILD_DIR="${ROOTDIR}/build/iso"
+RUNTIME_DIR="${ROOTDIR}/build/runtime"
+INSTALLER_DIR="${ROOTDIR}/build/runtime-installer"
+ISO_OUT="${ROOTDIR}/dist/screaming-penguin.iso"
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD_DIR="$ROOT/build/iso"
-DIST_DIR="$ROOT/dist"
-ISO="$DIST_DIR/screaming-penguin.iso"
-ISO_ROOT="$BUILD_DIR/iso"
-SP_KERNEL_CMDLINE="quiet"
+echo "[SP-ISO] Building hybrid ISO image..."
 
-mkdir -p "$BUILD_DIR" "$DIST_DIR"
+rm -rf "${BUILD_DIR}"
+mkdir -p "${BUILD_DIR}/boot"
 
-echo "[SP-ISO] Preparing ISO tree…"
-rm -rf "${BUILD_DIR:?}"/*
-mkdir -p "${ISO_ROOT}/boot/grub"
-mkdir -p "${ISO_ROOT}/EFI/boot"
+echo "[SP-ISO] Preparing base runtime kernel..."
+cp "${RUNTIME_DIR}/vmlinuz" "${BUILD_DIR}/boot/vmlinuz"
 
-# Copy kernel + initramfs from the existing runtime build
-cp "$ROOT/build/runtime/vmlinuz" "${ISO_ROOT}/boot/vmlinuz"
-cp "$ROOT/build/runtime/initrd.img" "${ISO_ROOT}/boot/initrd.img"
+echo "[SP-ISO] Building installer initramfs..."
+bash tools/build_installer_initramfs.sh
+cp "${INSTALLER_DIR}/initrd-installer.img" "${BUILD_DIR}/boot/initrd-install.img"
 
-# Minimal GRUB configs
-cat > "${ISO_ROOT}/boot/grub/grub.cfg" <<EOF
+echo "[SP-ISO] Writing GRUB configuration..."
+mkdir -p "${BUILD_DIR}/boot/grub"
+
+cat > "${BUILD_DIR}/boot/grub/grub.cfg" <<'EOF_GRUB'
 set default=0
-set timeout=5
+set timeout=0
 
 menuentry "Screaming Penguin Installer" {
-    linux /boot/vmlinuz ${SP_KERNEL_CMDLINE}
-    initrd /boot/initrd.img
+    linux /boot/vmlinuz root=/dev/ram0 rdinit=/init quiet
+    initrd /boot/initrd-install.img
 }
-EOF
+EOF_GRUB
 
-cat > "${ISO_ROOT}/EFI/boot/grub.cfg" <<EOF
-search --file --no-floppy --set=root /boot/vmlinuz
-set default=0
-set timeout=5
-menuentry "Screaming Penguin Installer" {
-    linux /boot/vmlinuz ${SP_KERNEL_CMDLINE}
-    initrd /boot/initrd.img
-}
-EOF
+echo "[SP-ISO] Creating EFI boot image..."
+mkdir -p "${BUILD_DIR}/efi/boot"
+cp /usr/lib/grub/x86_64-efi/monolithic/grubx64.efi "${BUILD_DIR}/efi/boot/bootx64.efi"
 
-# Copy GRUB EFI binary (use system grub-mkstandalone)
-echo "[SP-ISO] Building EFI bootloader…"
-grub-mkstandalone \
-    --format=x86_64-efi \
-    --output="${ISO_ROOT}/EFI/boot/bootx64.efi" \
-    "boot/grub/grub.cfg=${ISO_ROOT}/EFI/boot/grub.cfg"
+echo "[SP-ISO] Building final ISO..."
+xorriso -as mkisofs \
+  -iso-level 3 \
+  -o "${ISO_OUT}" \
+  -full-iso9660-filenames \
+  -eltorito-boot boot/grub/grub.img \
+  -no-emul-boot \
+  -boot-load-size 4 \
+  -boot-info-table \
+  -eltorito-catalog boot/grub/boot.cat \
+  -eltorito-alt-boot \
+  -e efi/boot/bootx64.efi \
+  -no-emul-boot \
+  "${BUILD_DIR}"
 
-echo "[SP-ISO] Generating hybrid ISO…"
-grub-mkrescue \
-    -o "$ISO" \
-    "$ISO_ROOT"
-
-echo "[SP-ISO] ISO created: $ISO"
+echo "[SP-ISO] ISO built: ${ISO_OUT}"
