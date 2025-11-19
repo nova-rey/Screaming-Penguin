@@ -323,3 +323,8 @@ Implemented the first Screaming Penguin–owned installer initramfs and replaced
 **Date:** 2025-11-18
 
 Integrated ISO-building dependencies into CI, enabled automated QEMU smoke tests, and added a first-pass user-facing document (`ISO_BUILD.md`) describing the ISO architecture and manual testing workflow. Finalized the hotfix cycle for the installer boot path and confirmed the custom initramfs is bootable in automated environments.
+
+## Entry 026 — Fix missing /init in installer initramfs
+**Date:** 2025-11-19
+
+Corrected the installer initramfs to include a proper `/init` at the root of the archive. Added minimal init script with SP-INSTALLER marker and fixed the CPIO creation process so the kernel locates `/init` correctly. This resolves the kernel panic `No working init found` during CI boot.
