@@ -20,6 +20,15 @@ xorriso -indev "${ISO_PATH}" -report_el_torito plain || {
   exit 1
 }
 
+echo "[QEMU-CI] Dumping /boot/grub/grub.cfg from ISO (if available)..."
+if command -v xorriso >/dev/null 2>&1; then
+  if ! xorriso -indev "${ISO_PATH}" -osirrox on -print /boot/grub/grub.cfg; then
+    echo "[QEMU-CI] WARNING: Could not read /boot/grub/grub.cfg from ISO."
+  fi
+else
+  echo "[QEMU-CI] xorriso not available; skipping grub.cfg dump."
+fi
+
 echo "[QEMU-CI] Checking ISO for installer kernel/initrd..."
 has_kernel=0
 

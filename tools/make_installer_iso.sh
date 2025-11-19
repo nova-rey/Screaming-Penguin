@@ -126,17 +126,11 @@ echo "[SP-ISO] Writing GRUB configuration..."
 mkdir -p "${ISO_ROOT}/boot/grub"
 
 cat > "${ISO_ROOT}/boot/grub/grub.cfg" <<'EOF_GRUB'
-# Screaming Penguin grub configuration
-
 set timeout=0
 set default=0
 
-serial --unit=0 --speed=115200 --word=8 --parity=no --stop=1
-terminal_input serial console
-terminal_output serial console
-
 menuentry "Screaming Penguin Installer" {
-    linux /boot/vmlinuz-installer console=ttyS0,115200n8
+    linux /boot/vmlinuz-installer console=tty0 console=ttyS0,115200n8 earlyprintk=serial
     initrd /boot/initrd-installer.img
 }
 EOF_GRUB
