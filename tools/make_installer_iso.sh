@@ -5,10 +5,83 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build/iso"
 RUNTIME_DIR="${PROJECT_ROOT}/build/runtime"
 DIST_DIR="${PROJECT_ROOT}/dist"
-INSTALLER_IMG="${DIST_DIR}/initrd-installer.img"
 ISO_OUT="${DIST_DIR}/screaming-penguin.iso"
 
 mkdir -p "${DIST_DIR}"
+
+# ---------------------------------------------------------------------------
+# Build minimal installer initramfs (BusyBox + /init) for the ISO
+# ---------------------------------------------------------------------------
+_build_installer_initramfs() {
+  echo "[SP-INSTALLER] Building installer initramfs..."
+
+  # Root of the installer initramfs tree
+  local INITRD_ROOT="${BUILD_DIR}/installer-initrd"
+  local INSTALLER_INITRD="${RUNTIME_DIR}/initrd-installer.img"
+
+  mkdir -p "${RUNTIME_DIR}"
+
+  rm -rf "${INITRD_ROOT}"
+  mkdir -p "${INITRD_ROOT}"/{bin,sbin,etc,proc,sys,dev,run,tmp}
+
+  echo "[SP-INSTALLER] Installing BusyBox..."
+  # Use whatever BusyBox is available on the build host; we only need a few applets.
+  local BUSYBOX_PATH
+  BUSYBOX_PATH="$(command -v busybox || true)"
+  if [ -z "${BUSYBOX_PATH}" ]; then
+    echo "[SP-BUILD] ERROR: busybox not found on build host; cannot build installer initramfs."
+    exit 1
+  fi
+
+  cp "${BUSYBOX_PATH}" "${INITRD_ROOT}/bin/busybox"
+  chmod 0755 "${INITRD_ROOT}/bin/busybox"
+
+  (
+    cd "${INITRD_ROOT}/bin"
+    for applet in sh mount mkdir echo dmesg; do
+      ln -sf busybox "${applet}"
+    done
+  )
+
+  echo "[SP-INSTALLER] Creating init script..."
+  # IMPORTANT: this must be `/init` at the archive root so the kernel can execute it.
+  cat > "${INITRD_ROOT}/init" <<'EOF'
+#!/bin/sh
+# Minimal Screaming Penguin installer init
+# This is a placeholder skeleton: mount basic filesystems and drop to a shell.
+
+echo "[SP-INSTALLER] init: starting minimal installer environment..."
+
+# Mount essential pseudo-filesystems
+mount -t proc proc /proc 2>/dev/null || echo "[SP-INSTALLER] warning: failed to mount /proc"
+mount -t sysfs sysfs /sys 2>/dev/null || echo "[SP-INSTALLER] warning: failed to mount /sys"
+mount -t devtmpfs devtmpfs /dev 2>/dev/null || echo "[SP-INSTALLER] warning: failed to mount /dev"
+
+# For now, just drop to a shell; the real installer state machine will hook in later.
+exec /bin/sh
+EOF
+
+  chmod 0755 "${INITRD_ROOT}/init"
+
+  echo "[SP-INSTALLER] Creating initramfs..."
+  (
+    cd "${INITRD_ROOT}"
+    # Use newc format and gzip compression; this matches the runtime initrd.
+    find . -print0 \
+      | cpio --null --quiet -o -H newc \
+      | gzip -9 > "${INSTALLER_INITRD}"
+  )
+
+  # Sanity check: confirm that the archive actually contains a root-level /init.
+  echo "[SP-INSTALLER] Verifying installer initramfs contains /init..."
+  if ! gzip -dc "${INSTALLER_INITRD}" 2>/dev/null \
+      | cpio -t 2>/dev/null \
+      | grep -Eq '(^init$|^\./init$)'; then
+    echo "[SP-BUILD] ERROR: initrd-installer.img is missing ./init"
+    echo "[SP-BUILD]        Check INITRD_ROOT contents and init creation block."
+    exit 1
+  fi
+}
 
 echo "[SP-ISO] Building hybrid ISO image..."
 
@@ -19,8 +92,8 @@ echo "[SP-ISO] Preparing base runtime kernel..."
 cp "${RUNTIME_DIR}/vmlinuz" "${BUILD_DIR}/boot/vmlinuz"
 
 echo "[SP-ISO] Building installer initramfs..."
-bash "${PROJECT_ROOT}/tools/build_installer_initramfs.sh"
-cp "${INSTALLER_IMG}" "${BUILD_DIR}/boot/initrd-install.img"
+_build_installer_initramfs
+cp "${RUNTIME_DIR}/initrd-installer.img" "${BUILD_DIR}/boot/initrd-install.img"
 
 echo "[SP-ISO] Writing GRUB configuration..."
 mkdir -p "${BUILD_DIR}/boot/grub"
