@@ -328,3 +328,8 @@ Integrated ISO-building dependencies into CI, enabled automated QEMU smoke tests
 **Date:** 2025-11-19
 
 Corrected the installer initramfs to include a proper `/init` at the root of the archive. Added minimal init script with SP-INSTALLER marker and fixed the CPIO creation process so the kernel locates `/init` correctly. This resolves the kernel panic `No working init found` during CI boot.
+
+## Entry 027 — Initramfs sanity check and CI wiring
+**Date:** 2025-11-19
+
+Normalized the installer initramfs root directory, added a minimal `/init` script with the `[SP-INSTALLER] init starting` marker, and wired `initrd-installer.img` into the QEMU smoke test with `init=/init`. Added a build-time sanity check to fail if `/init` is missing from the initramfs archive, preventing silent kernel panics in CI.
