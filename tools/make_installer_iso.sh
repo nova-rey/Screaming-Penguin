@@ -113,7 +113,7 @@ if [ ! -f "${INSTALLER_INITRD_PATH}" ]; then
   exit 1
 fi
 
-cp "${RUNTIME_KERNEL_PATH}" "${ISO_ROOT}/boot/vmlinuz"
+cp "${RUNTIME_KERNEL_PATH}" "${ISO_ROOT}/boot/vmlinuz-installer"
 cp "${INSTALLER_INITRD_PATH}" "${ISO_ROOT}/boot/initrd-installer.img"
 
 echo "[SP-ISO] /boot contents in ISO root:"
@@ -128,18 +128,15 @@ mkdir -p "${ISO_ROOT}/boot/grub"
 cat > "${ISO_ROOT}/boot/grub/grub.cfg" <<'EOF_GRUB'
 # Screaming Penguin grub configuration
 
-set default=0
 set timeout=0
+set default=0
 
 serial --unit=0 --speed=115200 --word=8 --parity=no --stop=1
 terminal_input serial console
 terminal_output serial console
 
-menuentry "Screaming Penguin Installer (stub)" {
-    linux /boot/vmlinuz \
-        root=/dev/ram0 rw \
-        quiet \
-        console=tty0 console=ttyS0,115200
+menuentry "Screaming Penguin Installer" {
+    linux /boot/vmlinuz-installer console=ttyS0,115200n8
     initrd /boot/initrd-installer.img
 }
 EOF_GRUB
