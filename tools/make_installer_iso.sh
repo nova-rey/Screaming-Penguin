@@ -2,12 +2,13 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILD_DIR="${PROJECT_ROOT}/build/iso"
-ISO_ROOT="${BUILD_DIR}"
-RUNTIME_DIR="${PROJECT_ROOT}/build/runtime"
-INSTALLER_DIR="${PROJECT_ROOT}/build/installer"
-RUNTIME_KERNEL_PATH="${PROJECT_ROOT}/build/runtime/vmlinuz"
-INSTALLER_INITRD_PATH="${PROJECT_ROOT}/build/installer/initrd-installer.img"
+BUILD_DIR="${PROJECT_ROOT}/build"
+ISO_ROOT="${BUILD_DIR}/iso-root"
+RUNTIME_DIR="${BUILD_DIR}/runtime"
+INSTALLER_DIR="${BUILD_DIR}/installer"
+RUNTIME_KERNEL_PATH="${BUILD_DIR}/runtime/vmlinuz"
+RUNTIME_INITRD_PATH="${BUILD_DIR}/runtime/initrd.img"
+INSTALLER_INITRD_PATH="${BUILD_DIR}/initrd-installer.img"
 DIST_DIR="${PROJECT_ROOT}/dist"
 ISO_OUT="${DIST_DIR}/screaming-penguin.iso"
 ISO_BOOT_DIR="${ISO_ROOT}/boot"
@@ -34,9 +35,9 @@ _build_installer_initramfs() {
   echo "[SP-INSTALLER] Installing BusyBox..."
   # Use whatever BusyBox is available on the build host; we only need a few applets.
   local BUSYBOX_PATH
-  BUSYBOX_PATH="$(command -v busybox || true)"
+  BUSYBOX_PATH="${SP_BUSYBOX_BIN:-$(command -v busybox-static || command -v busybox || true)}"
   if [ -z "${BUSYBOX_PATH}" ]; then
-    echo "[SP-BUILD] ERROR: busybox not found on build host; cannot build installer initramfs."
+    echo "[SP-BUILD] ERROR: busybox/busybox-static not found on build host; cannot build installer initramfs."
     exit 1
   fi
 
@@ -92,37 +93,38 @@ EOF
 
 echo "[SP-ISO] Building hybrid ISO image..."
 
-rm -rf "${BUILD_DIR}"
+rm -rf "${ISO_ROOT}"
 mkdir -p "${ISO_BOOT_DIR}"
 
 echo "[SP-ISO] Building installer initramfs..."
 _build_installer_initramfs
 
-echo "[SP-ISO] Validating installer assets..."
+echo "[SP-ISO] Preparing /boot contents for ISO..."
+mkdir -p "${ISO_ROOT}/boot"
+
 if [ ! -f "${RUNTIME_KERNEL_PATH}" ]; then
-  echo "[SP-ISO] ERROR: runtime kernel not found at ${RUNTIME_KERNEL_PATH}" >&2
+  echo "[SP-ISO] ERROR: Runtime kernel not found at ${RUNTIME_KERNEL_PATH}" >&2
   exit 1
 fi
 
 if [ ! -f "${INSTALLER_INITRD_PATH}" ]; then
-  echo "[SP-ISO] ERROR: installer initrd not found at ${INSTALLER_INITRD_PATH}" >&2
+  echo "[SP-ISO] ERROR: Installer initrd not found at ${INSTALLER_INITRD_PATH}" >&2
   exit 1
 fi
 
-echo "[SP-ISO] Staging installer kernel/initrd into ISO tree..."
-mkdir -p "${ISO_ROOT}/boot"
+cp "${RUNTIME_KERNEL_PATH}" "${ISO_ROOT}/boot/vmlinuz"
+cp "${INSTALLER_INITRD_PATH}" "${ISO_ROOT}/boot/initrd-installer.img"
 
-cp -f "${RUNTIME_KERNEL_PATH}" "${ISO_ROOT}/boot/vmlinuz"
-cp -f "${RUNTIME_KERNEL_PATH}" "${ISO_ROOT}/boot/vmlinuz-installer"
-cp -f "${INSTALLER_INITRD_PATH}" "${ISO_ROOT}/boot/initrd-installer.img"
+echo "[SP-ISO] /boot contents in ISO root:"
+ls -lh "${ISO_ROOT}/boot"
 
 cp -f "${RUNTIME_KERNEL_PATH}" "${DIST_KERNEL_PATH}"
 cp -f "${INSTALLER_INITRD_PATH}" "${DIST_INITRD_PATH}"
 
 echo "[SP-ISO] Writing GRUB configuration..."
-mkdir -p "${BUILD_DIR}/boot/grub"
+mkdir -p "${ISO_ROOT}/boot/grub"
 
-cat > "${BUILD_DIR}/boot/grub/grub.cfg" <<'EOF_GRUB'
+cat > "${ISO_ROOT}/boot/grub/grub.cfg" <<'EOF_GRUB'
 # Screaming Penguin grub configuration
 
 set default=0
@@ -133,7 +135,7 @@ terminal_input serial console
 terminal_output serial console
 
 menuentry "Screaming Penguin Installer (stub)" {
-    linux /boot/vmlinuz-installer \
+    linux /boot/vmlinuz \
         root=/dev/ram0 rw \
         console=tty0 console=ttyS0,115200 \
         quiet
@@ -141,7 +143,7 @@ menuentry "Screaming Penguin Installer (stub)" {
 }
 EOF_GRUB
 
-GRUB_CFG="${BUILD_DIR}/boot/grub/grub.cfg"
+GRUB_CFG="${ISO_ROOT}/boot/grub/grub.cfg"
 
 # Keep the BIOS core image minimal: only the modules we actually need
 # and the embedded grub.cfg. If we load too many modules here, the
@@ -150,7 +152,7 @@ GRUB_CFG="${BUILD_DIR}/boot/grub/grub.cfg"
 GRUB_BIOS_MODULES="biosdisk part_msdos part_gpt iso9660 normal linux search search_fs_uuid search_fs_file configfile"
 
 echo "[SP-ISO] Building BIOS GRUB core image..."
-GRUB_BIOS_IMG="${BUILD_DIR}/boot/grub/grub.img"
+GRUB_BIOS_IMG="${ISO_ROOT}/boot/grub/grub.img"
 
 grub-mkstandalone \
   -O i386-pc \
@@ -170,8 +172,8 @@ fi
 # added to the ISO tree separately and loaded by grub.cfg at boot time.
 
 echo "[SP-ISO] Creating EFI boot image..."
-mkdir -p "${BUILD_DIR}/efi/boot"
-cp /usr/lib/grub/x86_64-efi/monolithic/grubx64.efi "${BUILD_DIR}/efi/boot/bootx64.efi"
+mkdir -p "${ISO_ROOT}/efi/boot"
+cp /usr/lib/grub/x86_64-efi/monolithic/grubx64.efi "${ISO_ROOT}/efi/boot/bootx64.efi"
 
 echo "[SP-ISO] Building final ISO..."
 # Ensure output directory exists for the ISO
@@ -196,6 +198,6 @@ xorriso -as mkisofs \
   -eltorito-alt-boot \
   -e efi/boot/bootx64.efi \
   -no-emul-boot \
-  "${BUILD_DIR}"
+  "${ISO_ROOT}"
 
 echo "[SP-ISO] ISO built: ${ISO_OUT}"
