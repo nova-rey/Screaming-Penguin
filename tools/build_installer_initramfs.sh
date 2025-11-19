@@ -5,9 +5,7 @@ echo "[SP-INSTALLER] Building installer initramfs..."
 
 ROOTDIR="$(pwd)"
 WORKDIR="${ROOTDIR}/build/runtime-installer"
-INSTALLER_DIR="${WORKDIR}"
-INITRD_ROOT="${WORKDIR}/rootfs"
-OUT_INITRD="${INSTALLER_DIR}/initrd-installer.img"
+INITRD_ROOT="${WORKDIR}/initrd-root"
 
 rm -rf "${WORKDIR}"
 mkdir -p "${INITRD_ROOT}"
@@ -26,18 +24,20 @@ cat > "${INITRD_ROOT}/init" << 'EOF_INIT'
 #!/bin/sh
 echo "[SP-INSTALLER] init starting"
 
-# Minimal boot scaffolding
+# Minimal early-boot scaffolding
 mount -t proc proc /proc
 mount -t sysfs sys /sys
 mount -t devtmpfs devtmpfs /dev 2>/dev/null || mount -t tmpfs dev /dev
 
-# For now drop to a shell; replaced later by full installer
+# For now, drop to a shell; installer state machine will replace this later.
 exec /bin/sh
 EOF_INIT
 
 chmod +x "${INITRD_ROOT}/init"
 
 echo "[SP-INSTALLER] Creating initramfs..."
+INSTALLER_DIR="${DIST_DIR:-dist}"
+mkdir -p "${INSTALLER_DIR}"
 (
     cd "${INITRD_ROOT}"
     find . -print0 \
@@ -45,4 +45,13 @@ echo "[SP-INSTALLER] Creating initramfs..."
       | gzip -9 > "${INSTALLER_DIR}/initrd-installer.img"
 )
 
-echo "[SP-INSTALLER] Installer initramfs built: ${OUT_INITRD}"
+# ----------------------------
+# Sanity check: /init must exist in initramfs
+# ----------------------------
+if ! gzip -cd "${INSTALLER_DIR}/initrd-installer.img" | cpio -t 2>/dev/null | grep -qx './init'; then
+    echo "[SP-BUILD] ERROR: initrd-installer.img is missing ./init"
+    echo "[SP-BUILD]       Check INITRD_ROOT contents and init creation block."
+    exit 1
+fi
+
+echo "[SP-INSTALLER] Installer initramfs built: ${INSTALLER_DIR}/initrd-installer.img"
