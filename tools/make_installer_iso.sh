@@ -6,6 +6,11 @@ BUILD_DIR="${PROJECT_ROOT}/build/iso"
 RUNTIME_DIR="${PROJECT_ROOT}/build/runtime"
 DIST_DIR="${PROJECT_ROOT}/dist"
 ISO_OUT="${DIST_DIR}/screaming-penguin.iso"
+ISO_BOOT_DIR="${BUILD_DIR}/boot"
+ISO_KERNEL_PATH="${ISO_BOOT_DIR}/vmlinuz-installer"
+ISO_INITRD_PATH="${ISO_BOOT_DIR}/initrd-installer.img"
+DIST_KERNEL_PATH="${DIST_DIR}/vmlinuz-installer"
+DIST_INITRD_PATH="${DIST_DIR}/initrd-installer.img"
 
 mkdir -p "${DIST_DIR}"
 
@@ -86,14 +91,16 @@ EOF
 echo "[SP-ISO] Building hybrid ISO image..."
 
 rm -rf "${BUILD_DIR}"
-mkdir -p "${BUILD_DIR}/boot"
+mkdir -p "${ISO_BOOT_DIR}"
 
 echo "[SP-ISO] Preparing base runtime kernel..."
-cp "${RUNTIME_DIR}/vmlinuz" "${BUILD_DIR}/boot/vmlinuz"
+cp "${RUNTIME_DIR}/vmlinuz" "${ISO_KERNEL_PATH}"
+cp "${RUNTIME_DIR}/vmlinuz" "${DIST_KERNEL_PATH}"
 
 echo "[SP-ISO] Building installer initramfs..."
 _build_installer_initramfs
-cp "${RUNTIME_DIR}/initrd-installer.img" "${BUILD_DIR}/boot/initrd-install.img"
+cp "${RUNTIME_DIR}/initrd-installer.img" "${ISO_INITRD_PATH}"
+cp "${RUNTIME_DIR}/initrd-installer.img" "${DIST_INITRD_PATH}"
 
 echo "[SP-ISO] Writing GRUB configuration..."
 mkdir -p "${BUILD_DIR}/boot/grub"
@@ -109,11 +116,11 @@ terminal_input serial console
 terminal_output serial console
 
 menuentry "Screaming Penguin Installer (stub)" {
-    linux /boot/vmlinuz \
+    linux /boot/vmlinuz-installer \
         root=/dev/ram0 rw \
         console=tty0 console=ttyS0,115200 \
         quiet
-    initrd /boot/initrd-install.img
+    initrd /boot/initrd-installer.img
 }
 EOF_GRUB
 
