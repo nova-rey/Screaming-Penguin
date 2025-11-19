@@ -51,7 +51,7 @@ timeout "${QEMU_TIMEOUT_SEC}s" "$QEMU_BIN" \
   -append "root=/dev/ram0 rw console=ttyS0,115200 console=tty0 quiet" \
   -nographic \
   -no-reboot -no-shutdown \
-  -serial stdio \
+  -serial mon:stdio \
   >"$QEMU_LOG" 2>&1 || true
 
 echo "[QEMU-CI] QEMU exited (possibly due to timeout or shutdown)."
