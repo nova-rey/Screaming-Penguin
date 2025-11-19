@@ -2,8 +2,10 @@
 set -euo pipefail
 
 ISO_PATH="${ISO_PATH:-dist/screaming-penguin.iso}"
-INSTALLER_KERNEL="${INSTALLER_KERNEL:-dist/vmlinuz-installer}"
-INSTALLER_INITRD="${INSTALLER_INITRD:-dist/initrd-installer.img}"
+ISO_KERNEL_REL="boot/vmlinuz-installer"
+ISO_INITRD_REL="boot/initrd-installer.img"
+INSTALLER_KERNEL="dist/vmlinuz-installer"
+INSTALLER_INITRD="dist/initrd-installer.img"
 QEMU_BIN="${QEMU_BIN:-qemu-system-x86_64}"
 QEMU_TIMEOUT_SEC="${QEMU_TIMEOUT_SEC:-90}"
 # Marker string printed by the installer to the console/serial log
@@ -17,6 +19,14 @@ ls -lh "${ISO_PATH}"
 if command -v xorriso >/dev/null 2>&1; then
     echo "[QEMU-CI] El Torito entries (xorriso):"
     xorriso -indev "$ISO_PATH" -report_el_torito plain || true
+
+    echo "[QEMU-CI] Checking ISO for installer kernel/initrd..."
+    for iso_member in "$ISO_KERNEL_REL" "$ISO_INITRD_REL"; do
+        if ! xorriso -indev "$ISO_PATH" -find "/${iso_member}" -print 2>/dev/null | grep -Fq "$iso_member"; then
+            echo "[QEMU-CI] ERROR: Missing ${iso_member} inside ISO."
+            exit 1
+        fi
+    done
 elif command -v isoinfo >/dev/null 2>&1; then
     echo "[QEMU-CI] El Torito entries (isoinfo):"
     isoinfo -d -i "$ISO_PATH" || true
