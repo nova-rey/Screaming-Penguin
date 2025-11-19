@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOTDIR="$(pwd)"
-BUILD_DIR="${ROOTDIR}/build/iso"
-RUNTIME_DIR="${ROOTDIR}/build/runtime"
-INSTALLER_DIR="${ROOTDIR}/build/runtime-installer"
-ISO_OUT="${ROOTDIR}/dist/screaming-penguin.iso"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BUILD_DIR="${PROJECT_ROOT}/build/iso"
+RUNTIME_DIR="${PROJECT_ROOT}/build/runtime"
+DIST_DIR="${PROJECT_ROOT}/dist"
+INSTALLER_IMG="${DIST_DIR}/initrd-installer.img"
+ISO_OUT="${DIST_DIR}/screaming-penguin.iso"
+
+mkdir -p "${DIST_DIR}"
 
 echo "[SP-ISO] Building hybrid ISO image..."
 
@@ -16,8 +19,8 @@ echo "[SP-ISO] Preparing base runtime kernel..."
 cp "${RUNTIME_DIR}/vmlinuz" "${BUILD_DIR}/boot/vmlinuz"
 
 echo "[SP-ISO] Building installer initramfs..."
-bash tools/build_installer_initramfs.sh
-cp "${INSTALLER_DIR}/initrd-installer.img" "${BUILD_DIR}/boot/initrd-install.img"
+bash "${PROJECT_ROOT}/tools/build_installer_initramfs.sh"
+cp "${INSTALLER_IMG}" "${BUILD_DIR}/boot/initrd-install.img"
 
 echo "[SP-ISO] Writing GRUB configuration..."
 mkdir -p "${BUILD_DIR}/boot/grub"
