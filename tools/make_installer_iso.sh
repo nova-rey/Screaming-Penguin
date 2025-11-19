@@ -55,7 +55,7 @@ _build_installer_initramfs() {
   cat > "${INITRD_ROOT}/init" <<'EOF'
 #!/bin/sh
 # Signal to CI that we've reached the installer init.
-echo "[SP-INSTALLER] init reached"
+echo "[SP-INSTALLER] init reached" >/dev/console
 # Minimal Screaming Penguin installer init
 # This is a placeholder skeleton: mount basic filesystems and drop to a shell.
 
@@ -129,7 +129,12 @@ cat > "${ISO_ROOT}/boot/grub/grub.cfg" <<'EOF_GRUB'
 set timeout=0
 set default=0
 
+serial --unit=0 --speed=115200 --word=8 --parity=no --stop=1
+terminal_input serial
+terminal_output serial
+
 menuentry "Screaming Penguin Installer" {
+    search --file --set=root /boot/vmlinuz-installer
     linux /boot/vmlinuz-installer console=tty0 console=ttyS0,115200n8 earlyprintk=serial
     initrd /boot/initrd-installer.img
 }
@@ -141,20 +146,25 @@ GRUB_CFG="${ISO_ROOT}/boot/grub/grub.cfg"
 # and the embedded grub.cfg. If we load too many modules here, the
 # resulting core image can exceed the BIOS size limit (~0x78000 bytes)
 # and grub-mkstandalone will fail with "core image is too big".
-GRUB_BIOS_MODULES="biosdisk part_msdos part_gpt iso9660 normal linux search search_fs_uuid search_fs_file configfile"
+GRUB_BIOS_MODULES="biosdisk part_msdos part_gpt iso9660 normal linux search search_fs_uuid search_fs_file configfile serial terminal"
 
 echo "[SP-ISO] Building BIOS GRUB core image..."
 GRUB_BIOS_IMG="${ISO_ROOT}/boot/grub/grub.img"
+GRUB_BIOS_CORE="${BUILD_DIR}/grub-core.img"
+GRUB_BIOS_CDBOOT="/usr/lib/grub/i386-pc/cdboot.img"
 
 grub-mkstandalone \
   -O i386-pc \
-  -o "${GRUB_BIOS_IMG}" \
+  -o "${GRUB_BIOS_CORE}" \
   --install-modules="${GRUB_BIOS_MODULES}" \
   --modules="${GRUB_BIOS_MODULES}" \
   --compress=xz \
   --locales="" \
   --fonts="" \
   "boot/grub/grub.cfg=${GRUB_CFG}"
+
+cat "${GRUB_BIOS_CDBOOT}" "${GRUB_BIOS_CORE}" > "${GRUB_BIOS_IMG}"
+rm -f "${GRUB_BIOS_CORE}"
 
 if [ -f "${GRUB_BIOS_IMG}" ]; then
   echo "[SP-ISO] BIOS core size: $(stat -c '%s' "${GRUB_BIOS_IMG}") bytes (limit: 491520)"

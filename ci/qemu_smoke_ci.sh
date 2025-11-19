@@ -47,6 +47,7 @@ fi
 
 QEMU_BIN="${QEMU_BIN:-qemu-system-x86_64}"
 SERIAL_LOG="${PROJECT_ROOT}/build/qemu-serial.log"
+INIT_MARKER="[SP-INSTALLER] init reached"
 
 mkdir -p "$(dirname "${SERIAL_LOG}")"
 rm -f "${SERIAL_LOG}"
@@ -81,9 +82,8 @@ case "${qemu_status}" in
     ;;
 esac
 
-# NOTE: In CI we can’t reliably see a custom init marker yet.
-# For now, consider a non-empty serial log after boot + timeout as a PASS.
-# This still ensures the ISO is bootable without adding a long or fragile handshake.
+# Require a non-empty serial log and our installer init marker so we know the
+# ISO boot reached early init.
 if [ ! -s "${SERIAL_LOG}" ]; then
   if [ -f "${SERIAL_LOG}" ]; then
     echo "[QEMU-CI] Serial log exists; size (bytes): $(wc -c < "${SERIAL_LOG}" || echo "unknown")"
@@ -94,7 +94,15 @@ if [ ! -s "${SERIAL_LOG}" ]; then
   exit 1
 fi
 
-echo "[QEMU-CI] Non-empty serial log detected; ISO appears to boot far enough – PASS."
+if ! grep -Fq "${INIT_MARKER}" "${SERIAL_LOG}"; then
+  echo "[QEMU-CI] ERROR: Installer init marker not detected in serial log." >&2
+  echo "[QEMU-CI] Expected marker: ${INIT_MARKER}" >&2
+  echo "[QEMU-CI] Tail of serial log for debugging:" >&2
+  tail -n 80 "${SERIAL_LOG}" >&2 || true
+  exit 1
+fi
+
+echo "[QEMU-CI] Installer init marker detected; ISO boot reached early init – PASS."
 echo "[QEMU-CI] Tail of serial log:"
 tail -n 80 "${SERIAL_LOG}" || true
 
