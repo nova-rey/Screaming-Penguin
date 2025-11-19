@@ -22,7 +22,7 @@ xorriso -indev "${ISO_PATH}" -report_el_torito plain || {
 
 echo "[QEMU-CI] Dumping /boot/grub/grub.cfg from ISO (if available)..."
 if command -v xorriso >/dev/null 2>&1; then
-  if ! xorriso -indev "${ISO_PATH}" -osirrox on -print /boot/grub/grub.cfg; then
+  if ! xorriso -indev "${ISO_PATH}" -osirrox on -extract /boot/grub/grub.cfg - 2>/dev/null; then
     echo "[QEMU-CI] WARNING: Could not read /boot/grub/grub.cfg from ISO."
   fi
 else
@@ -85,6 +85,11 @@ esac
 # For now, consider a non-empty serial log after boot + timeout as a PASS.
 # This still ensures the ISO is bootable without adding a long or fragile handshake.
 if [ ! -s "${SERIAL_LOG}" ]; then
+  if [ -f "${SERIAL_LOG}" ]; then
+    echo "[QEMU-CI] Serial log exists; size (bytes): $(wc -c < "${SERIAL_LOG}" || echo "unknown")"
+  else
+    echo "[QEMU-CI] Serial log file '${SERIAL_LOG}' does not exist."
+  fi
   echo "[QEMU-CI] ERROR: Serial log missing or empty; treating this as a boot failure." >&2
   exit 1
 fi
