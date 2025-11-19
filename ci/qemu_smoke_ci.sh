@@ -78,10 +78,10 @@ if [ ! -f "${SERIAL_LOG}" ]; then
   exit 1
 fi
 
-if ! grep -q "${INIT_MARKER}" "${SERIAL_LOG}"; then
-  echo "[QEMU-CI] ERROR: Installer init marker not found in serial log." >&2
-  echo "[QEMU-CI] Searched for: ${INIT_MARKER}" >&2
-  echo "[QEMU-CI] Dumping last lines of serial log for debugging:" >&2
+if ! grep -F -q -- "${INIT_MARKER}" "${SERIAL_LOG}"; then
+  echo "[QEMU-CI] ERROR: Installer init marker not found in serial log."
+  echo "[QEMU-CI] Searched for: ${INIT_MARKER}"
+  echo "[QEMU-CI] Dumping last lines of serial log for debugging:"
   tail -n 50 "${SERIAL_LOG}" || true
   exit 1
 fi
