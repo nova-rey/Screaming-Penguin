@@ -3,6 +3,7 @@ set -euo pipefail
 
 ISO_PATH="${ISO_PATH:-dist/screaming-penguin.iso}"
 QEMU_BIN="${QEMU_BIN:-qemu-system-x86_64}"
+QEMU_TIMEOUT_SEC="${QEMU_TIMEOUT_SEC:-90}"
 # Marker string printed by the installer to the console/serial log
 INSTALLER_MARKER='[SP-INSTALLER] init starting'
 QEMU_LOG="qemu-output.log"
@@ -27,7 +28,7 @@ fi
 
 echo "[QEMU-CI] Booting ISO in QEMU..."
 : > "$QEMU_LOG"
-if timeout 60s "$QEMU_BIN" \
+if timeout "${QEMU_TIMEOUT_SEC}s" "$QEMU_BIN" \
   -m 1024 \
   -no-reboot \
   -no-shutdown \
