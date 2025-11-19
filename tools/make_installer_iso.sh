@@ -54,6 +54,8 @@ _build_installer_initramfs() {
   # IMPORTANT: this must be `/init` at the archive root so the kernel can execute it.
   cat > "${INITRD_ROOT}/init" <<'EOF'
 #!/bin/sh
+# Signal to CI that we've reached the installer init.
+echo "[SP-INSTALLER] init reached"
 # Minimal Screaming Penguin installer init
 # This is a placeholder skeleton: mount basic filesystems and drop to a shell.
 
@@ -136,8 +138,8 @@ terminal_output serial console
 menuentry "Screaming Penguin Installer (stub)" {
     linux /boot/vmlinuz \
         root=/dev/ram0 rw \
-        console=tty0 console=ttyS0,115200 \
-        quiet
+        quiet \
+        console=tty0 console=ttyS0,115200
     initrd /boot/initrd-installer.img
 }
 EOF_GRUB
