@@ -7,6 +7,11 @@ ROOTDIR="$(pwd)"
 WORKDIR="${ROOTDIR}/build/runtime-installer"
 INITRD_ROOT="${WORKDIR}/initrd-root"
 
+# Output directory for the installer initramfs image.
+# Allow override via DIST_DIR, defaulting to "dist".
+INSTALLER_DIR="${DIST_DIR:-dist}"
+mkdir -p "${INSTALLER_DIR}"
+
 rm -rf "${WORKDIR}"
 mkdir -p "${INITRD_ROOT}"
 
@@ -36,8 +41,6 @@ EOF_INIT
 chmod +x "${INITRD_ROOT}/init"
 
 echo "[SP-INSTALLER] Creating initramfs..."
-INSTALLER_DIR="${DIST_DIR:-dist}"
-mkdir -p "${INSTALLER_DIR}"
 (
     cd "${INITRD_ROOT}"
     find . -print0 \
