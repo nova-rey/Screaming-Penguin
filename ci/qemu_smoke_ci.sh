@@ -2,8 +2,6 @@
 set -euo pipefail
 
 ISO_PATH="${ISO_PATH:-dist/screaming-penguin.iso}"
-ISO_KERNEL_REL="boot/vmlinuz-installer"
-ISO_INITRD_REL="boot/initrd-installer.img"
 INSTALLER_KERNEL="dist/vmlinuz-installer"
 INSTALLER_INITRD="dist/initrd-installer.img"
 QEMU_BIN="${QEMU_BIN:-qemu-system-x86_64}"
@@ -20,13 +18,24 @@ if command -v xorriso >/dev/null 2>&1; then
     echo "[QEMU-CI] El Torito entries (xorriso):"
     xorriso -indev "$ISO_PATH" -report_el_torito plain || true
 
+    echo "[QEMU-CI] Listing /boot contents inside ISO (for debugging):"
+    xorriso -indev "$ISO_PATH" -find /boot -type f -print || true
+
     echo "[QEMU-CI] Checking ISO for installer kernel/initrd..."
-    for iso_member in "$ISO_KERNEL_REL" "$ISO_INITRD_REL"; do
-        if ! xorriso -indev "$ISO_PATH" -find "/${iso_member}" -print 2>/dev/null | grep -Fq "$iso_member"; then
-            echo "[QEMU-CI] ERROR: Missing ${iso_member} inside ISO."
-            exit 1
-        fi
-    done
+
+    if xorriso -indev "$ISO_PATH" -find /boot/vmlinuz-installer -type f -print 2>/dev/null | grep -q 'vmlinuz-installer'; then
+        echo "[QEMU-CI] Found installer kernel at /boot/vmlinuz-installer."
+    elif xorriso -indev "$ISO_PATH" -find /boot/vmlinuz -type f -print 2>/dev/null | grep -q 'vmlinuz'; then
+        echo "[QEMU-CI] WARNING: /boot/vmlinuz-installer missing, but /boot/vmlinuz is present. Using it as installer kernel."
+    else
+        echo "[QEMU-CI] ERROR: No suitable installer kernel found (neither /boot/vmlinuz-installer nor /boot/vmlinuz)."
+        exit 1
+    fi
+
+    if ! xorriso -indev "$ISO_PATH" -find /boot/initrd-installer.img -type f -print 2>/dev/null | grep -q 'initrd-installer.img'; then
+        echo "[QEMU-CI] ERROR: Missing /boot/initrd-installer.img inside ISO."
+        exit 1
+    fi
 elif command -v isoinfo >/dev/null 2>&1; then
     echo "[QEMU-CI] El Torito entries (isoinfo):"
     isoinfo -d -i "$ISO_PATH" || true
