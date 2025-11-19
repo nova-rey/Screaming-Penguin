@@ -119,9 +119,6 @@ cp -f "${INSTALLER_INITRD_PATH}" "${ISO_ROOT}/boot/initrd-installer.img"
 cp -f "${RUNTIME_KERNEL_PATH}" "${DIST_KERNEL_PATH}"
 cp -f "${INSTALLER_INITRD_PATH}" "${DIST_INITRD_PATH}"
 
-echo "[SP-ISO] Contents of ${ISO_ROOT}/boot:"
-ls -l "${ISO_ROOT}/boot" || true
-
 echo "[SP-ISO] Writing GRUB configuration..."
 mkdir -p "${BUILD_DIR}/boot/grub"
 
@@ -179,6 +176,14 @@ cp /usr/lib/grub/x86_64-efi/monolithic/grubx64.efi "${BUILD_DIR}/efi/boot/bootx6
 echo "[SP-ISO] Building final ISO..."
 # Ensure output directory exists for the ISO
 mkdir -p "$(dirname "${ISO_OUT}")"
+
+echo "[SP-ISO] Debug: contents of ISO_ROOT/boot before xorriso:"
+if [ -d "${ISO_ROOT}/boot" ]; then
+  ls -lh "${ISO_ROOT}/boot"
+else
+  echo "[SP-ISO] WARNING: ${ISO_ROOT}/boot does not exist"
+fi
+
 xorriso -as mkisofs \
   -iso-level 3 \
   -o "${ISO_OUT}" \
