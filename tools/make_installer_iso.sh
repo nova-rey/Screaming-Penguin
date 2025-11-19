@@ -112,6 +112,7 @@ fi
 echo "[SP-ISO] Staging installer kernel/initrd into ISO tree..."
 mkdir -p "${ISO_ROOT}/boot"
 
+cp -f "${RUNTIME_KERNEL_PATH}" "${ISO_ROOT}/boot/vmlinuz"
 cp -f "${RUNTIME_KERNEL_PATH}" "${ISO_ROOT}/boot/vmlinuz-installer"
 cp -f "${INSTALLER_INITRD_PATH}" "${ISO_ROOT}/boot/initrd-installer.img"
 
