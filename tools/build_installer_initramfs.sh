@@ -24,30 +24,43 @@ mkdir -p "${INITRD_ROOT}"/{bin,sbin,etc,proc,sys,usr/bin,usr/sbin,dev,mnt/config
 echo "[SP-INSTALLER] Installing BusyBox..."
 busybox --install -s "${INITRD_ROOT}/bin"
 
-# ----------------------------
-# Create /init entry point
-# ----------------------------
-cat > "${INITRD_ROOT}/init" << 'EOF_INIT'
-#!/bin/sh
-echo "[SP-INSTALLER] init starting"
+echo "[SP-INSTALLER] Creating init script..."
 
-# Minimal early-boot scaffolding
+# Basic directories needed by init
+mkdir -p \
+  "${INITRD_ROOT}/proc" \
+  "${INITRD_ROOT}/sys" \
+  "${INITRD_ROOT}/dev"
+
+INIT_SCRIPT="${INITRD_ROOT}/init"
+
+cat > "${INIT_SCRIPT}" << 'EOF'
+#!/bin/busybox sh
+# Minimal Screaming Penguin installer init (stub)
+
+set -e
+
+# Mount core pseudo-filesystems
 mount -t proc proc /proc
 mount -t sysfs sys /sys
-mount -t devtmpfs devtmpfs /dev 2>/dev/null || mount -t tmpfs dev /dev
 
-# For now, drop to a shell; installer state machine will replace this later.
+# Try devtmpfs first; fall back to tmpfs if unavailable
+if ! mount -t devtmpfs devtmpfs /dev 2>/dev/null; then
+    mount -t tmpfs tmpfs /dev
+fi
+
+echo "[SP-INSTALLER] init: Screaming Penguin installer stub starting..."
+echo "[SP-INSTALLER] init: Dropping into BusyBox shell (placeholder installer)."
+
 exec /bin/sh
-EOF_INIT
+EOF
 
-chmod +x "${INITRD_ROOT}/init"
+chmod +x "${INIT_SCRIPT}"
 
 echo "[SP-INSTALLER] Creating initramfs..."
 (
-    cd "${INITRAMFS_DIR}"
-    find . -print0 \
-      | cpio --null --owner root:root -H newc -o \
-      | gzip -9 > "${DIST_DIR}/initrd-installer.img"
+  cd "${INITRD_ROOT}"
+  find . | cpio -o -H newc | gzip > "${DIST_DIR}/initrd-installer.img"
 )
 
 # ----------------------------
