@@ -86,6 +86,7 @@ _build_installer_initramfs() {
   # executes our CI marker + shell entrypoint (consumed by QEMU smoke test).
   cp "${INIT_SCRIPT_SRC}" "${INITRD_ROOT}/init"
   chmod 0755 "${INITRD_ROOT}/init"
+  echo "[SP-INSTALLER] Staged /init -> ${INITRD_ROOT}/init (mode $(stat -c %a "${INITRD_ROOT}/init"))"
 
   echo "[SP-INSTALLER] Creating initramfs..."
   (
@@ -98,9 +99,12 @@ _build_installer_initramfs() {
 
   # Sanity check: confirm that the archive actually contains a root-level /init.
   echo "[SP-INSTALLER] Verifying installer initramfs contains /init..."
-  if ! gzip -dc "${INSTALLER_INITRD_PATH}" 2>/dev/null \
-      | cpio -t 2>/dev/null \
-      | grep -Eq '(^init$|^\./init$)'; then
+  INITRD_FILE_LIST="$(gzip -dc "${INSTALLER_INITRD_PATH}" 2>/dev/null | cpio -t 2>/dev/null)"
+
+  echo "[SP-INSTALLER] initramfs file list:"
+  printf '%s\n' "${INITRD_FILE_LIST}"
+
+  if ! printf '%s\n' "${INITRD_FILE_LIST}" | grep -Eq '(^init$|^\./init$)'; then
     echo "[SP-BUILD] ERROR: initrd-installer.img is missing ./init"
     echo "[SP-BUILD]        Check INITRD_ROOT contents and init creation block."
     exit 1
