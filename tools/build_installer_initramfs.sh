@@ -31,6 +31,29 @@ fi
 cp "${BUSYBOX_PATH}" "${INITRD_ROOT}/bin/busybox"
 chmod 0755 "${INITRD_ROOT}/bin/busybox"
 
+# If BusyBox is dynamically linked, pull in its shared libraries so PID 1 can
+# exec /bin/sh without tripping "No working init found" at boot.
+BUSYBOX_DYNAMIC=1
+if command -v file >/dev/null 2>&1; then
+  if file "${INITRD_ROOT}/bin/busybox" | grep -q "statically linked"; then
+    BUSYBOX_DYNAMIC=0
+  fi
+else
+  LDD_OUTPUT="$(ldd "${BUSYBOX_PATH}" 2>&1 || true)"
+  if echo "${LDD_OUTPUT}" | grep -q "not a dynamic executable"; then
+    BUSYBOX_DYNAMIC=0
+  fi
+fi
+
+if [ "${BUSYBOX_DYNAMIC}" -eq 1 ]; then
+  echo "[SP-INSTALLER] BusyBox is dynamically linked; copying shared libraries..."
+  ldd "${BUSYBOX_PATH}" 2>/dev/null | awk '/=>/ {print $3} /^\// {print $1}' | while read -r lib; do
+    [ -z "${lib}" ] && continue
+    mkdir -p "${INITRD_ROOT}$(dirname "${lib}")"
+    cp -L "${lib}" "${INITRD_ROOT}${lib}"
+  done
+fi
+
 (
   cd "${INITRD_ROOT}/bin"
   for applet in sh mount mkdir echo sleep; do
@@ -58,7 +81,7 @@ echo "[SP-INSTALLER] Creating initramfs..."
 # ----------------------------
 # Sanity check: /init must exist in initramfs
 # ----------------------------
-if ! gzip -cd "${DIST_DIR}/initrd-installer.img" | cpio -t 2>/dev/null | grep -qx './init'; then
+if ! gzip -cd "${DIST_DIR}/initrd-installer.img" | cpio -t 2>/dev/null | grep -Eq '^(init|./init)$'; then
     echo "[SP-BUILD] ERROR: initrd-installer.img is missing ./init"
     echo "[SP-BUILD]       Check INITRD_ROOT contents and init creation block."
     exit 1
