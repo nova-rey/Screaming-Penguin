@@ -123,7 +123,7 @@ terminal_output serial
 
 menuentry "Screaming Penguin Installer" {
     search --file --set=root /boot/vmlinuz-installer
-    linux /boot/vmlinuz-installer console=tty0 console=ttyS0,115200n8 earlyprintk=serial
+    linux /boot/vmlinuz-installer root=/dev/ram0 rdinit=/init console=tty0 console=ttyS0,115200n8 earlyprintk=serial
     initrd /boot/initrd-installer.img
 }
 EOF_GRUB
