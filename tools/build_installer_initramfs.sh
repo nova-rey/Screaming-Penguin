@@ -44,6 +44,8 @@ if [ ! -f "${INIT_SCRIPT_SRC}" ]; then
   exit 1
 fi
 
+# Place the installer /init at the root of the initramfs so the kernel
+# runs our CI-visible entrypoint for smoke testing.
 cp "${INIT_SCRIPT_SRC}" "${INITRD_ROOT}/init"
 chmod 0755 "${INITRD_ROOT}/init"
 

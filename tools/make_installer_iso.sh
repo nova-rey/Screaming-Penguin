@@ -57,6 +57,8 @@ _build_installer_initramfs() {
     exit 1
   fi
 
+  # Place the installer /init at the root of the initramfs so the kernel
+  # executes our CI marker + shell entrypoint (consumed by QEMU smoke test).
   cp "${INIT_SCRIPT_SRC}" "${INITRD_ROOT}/init"
   chmod 0755 "${INITRD_ROOT}/init"
 
