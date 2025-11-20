@@ -24,6 +24,7 @@ _build_installer_initramfs() {
 
   # Root of the installer initramfs tree
   local INITRD_ROOT="${BUILD_DIR}/installer-initrd"
+  local INIT_SCRIPT_SRC="${PROJECT_ROOT}/installer/init/init.sh"
 
   mkdir -p "${RUNTIME_DIR}"
   mkdir -p "${INSTALLER_DIR}"
@@ -45,31 +46,18 @@ _build_installer_initramfs() {
 
   (
     cd "${INITRD_ROOT}/bin"
-    for applet in sh mount mkdir echo dmesg; do
+    for applet in sh mount mkdir echo dmesg sleep; do
       ln -sf busybox "${applet}"
     done
   )
 
   echo "[SP-INSTALLER] Creating init script..."
-  # IMPORTANT: this must be `/init` at the archive root so the kernel can execute it.
-  cat > "${INITRD_ROOT}/init" <<'EOF'
-#!/bin/sh
-# Signal to CI that we've reached the installer init.
-echo "[SP-INSTALLER] init reached" >/dev/console
-# Minimal Screaming Penguin installer init
-# This is a placeholder skeleton: mount basic filesystems and drop to a shell.
+  if [ ! -f "${INIT_SCRIPT_SRC}" ]; then
+    echo "[SP-BUILD] ERROR: init script source missing: ${INIT_SCRIPT_SRC}" >&2
+    exit 1
+  fi
 
-echo "[SP-INSTALLER] init: starting minimal installer environment..."
-
-# Mount essential pseudo-filesystems
-mount -t proc proc /proc 2>/dev/null || echo "[SP-INSTALLER] warning: failed to mount /proc"
-mount -t sysfs sysfs /sys 2>/dev/null || echo "[SP-INSTALLER] warning: failed to mount /sys"
-mount -t devtmpfs devtmpfs /dev 2>/dev/null || echo "[SP-INSTALLER] warning: failed to mount /dev"
-
-# For now, just drop to a shell; the real installer state machine will hook in later.
-exec /bin/sh
-EOF
-
+  cp "${INIT_SCRIPT_SRC}" "${INITRD_ROOT}/init"
   chmod 0755 "${INITRD_ROOT}/init"
 
   echo "[SP-INSTALLER] Creating initramfs..."
