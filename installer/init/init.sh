@@ -1,22 +1,23 @@
 #!/bin/sh
-set -eu
+# Minimal Screaming Penguin installer init for CI smoke testing
 
-# Minimal Screaming Penguin installer init (temporary bring-up)
+# Try to avoid dying on best-effort operations
+set +e
 
+# Mount essential pseudo filesystems (ignore failures)
+mount -t proc proc /proc 2>/dev/null || true
+mount -t sysfs sysfs /sys 2>/dev/null || true
+mount -t devtmpfs devtmpfs /dev 2>/dev/null || \
+    mount -t tmpfs devtmpfs /dev 2>/dev/null || true
+
+# Emit the CI marker to both console and serial if available
 if [ -c /dev/console ]; then
-  echo "[SP-INSTALLER] init reached" > /dev/console
+  echo "[SP-INSTALLER] init reached" >/dev/console 2>/dev/null || true
 else
   echo "[SP-INSTALLER] init reached"
 fi
 
-echo "Screaming Penguin init shell (temporary bring-up)"
-echo "You are in the initramfs environment."
+echo "[SP-INSTALLER] init reached" >/dev/ttyS0 2>/dev/null || true
 
-if [ -x /bin/sh ]; then
-  exec /bin/sh
-fi
-
-# Fallback: avoid immediate kernel panic if no shell is available
-while :; do
-  sleep 60
-done
+# Drop to an interactive shell for debugging
+exec sh
