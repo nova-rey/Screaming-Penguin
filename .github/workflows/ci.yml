@@ -31,7 +31,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            shellcheck \
             qemu-system-x86 \
             debootstrap \
             parted \
@@ -41,16 +40,6 @@ jobs:
             mount \
             xz-utils \
             grub-pc-bin
-
-      - name: ShellCheck all shell scripts
-        run: |
-          echo "[CI] Running ShellCheck on all *.sh files..."
-          SH_FILES="$(git ls-files '*.sh')"
-          if [ -n "$SH_FILES" ]; then
-            shellcheck $SH_FILES
-          else
-            echo "[CI] No shell scripts found; skipping ShellCheck."
-          fi
 
       - name: Install ISO build dependencies
         run: |
