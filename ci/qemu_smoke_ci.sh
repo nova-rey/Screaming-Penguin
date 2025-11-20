@@ -45,6 +45,25 @@ if [ "${has_kernel}" -ne 1 ]; then
   exit 1
 fi
 
+echo "[QEMU-CI] Verifying initramfs contents..."
+INITRD_EXTRACT="${PROJECT_ROOT}/build/initrd-installer.img"
+mkdir -p "$(dirname "${INITRD_EXTRACT}")"
+
+if ! xorriso -indev "${ISO_PATH}" -osirrox on -extract /boot/initrd-installer.img "${INITRD_EXTRACT}" 2>/dev/null; then
+  echo "[QEMU-CI] ERROR: Failed to extract /boot/initrd-installer.img from ISO." >&2
+  exit 1
+fi
+
+if ! lsinitramfs "${INITRD_EXTRACT}" | grep -E '^init$'; then
+  echo "[QEMU-CI] ERROR: init not found in installer initramfs." >&2
+  exit 1
+fi
+
+if ! lsinitramfs "${INITRD_EXTRACT}" | grep -E '^bin/busybox$'; then
+  echo "[QEMU-CI] ERROR: /bin/busybox not found in installer initramfs." >&2
+  exit 1
+fi
+
 QEMU_BIN="${QEMU_BIN:-qemu-system-x86_64}"
 SERIAL_LOG="${PROJECT_ROOT}/build/qemu-serial.log"
 INIT_MARKER="[SP-INSTALLER] init reached"
