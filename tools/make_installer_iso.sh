@@ -26,6 +26,23 @@ _build_installer_initramfs() {
   local INITRD_ROOT="${BUILD_DIR}/installer-initrd"
   local INIT_SCRIPT_SRC="${PROJECT_ROOT}/installer/init/init.sh"
 
+  _is_busybox_static() {
+    local candidate="$1"
+    if command -v file >/dev/null 2>&1 && file "${candidate}" | grep -q "statically linked"; then
+      return 0
+    fi
+
+    if command -v ldd >/dev/null 2>&1; then
+      local ldd_out
+      ldd_out="$(ldd "${candidate}" 2>&1 || true)"
+      if echo "${ldd_out}" | grep -q "not a dynamic executable"; then
+        return 0
+      fi
+    fi
+
+    return 1
+  }
+
   mkdir -p "${RUNTIME_DIR}"
   mkdir -p "${INSTALLER_DIR}"
 
@@ -37,28 +54,66 @@ _build_installer_initramfs() {
   # missing ld.so/glibc inside the initramfs.
   local BUSYBOX_PATH
   BUSYBOX_PATH="${SP_BUSYBOX_BIN:-$(command -v busybox-static || command -v busybox || true)}"
+  local STATIC_CANDIDATE
+  STATIC_CANDIDATE="$(command -v busybox-static || true)"
+  if [ -n "${STATIC_CANDIDATE}" ] && [ "${BUSYBOX_PATH}" != "${STATIC_CANDIDATE}" ]; then
+    echo "[SP-INSTALLER] Preferring busybox-static at ${STATIC_CANDIDATE} over ${BUSYBOX_PATH:-N/A}."
+    BUSYBOX_PATH="${STATIC_CANDIDATE}"
+  fi
+
   if [ -z "${BUSYBOX_PATH}" ]; then
     echo "[SP-BUILD] ERROR: busybox/busybox-static not found on build host; cannot build installer initramfs."
     exit 1
   fi
 
+  echo "[SP-INSTALLER] BusyBox candidate: ${BUSYBOX_PATH}"
+  if command -v file >/dev/null 2>&1; then
+    file "${BUSYBOX_PATH}" || true
+  else
+    echo "[SP-INSTALLER] 'file' not available; skipping BusyBox file inspection."
+  fi
+  if command -v ldd >/dev/null 2>&1; then
+    ldd "${BUSYBOX_PATH}" || true
+  else
+    echo "[SP-INSTALLER] 'ldd' not available; skipping BusyBox dependency inspection."
+  fi
+
+  if _is_busybox_static "${BUSYBOX_PATH}"; then
+    echo "[SP-INSTALLER] BusyBox is static; no shared library staging required."
+  else
+    echo "[SP-INSTALLER] BusyBox appears dynamic; attempting to source a static binary..."
+    if command -v apt-get >/dev/null 2>&1; then
+      echo "[SP-INSTALLER] Installing busybox-static via apt (if available)..."
+      DEBIAN_FRONTEND=noninteractive apt-get update -y
+      DEBIAN_FRONTEND=noninteractive apt-get install -y busybox-static
+      BUSYBOX_PATH="${SP_BUSYBOX_BIN:-$(command -v busybox-static || command -v busybox || true)}"
+      echo "[SP-INSTALLER] BusyBox candidate after install: ${BUSYBOX_PATH:-none}"
+    fi
+  fi
+
+  if [ -z "${BUSYBOX_PATH}" ]; then
+    echo "[SP-BUILD] ERROR: busybox/busybox-static not found on build host; cannot build installer initramfs." >&2
+    exit 1
+  fi
+
+  echo "[SP-INSTALLER] Final BusyBox selection: ${BUSYBOX_PATH}"
+  if command -v file >/dev/null 2>&1; then
+    file "${BUSYBOX_PATH}" || true
+  fi
+  if command -v ldd >/dev/null 2>&1; then
+    ldd "${BUSYBOX_PATH}" || true
+  fi
+
   # Stage BusyBox for the initramfs; /bin/busybox must exist so the /init
   # shebang (#!/bin/busybox sh) has a working interpreter.
   install -m 0755 "${BUSYBOX_PATH}" "${INITRD_ROOT}/bin/busybox"
+  chmod 0755 "${INITRD_ROOT}/bin/busybox"
 
   # If the busybox copy is dynamically linked, include its shared libraries so
   # /init has a working interpreter (prevents "No working init found").
   local BUSYBOX_DYNAMIC=1
-  if command -v file >/dev/null 2>&1; then
-    if file "${INITRD_ROOT}/bin/busybox" | grep -q "statically linked"; then
-      BUSYBOX_DYNAMIC=0
-    fi
-  else
-    local LDD_OUTPUT
-    LDD_OUTPUT="$(ldd "${BUSYBOX_PATH}" 2>&1 || true)"
-    if echo "${LDD_OUTPUT}" | grep -q "not a dynamic executable"; then
-      BUSYBOX_DYNAMIC=0
-    fi
+  if _is_busybox_static "${INITRD_ROOT}/bin/busybox"; then
+    BUSYBOX_DYNAMIC=0
   fi
 
   if [ "${BUSYBOX_DYNAMIC}" -eq 1 ]; then
@@ -86,6 +141,7 @@ _build_installer_initramfs() {
   # Place the installer /init at the root of the initramfs so the kernel
   # executes our CI marker + shell entrypoint (consumed by QEMU smoke test).
   install -m 0755 "${INIT_SCRIPT_SRC}" "${INITRD_ROOT}/init"
+  chmod 0755 "${INITRD_ROOT}/init"
   echo "[SP-INSTALLER] Staged /init -> ${INITRD_ROOT}/init (mode $(stat -c %a "${INITRD_ROOT}/init"))"
 
   echo "[SP-INSTALLER] Creating initramfs..."
@@ -103,6 +159,9 @@ _build_installer_initramfs() {
 
   echo "[SP-INSTALLER] initramfs file list:"
   printf '%s\n' "${INITRD_FILE_LIST}"
+
+  echo "[SP-INSTALLER] init and /bin/busybox permissions within initramfs:"
+  gzip -dc "${INSTALLER_INITRD_PATH}" 2>/dev/null | cpio -tv 2>/dev/null | grep -E '(^-.* init$|^-.* bin/busybox$)' || true
 
   if ! printf '%s\n' "${INITRD_FILE_LIST}" | grep -Eq '(^init$|^\./init$)'; then
     echo "[SP-BUILD] ERROR: initrd-installer.img is missing ./init"
