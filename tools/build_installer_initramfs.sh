@@ -28,8 +28,9 @@ if [ -z "${BUSYBOX_PATH}" ]; then
   exit 1
 fi
 
-cp "${BUSYBOX_PATH}" "${INITRD_ROOT}/bin/busybox"
-chmod 0755 "${INITRD_ROOT}/bin/busybox"
+# Stage BusyBox for the initramfs; /bin/busybox must exist so the /init
+# shebang (#!/bin/busybox sh) has a working interpreter.
+install -m 0755 "${BUSYBOX_PATH}" "${INITRD_ROOT}/bin/busybox"
 
 # If BusyBox is dynamically linked, pull in its shared libraries so PID 1 can
 # exec /bin/sh without tripping "No working init found" at boot.
@@ -69,8 +70,7 @@ fi
 
 # Place the installer /init at the root of the initramfs so the kernel
 # runs our CI-visible entrypoint for smoke testing.
-cp "${INIT_SCRIPT_SRC}" "${INITRD_ROOT}/init"
-chmod 0755 "${INITRD_ROOT}/init"
+install -m 0755 "${INIT_SCRIPT_SRC}" "${INITRD_ROOT}/init"
 
 echo "[SP-INSTALLER] Creating initramfs..."
 (

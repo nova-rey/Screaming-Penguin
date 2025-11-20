@@ -42,8 +42,9 @@ _build_installer_initramfs() {
     exit 1
   fi
 
-  cp "${BUSYBOX_PATH}" "${INITRD_ROOT}/bin/busybox"
-  chmod 0755 "${INITRD_ROOT}/bin/busybox"
+  # Stage BusyBox for the initramfs; /bin/busybox must exist so the /init
+  # shebang (#!/bin/busybox sh) has a working interpreter.
+  install -m 0755 "${BUSYBOX_PATH}" "${INITRD_ROOT}/bin/busybox"
 
   # If the busybox copy is dynamically linked, include its shared libraries so
   # /init has a working interpreter (prevents "No working init found").
@@ -84,8 +85,7 @@ _build_installer_initramfs() {
 
   # Place the installer /init at the root of the initramfs so the kernel
   # executes our CI marker + shell entrypoint (consumed by QEMU smoke test).
-  cp "${INIT_SCRIPT_SRC}" "${INITRD_ROOT}/init"
-  chmod 0755 "${INITRD_ROOT}/init"
+  install -m 0755 "${INIT_SCRIPT_SRC}" "${INITRD_ROOT}/init"
   echo "[SP-INSTALLER] Staged /init -> ${INITRD_ROOT}/init (mode $(stat -c %a "${INITRD_ROOT}/init"))"
 
   echo "[SP-INSTALLER] Creating initramfs..."
