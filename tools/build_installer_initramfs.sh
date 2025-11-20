@@ -13,6 +13,7 @@ mkdir -p "${INITRAMFS_DIR}"
 echo "[SP-INSTALLER] Building installer initramfs..."
 
 INITRD_ROOT="${INITRAMFS_DIR}"
+INIT_SCRIPT_SRC="${PROJECT_ROOT}/installer/init/init.sh"
 
 rm -rf "${INITRAMFS_DIR:?}/"*
 mkdir -p "${INITRD_ROOT}"
@@ -20,42 +21,31 @@ mkdir -p "${INITRD_ROOT}"
 # Create minimal directory tree
 mkdir -p "${INITRD_ROOT}"/{bin,sbin,etc,proc,sys,usr/bin,usr/sbin,dev,mnt/config,run}
 
-# BusyBox
 echo "[SP-INSTALLER] Installing BusyBox..."
-busybox --install -s "${INITRD_ROOT}/bin"
-
-echo "[SP-INSTALLER] Creating init script..."
-
-# Basic directories needed by init
-mkdir -p \
-  "${INITRD_ROOT}/proc" \
-  "${INITRD_ROOT}/sys" \
-  "${INITRD_ROOT}/dev"
-
-INIT_SCRIPT="${INITRD_ROOT}/init"
-
-cat > "${INIT_SCRIPT}" << 'EOF'
-#!/bin/busybox sh
-# Minimal Screaming Penguin installer init (stub)
-
-set -e
-
-# Mount core pseudo-filesystems
-mount -t proc proc /proc
-mount -t sysfs sys /sys
-
-# Try devtmpfs first; fall back to tmpfs if unavailable
-if ! mount -t devtmpfs devtmpfs /dev 2>/dev/null; then
-    mount -t tmpfs tmpfs /dev
+BUSYBOX_PATH="${SP_BUSYBOX_BIN:-$(command -v busybox-static || command -v busybox || true)}"
+if [ -z "${BUSYBOX_PATH}" ]; then
+  echo "[SP-BUILD] ERROR: busybox/busybox-static not found on build host; cannot build installer initramfs." >&2
+  exit 1
 fi
 
-echo "[SP-INSTALLER] init: Screaming Penguin installer stub starting..."
-echo "[SP-INSTALLER] init: Dropping into BusyBox shell (placeholder installer)."
+cp "${BUSYBOX_PATH}" "${INITRD_ROOT}/bin/busybox"
+chmod 0755 "${INITRD_ROOT}/bin/busybox"
 
-exec /bin/sh
-EOF
+(
+  cd "${INITRD_ROOT}/bin"
+  for applet in sh mount mkdir echo sleep; do
+    ln -sf busybox "${applet}"
+  done
+)
 
-chmod +x "${INIT_SCRIPT}"
+echo "[SP-INSTALLER] Creating init script..."
+if [ ! -f "${INIT_SCRIPT_SRC}" ]; then
+  echo "[SP-BUILD] ERROR: init script source missing: ${INIT_SCRIPT_SRC}" >&2
+  exit 1
+fi
+
+cp "${INIT_SCRIPT_SRC}" "${INITRD_ROOT}/init"
+chmod 0755 "${INITRD_ROOT}/init"
 
 echo "[SP-INSTALLER] Creating initramfs..."
 (
