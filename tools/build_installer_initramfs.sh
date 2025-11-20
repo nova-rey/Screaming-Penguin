@@ -75,7 +75,7 @@ chmod 0755 "${INITRD_ROOT}/init"
 echo "[SP-INSTALLER] Creating initramfs..."
 (
   cd "${INITRD_ROOT}"
-  find . | cpio -o -H newc | gzip > "${DIST_DIR}/initrd-installer.img"
+  find . | cpio -o -H newc | gzip -9 > "${DIST_DIR}/initrd-installer.img"
 )
 
 # ----------------------------
