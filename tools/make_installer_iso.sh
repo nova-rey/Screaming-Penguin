@@ -33,7 +33,8 @@ _build_installer_initramfs() {
   mkdir -p "${INITRD_ROOT}"/{bin,sbin,etc,proc,sys,dev,run,tmp}
 
   echo "[SP-INSTALLER] Installing BusyBox..."
-  # Use whatever BusyBox is available on the build host; we only need a few applets.
+  # Use whatever BusyBox is available on the build host; prefer static to avoid
+  # missing ld.so/glibc inside the initramfs.
   local BUSYBOX_PATH
   BUSYBOX_PATH="${SP_BUSYBOX_BIN:-$(command -v busybox-static || command -v busybox || true)}"
   if [ -z "${BUSYBOX_PATH}" ]; then
@@ -43,6 +44,30 @@ _build_installer_initramfs() {
 
   cp "${BUSYBOX_PATH}" "${INITRD_ROOT}/bin/busybox"
   chmod 0755 "${INITRD_ROOT}/bin/busybox"
+
+  # If the busybox copy is dynamically linked, include its shared libraries so
+  # /init has a working interpreter (prevents "No working init found").
+  local BUSYBOX_DYNAMIC=1
+  if command -v file >/dev/null 2>&1; then
+    if file "${INITRD_ROOT}/bin/busybox" | grep -q "statically linked"; then
+      BUSYBOX_DYNAMIC=0
+    fi
+  else
+    local LDD_OUTPUT
+    LDD_OUTPUT="$(ldd "${BUSYBOX_PATH}" 2>&1 || true)"
+    if echo "${LDD_OUTPUT}" | grep -q "not a dynamic executable"; then
+      BUSYBOX_DYNAMIC=0
+    fi
+  fi
+
+  if [ "${BUSYBOX_DYNAMIC}" -eq 1 ]; then
+    echo "[SP-INSTALLER] BusyBox is dynamically linked; copying shared libraries..."
+    ldd "${BUSYBOX_PATH}" 2>/dev/null | awk '/=>/ {print $3} /^\// {print $1}' | while read -r lib; do
+      [ -z "${lib}" ] && continue
+      mkdir -p "${INITRD_ROOT}$(dirname "${lib}")"
+      cp -L "${lib}" "${INITRD_ROOT}${lib}"
+    done
+  fi
 
   (
     cd "${INITRD_ROOT}/bin"
