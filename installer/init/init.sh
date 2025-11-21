@@ -39,6 +39,48 @@ sp_bootstrap() {
     sp_log 'stage=bootstrapped'
 }
 
+sp_detect_mode() {
+    source="default"
+
+    if [ -n "${SP_MODE:-}" ]; then
+        case "$SP_MODE" in
+            SMOKE|INSTALL)
+                source="env"
+                ;;
+            *)
+                SP_MODE="SMOKE"
+                source="default"
+                ;;
+        esac
+    else
+        mode_candidate=""
+
+        if [ -r /proc/cmdline ]; then
+            for token in $(cat /proc/cmdline); do
+                case "$token" in
+                    sp.mode=*)
+                        mode_candidate=${token#sp.mode=}
+                        ;;
+                esac
+            done
+        fi
+
+        case "$mode_candidate" in
+            SMOKE|INSTALL)
+                SP_MODE="$mode_candidate"
+                source="kernel"
+                ;;
+            *)
+                SP_MODE="SMOKE"
+                source="default"
+                ;;
+        esac
+    fi
+
+    export SP_MODE
+    sp_log "state=mode-detect" "mode=$SP_MODE" "source=$source"
+}
+
 sp_discover_config() {
     # returns 0 if config found, non-zero otherwise
     # sets SP_CONFIG_PATH on success
@@ -318,8 +360,34 @@ sp_idle_shell() {
     exec sh -i </dev/console >/dev/console 2>&1
 }
 
+sp_can_modify_disk() {
+    case "${SP_MODE:-SMOKE}" in
+        INSTALL)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+sp_summary() {
+    mode="${SP_MODE:-SMOKE}"
+    config="${SP_CONFIG_PATH:-none}"
+    target="${SP_TARGET_DISK:-none}"
+    kind="${SP_TARGET_KIND:-unknown}"
+
+    sp_log "state=summary" \
+        "mode=$mode" \
+        "config=$config" \
+        "target=$target" \
+        "target_kind=$kind"
+}
+
 main() {
     sp_bootstrap
+
+    sp_detect_mode || true
 
     sp_discover_config || true
 
@@ -338,6 +406,23 @@ main() {
     if ! sp_plan_partitioning; then
         sp_log "state=plan-partitioning" "result=failed" "severity=non-fatal"
     fi
+
+    sp_summary || true
+
+    case "${SP_MODE:-SMOKE}" in
+        INSTALL)
+            sp_log "state=mode-dispatch" \
+                "mode=INSTALL" \
+                "result=not-implemented" \
+                "note=install-write-path-disabled-in-this-build"
+            ;;
+        *)
+            sp_log "state=mode-dispatch" \
+                "mode=${SP_MODE:-SMOKE}" \
+                "result=ok" \
+                "note=smoke-mode-no-writes"
+            ;;
+    esac
 
     sp_idle_shell
 }
