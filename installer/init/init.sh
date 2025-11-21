@@ -16,6 +16,25 @@ sp_dev_to_base() {
     printf '%s\n' "$dev_path"
 }
 
+sp_is_block_device() {
+    dev="$1"
+
+    [ -n "$dev" ] || return 1
+
+    case "$dev" in
+        /dev/*)
+            [ -b "$dev" ] && return 0
+            ;;
+        *)
+            if [ -b "/dev/$dev" ]; then
+                return 0
+            fi
+            ;;
+    esac
+
+    return 1
+}
+
 sp_bootstrap() {
     PATH=/bin:/sbin:/usr/bin:/usr/sbin
     export PATH
@@ -373,6 +392,83 @@ sp_can_modify_disk() {
     esac
 }
 
+sp_readiness_smoke() {
+    sp_log "state=readiness" \
+        "mode=SMOKE" \
+        "result=ok" \
+        "reason=smoke-mode-no-writes"
+
+    return 0
+}
+
+sp_readiness_install() {
+    if [ -z "${SP_CONFIG_PATH:-}" ]; then
+        sp_log "state=readiness" \
+            "mode=INSTALL" \
+            "result=error" \
+            "reason=missing-config" \
+            "config=${SP_CONFIG_PATH:-none}" \
+            "target=${SP_TARGET_DISK:-none}" \
+            "target_kind=${SP_TARGET_KIND:-unknown}"
+        return 1
+    fi
+
+    if [ -z "${SP_TARGET_DISK:-}" ]; then
+        sp_log "state=readiness" \
+            "mode=INSTALL" \
+            "result=error" \
+            "reason=missing-target" \
+            "config=${SP_CONFIG_PATH:-none}" \
+            "target=${SP_TARGET_DISK:-none}" \
+            "target_kind=${SP_TARGET_KIND:-unknown}"
+        return 1
+    fi
+
+    if ! sp_is_block_device "$SP_TARGET_DISK"; then
+        sp_log "state=readiness" \
+            "mode=INSTALL" \
+            "result=error" \
+            "reason=invalid-target" \
+            "config=${SP_CONFIG_PATH:-none}" \
+            "target=${SP_TARGET_DISK:-none}" \
+            "target_kind=${SP_TARGET_KIND:-unknown}"
+        return 1
+    fi
+
+    if [ -z "${SP_TARGET_KIND:-}" ] || [ "${SP_TARGET_KIND}" = "unknown" ]; then
+        sp_log "state=readiness" \
+            "mode=INSTALL" \
+            "result=error" \
+            "reason=unknown-target-kind" \
+            "config=${SP_CONFIG_PATH:-none}" \
+            "target=${SP_TARGET_DISK:-none}" \
+            "target_kind=${SP_TARGET_KIND:-unknown}"
+        return 1
+    fi
+
+    sp_log "state=readiness" \
+        "mode=INSTALL" \
+        "result=ok" \
+        "config=${SP_CONFIG_PATH:-none}" \
+        "target=${SP_TARGET_DISK:-none}" \
+        "target_kind=${SP_TARGET_KIND:-unknown}"
+
+    return 0
+}
+
+sp_check_readiness() {
+    mode="${SP_MODE:-SMOKE}"
+
+    case "$mode" in
+        INSTALL)
+            sp_readiness_install
+            ;;
+        *)
+            sp_readiness_smoke
+            ;;
+    esac
+}
+
 sp_summary() {
     mode="${SP_MODE:-SMOKE}"
     config="${SP_CONFIG_PATH:-none}"
@@ -410,6 +506,19 @@ main() {
     fi
 
     sp_summary || true
+
+    # Evaluate readiness for the current mode (no writes performed here).
+    if ! sp_check_readiness; then
+        sp_log "state=readiness-dispatch" \
+            "mode=${SP_MODE:-SMOKE}" \
+            "result=not-ready" \
+            "note=installer-will-not-proceed-with-writes-in-this-build"
+    else
+        sp_log "state=readiness-dispatch" \
+            "mode=${SP_MODE:-SMOKE}" \
+            "result=ready" \
+            "note=writes-still-disabled-in-this-build"
+    fi
 
     case "${SP_MODE:-SMOKE}" in
         INSTALL)
