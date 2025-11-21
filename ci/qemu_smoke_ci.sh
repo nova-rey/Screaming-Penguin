@@ -121,6 +121,12 @@ if ! grep -Fq "${INIT_MARKER}" "${SERIAL_LOG}"; then
   exit 1
 fi
 
+if grep -Fq "[SP-INSTALLER] stage=bootstrapped" "${SERIAL_LOG}"; then
+  echo "[QEMU-CI] Detected stage=bootstrapped marker."
+else
+  echo "[QEMU-CI] NOTE: stage=bootstrapped marker not found (not required for pass)."
+fi
+
 echo "[QEMU-CI] Installer init marker detected; ISO boot reached early init – PASS."
 echo "[QEMU-CI] Tail of serial log:"
 tail -n 80 "${SERIAL_LOG}" || true
