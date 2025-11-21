@@ -127,6 +127,18 @@ else
   echo "[QEMU-CI] NOTE: stage=bootstrapped marker not found (not required for pass)."
 fi
 
+if grep -Fq "[SP-INSTALLER] state=discover-config" "${SERIAL_LOG}"; then
+  echo "[QEMU-CI] Detected discover-config state marker."
+else
+  echo "[QEMU-CI] NOTE: discover-config marker not found (not required)."
+fi
+
+if grep -Fq "[SP-INSTALLER] state=idle-shell" "${SERIAL_LOG}"; then
+  echo "[QEMU-CI] Detected idle-shell state marker."
+else
+  echo "[QEMU-CI] NOTE: idle-shell marker not found (not required)."
+fi
+
 echo "[QEMU-CI] Installer init marker detected; ISO boot reached early init – PASS."
 echo "[QEMU-CI] Tail of serial log:"
 tail -n 80 "${SERIAL_LOG}" || true
