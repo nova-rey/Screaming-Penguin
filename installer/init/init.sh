@@ -35,19 +35,121 @@ sp_bootstrap() {
 sp_discover_config() {
     # returns 0 if config found, non-zero otherwise
     # sets SP_CONFIG_PATH on success
+    SP_CONFIG_PATH=""
     CONFIG_CANDIDATES="/config/installer-config.yml /mnt/config/installer-config.yml"
 
     for p in $CONFIG_CANDIDATES; do
         if [ -f "$p" ]; then
             SP_CONFIG_PATH=$p
             export SP_CONFIG_PATH
-            sp_log "state=discover-config" "config=found" "path=$p"
+            sp_log "state=discover-config" "result=found" "path=$SP_CONFIG_PATH"
             return 0
         fi
     done
 
-    sp_log "state=discover-config" "config=missing" "reason=not-found-in-default-paths"
+    unset SP_CONFIG_PATH
+    sp_log "state=discover-config" "result=not-found"
     return 1
+}
+
+sp_parse_config_minimal() {
+    target_disk_found=0
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        trimmed=$(printf '%s' "$line" | sed 's/^[[:space:]]*//')
+
+        case "$trimmed" in
+            ""|"#"*)
+                continue
+                ;;
+            target_disk:*)
+                value=${trimmed#target_disk:}
+                value_no_comment=${value%%#*}
+                value_clean=$(printf '%s' "$value_no_comment" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+                case "$value_clean" in
+                    "\"*\"")
+                        value_clean=${value_clean#"\""}
+                        value_clean=${value_clean%"\""}
+                        ;;
+                    "'*'")
+                        value_clean=${value_clean#"'"}
+                        value_clean=${value_clean%"'"}
+                        ;;
+                esac
+
+                value_clean=$(printf '%s' "$value_clean" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+                if [ -n "$value_clean" ]; then
+                    SP_TARGET_DISK=$value_clean
+                    SP_CONFIG_HAS_TARGET_DISK=1
+                    export SP_TARGET_DISK SP_CONFIG_HAS_TARGET_DISK
+                    sp_log "state=config-load" "key=target_disk" "value=$SP_TARGET_DISK" "result=parsed"
+                    target_disk_found=1
+                else
+                    sp_log "state=config-load" "key=target_disk" "result=missing-or-invalid"
+                    return 1
+                fi
+                ;;
+        esac
+    done < "$SP_CONFIG_PATH"
+
+    if [ "$target_disk_found" -ne 1 ]; then
+        sp_log "state=config-load" "key=target_disk" "result=missing-or-invalid"
+        return 1
+    fi
+
+    return 0
+}
+
+sp_load_config() {
+    # Precondition: SP_CONFIG_PATH may be set or unset.
+    if [ -z "${SP_CONFIG_PATH:-}" ]; then
+        sp_log "state=config-load" "result=skip" "reason=no-config-path"
+        return 0
+    fi
+
+    if [ ! -r "$SP_CONFIG_PATH" ]; then
+        sp_log "state=config-load" "result=error" "reason=unreadable" "path=$SP_CONFIG_PATH"
+        return 1
+    fi
+
+    sp_log "state=config-load" "phase=start" "path=$SP_CONFIG_PATH"
+
+    if ! sp_parse_config_minimal; then
+        sp_log "state=config-load" "phase=done" "result=error"
+        return 1
+    fi
+
+    sp_log "state=config-load" "phase=done" "result=ok"
+    return 0
+}
+
+sp_resolve_target_disk() {
+    if [ -z "${SP_TARGET_DISK:-}" ]; then
+        sp_log "state=config-resolve" "result=skip" "reason=no-target-disk"
+        return 0
+    fi
+
+    dev_path="$SP_TARGET_DISK"
+    base="${dev_path#/dev/}"
+
+    if [ -z "$base" ]; then
+        sp_log "state=config-resolve" "result=error" "reason=empty-base" "target=$SP_TARGET_DISK"
+        return 1
+    fi
+
+    if [ -d "/sys/block/$base" ]; then
+        kind="disk"
+    elif [ -d "/sys/block/${base%%[0-9]*}/$base" ]; then
+        kind="partition"
+    else
+        sp_log "state=config-resolve" "result=error" "reason=not-found-in-sysfs" "target=$SP_TARGET_DISK"
+        return 1
+    fi
+
+    sp_log "state=config-resolve" "result=ok" "kind=$kind" "target=$SP_TARGET_DISK"
+    return 0
 }
 
 sp_probe_disks() {
@@ -132,10 +234,14 @@ sp_idle_shell() {
 main() {
     sp_bootstrap
 
-    if sp_discover_config; then
-        # Later stages will parse and act on this config.
-        # For Stage 2 we only log success and stay idle.
-        :
+    sp_discover_config || true
+
+    if ! sp_load_config; then
+        sp_log "state=config-load" "result=error" "severity=non-fatal"
+    fi
+
+    if ! sp_resolve_target_disk; then
+        sp_log "state=config-resolve" "result=error" "severity=non-fatal"
     fi
 
     if ! sp_probe_disks; then
