@@ -9,6 +9,13 @@ sp_log() {
     printf '[SP-INSTALLER] %s\n' "$@" >/dev/console 2>&1
 }
 
+sp_dev_to_base() {
+    dev_path="$1"
+    dev_path="${dev_path#/dev/}"
+    # Just echo the part after /dev/; caller decides how to interpret.
+    printf '%s\n' "$dev_path"
+}
+
 sp_bootstrap() {
     PATH=/bin:/sbin:/usr/bin:/usr/sbin
     export PATH
@@ -126,16 +133,20 @@ sp_load_config() {
 }
 
 sp_resolve_target_disk() {
+    SP_TARGET_KIND=""
+
     if [ -z "${SP_TARGET_DISK:-}" ]; then
         sp_log "state=config-resolve" "result=skip" "reason=no-target-disk"
+        unset SP_TARGET_KIND
         return 0
     fi
 
     dev_path="$SP_TARGET_DISK"
-    base="${dev_path#/dev/}"
+    base=$(sp_dev_to_base "$dev_path")
 
     if [ -z "$base" ]; then
         sp_log "state=config-resolve" "result=error" "reason=empty-base" "target=$SP_TARGET_DISK"
+        unset SP_TARGET_KIND
         return 1
     fi
 
@@ -145,11 +156,28 @@ sp_resolve_target_disk() {
         kind="partition"
     else
         sp_log "state=config-resolve" "result=error" "reason=not-found-in-sysfs" "target=$SP_TARGET_DISK"
+        unset SP_TARGET_KIND
         return 1
     fi
 
+    SP_TARGET_KIND="$kind"
+    export SP_TARGET_KIND
     sp_log "state=config-resolve" "result=ok" "kind=$kind" "target=$SP_TARGET_DISK"
     return 0
+}
+
+sp_disk_size_bytes() {
+    base="$1"
+    if [ -z "$base" ] || [ ! -r "/sys/block/$base/size" ]; then
+        return 1
+    fi
+
+    sectors=$(cat "/sys/block/$base/size" 2>/dev/null || echo "")
+    if [ -z "$sectors" ]; then
+        return 1
+    fi
+
+    awk -v s="$sectors" 'BEGIN { printf "%d\n", s * 512 }'
 }
 
 sp_probe_disks() {
@@ -226,6 +254,65 @@ sp_probe_disks() {
     return 0
 }
 
+sp_plan_partitioning() {
+    if [ -z "${SP_TARGET_DISK:-}" ]; then
+        sp_log "state=plan-partitioning" "result=skip" "reason=no-target-disk"
+        return 0
+    fi
+
+    if [ "${SP_TARGET_KIND:-disk}" != "disk" ]; then
+        sp_log "state=plan-partitioning" "result=skip" "reason=target-not-disk" "target=$SP_TARGET_DISK" "kind=${SP_TARGET_KIND:-unknown}"
+        return 0
+    fi
+
+    base=$(sp_dev_to_base "$SP_TARGET_DISK")
+    if [ -z "$base" ]; then
+        sp_log "state=plan-partitioning" "result=error" "reason=empty-base" "target=$SP_TARGET_DISK"
+        return 1
+    fi
+
+    size_bytes=$(sp_disk_size_bytes "$base" || echo "")
+    if [ -z "$size_bytes" ]; then
+        sp_log "state=plan-partitioning" "result=error" "reason=disk-size-unavailable" "target=$SP_TARGET_DISK"
+        return 1
+    fi
+
+    efi_size_mib=512
+
+    root_size_mib=$(awk -v bytes="$size_bytes" -v efi="$efi_size_mib" '
+        BEGIN {
+            mib = bytes / (1024.0 * 1024.0);
+            guard = 4;
+            root = int(mib - efi - guard);
+            if (root < 0) root = 0;
+            printf "%d\n", root;
+        }
+    ')
+
+    part1_name="$base"1
+    part2_name="$base"2
+
+    case "$base" in
+        nvme*|mmcblk*)
+            part1_name="${base}p1"
+            part2_name="${base}p2"
+            ;;
+    esac
+
+    sp_log "state=plan-partitioning" \
+        "result=ok" \
+        "target=$SP_TARGET_DISK" \
+        "table=gpt" \
+        "disk_bytes=$size_bytes" \
+        "efi_size_mib=$efi_size_mib" \
+        "root_size_mib=$root_size_mib" \
+        "efi_part=/dev/$part1_name" \
+        "root_part=/dev/$part2_name" \
+        "note=dry-run-no-changes"
+
+    return 0
+}
+
 sp_idle_shell() {
     sp_log "state=idle-shell" "msg=waiting-for-next-stage"
     exec sh -i </dev/console >/dev/console 2>&1
@@ -246,6 +333,10 @@ main() {
 
     if ! sp_probe_disks; then
         sp_log "state=probe-disks" "result=failed" "severity=non-fatal"
+    fi
+
+    if ! sp_plan_partitioning; then
+        sp_log "state=plan-partitioning" "result=failed" "severity=non-fatal"
     fi
 
     sp_idle_shell
