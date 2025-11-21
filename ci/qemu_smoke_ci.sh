@@ -133,6 +133,12 @@ else
   echo "[QEMU-CI] NOTE: discover-config marker not found (not required)."
 fi
 
+if grep -Fq "[SP-INSTALLER] state=probe-disks" "${SERIAL_LOG}"; then
+  echo "[QEMU-CI] Detected disk probe state markers."
+else
+  echo "[QEMU-CI] NOTE: no probe-disks markers found (not required)."
+fi
+
 if grep -Fq "[SP-INSTALLER] state=idle-shell" "${SERIAL_LOG}"; then
   echo "[QEMU-CI] Detected idle-shell state marker."
 else

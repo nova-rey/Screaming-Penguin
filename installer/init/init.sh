@@ -50,6 +50,80 @@ sp_discover_config() {
     return 1
 }
 
+sp_probe_disks() {
+    sp_log "state=probe-disks" "phase=start"
+
+    if [ ! -d /sys/block ]; then
+        sp_log "state=probe-disks" "error=no-sys-block"
+        return 1
+    fi
+
+    EXCLUDE_PREFIXES="loop ram fd sr dm"
+
+    for dev in /sys/block/*; do
+        base=$(basename "$dev")
+
+        skip=false
+        for pfx in $EXCLUDE_PREFIXES; do
+            case "$base" in
+                "$pfx"*)
+                    skip=true
+                    ;;
+            esac
+        done
+
+        if [ "$skip" = true ]; then
+            continue
+        fi
+
+        size_file="$dev/size"
+        sectors="unknown"
+        if [ -r "$size_file" ]; then
+            sectors=$(cat "$size_file" 2>/dev/null || echo "unknown")
+        fi
+
+        removable_file="$dev/removable"
+        removable="unknown"
+        if [ -r "$removable_file" ]; then
+            removable=$(cat "$removable_file" 2>/dev/null || echo "unknown")
+        fi
+
+        sp_log "state=probe-disks" "kind=disk" "name=$base" "sectors=$sectors" "removable=$removable"
+
+        for part in "$dev"/*; do
+            [ -e "$part" ] || continue
+            part_base=$(basename "$part")
+
+            case "$part_base" in
+                "$base"*)
+                    :
+                    ;;
+                *)
+                    continue
+                    ;;
+            esac
+
+            part_size_file="$part/size"
+            part_sectors="unknown"
+            if [ -r "$part_size_file" ]; then
+                part_sectors=$(cat "$part_size_file" 2>/dev/null || echo "unknown")
+            fi
+
+            sp_log "state=probe-disks" "kind=partition" "name=$part_base" "sectors=$part_sectors"
+        done
+    done
+
+    if command -v lsblk >/dev/null 2>&1; then
+        # Supplemental diagnostic output; best-effort only.
+        lsblk -ndo NAME,SIZE,TYPE,MODEL 2>/dev/null | while IFS= read -r line; do
+            sp_log "state=probe-disks" "source=lsblk" "line=$line"
+        done
+    fi
+
+    sp_log "state=probe-disks" "phase=done"
+    return 0
+}
+
 sp_idle_shell() {
     sp_log "state=idle-shell" "msg=waiting-for-next-stage"
     exec sh -i </dev/console >/dev/console 2>&1
@@ -62,6 +136,10 @@ main() {
         # Later stages will parse and act on this config.
         # For Stage 2 we only log success and stay idle.
         :
+    fi
+
+    if ! sp_probe_disks; then
+        sp_log "state=probe-disks" "result=failed" "severity=non-fatal"
     fi
 
     sp_idle_shell
