@@ -333,3 +333,8 @@ Corrected the installer initramfs to include a proper `/init` at the root of the
 **Date:** 2025-11-19
 
 Normalized the installer initramfs root directory, added a minimal `/init` script with the `[SP-INSTALLER] init starting` marker, and wired `initrd-installer.img` into the QEMU smoke test with `init=/init`. Added a build-time sanity check to fail if `/init` is missing from the initramfs archive, preventing silent kernel panics in CI.
+
+## Entry 028 — The Initramfs Reconstruction & Boot Recovery (Nov 2025)
+**Date:** 2025-11-20
+
+Documented the kernel panic era caused by a non-executable `/init` inside the installer initramfs that left the kernel falling through fallback paths. Captured the teardown approach of extracting the initramfs to verify contents and permissions, confirming `/init` existed but was not runnable. Recorded debugging insights from the minimal BusyBox rebuild and the seven-stage init reconstruction that restored mode detection, logging, mounts, config loading, and installer hooks with serial markers. QEMU-CI now verifies El Torito flags, lists initramfs contents before launch, flushes serial logs, and gates success on the `[SP-INSTALLER] init reached` marker, yielding a stable boot path and green pipelines.
