@@ -56,13 +56,15 @@ sp_detect_mode() {
         mode_candidate=""
 
         if [ -r /proc/cmdline ]; then
-            for token in $(cat /proc/cmdline); do
-                case "$token" in
-                    sp.mode=*)
-                        mode_candidate=${token#sp.mode=}
-                        ;;
-                esac
-            done
+            if read -r cmdline < /proc/cmdline; then
+                for token in $cmdline; do
+                    case "$token" in
+                        sp.mode=*)
+                            mode_candidate=${token#sp.mode=}
+                            ;;
+                    esac
+                done
+            fi
         fi
 
         case "$mode_candidate" in
