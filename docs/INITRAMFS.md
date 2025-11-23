@@ -144,3 +144,25 @@ Once P1-A is complete, P1-B will:
 - Implement the logging helpers and error-reporting functions described here.
 - Wire all init scripts to use these helpers consistently.
 - Ensure CI tests can assert on visible tags (e.g., `[SP-INSTALLER] init reached`) to verify correct initramfs behavior.
+
+### Phase 1 — Utilities & Logging Implementation (P1-B)
+
+P1-B wires the documented logging model into the real initramfs:
+
+- A helper script (`initramfs/lib/log.sh`) provides:
+  - `sp_log_init` to prepare `/run/sp/log` and the primary `init.log` file.
+  - `sp_log_info`, `sp_log_warn`, and `sp_log_error` for tagged, leveled messages.
+  - `sp_die` for fatal errors that log and optionally drop to a recovery shell.
+
+- The main `init` script:
+  - Sources `log.sh` during early boot.
+  - Emits high-level tags:
+    - `[SP-BOOT]` for initramfs startup and shutdown messages.
+    - `[SP-INSTALLER]` when the installer entry point is reached.
+  - Exits cleanly after reaching the current installer stub, preserving existing CI behavior.
+
+The helpers are designed to be best-effort:
+- Logging to the console is mandatory.
+- Logging to `/run/sp/log/init.log` is opportunistic and must not cause failures if the path is unavailable.
+
+Future phases will redirect logs to the config partition (e.g., `/config/logs/YYYYMMDD-HHMMSS/`) once it is mounted, but P1-B is limited to in-RAM logging and console output.

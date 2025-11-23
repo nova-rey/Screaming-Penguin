@@ -343,3 +343,13 @@ Documented the kernel panic era caused by a non-executable `/init` inside the in
 **Date:** 2025-11-21
 
 Captured the Phase 1 kickoff for rebuilding the installer initramfs. Documented the BusyBox applets and utilities the installer depends on, the expected block-device discovery model at boot, the unified logging tags and storage paths, and the early error surfaces for config, disk selection, partitioning, and rootfs extraction. This design keeps runtime changes scoped for the upcoming implementation work.
+
+### P1-B — Initramfs Utilities & Logging Implementation
+
+With the design captured in P1-A, we implemented the first round of logging inside the initramfs.
+
+- A small `log.sh` helper centralizes logging behavior and creates `/run/sp/log/init.log` on best-effort.
+- The main `init` script now emits `[SP-BOOT]` and `[SP-INSTALLER]` tags during early boot, without changing the overall control flow.
+- Failures can be funneled through `sp_die`, which logs and then drops to a shell or exits.
+
+Behavior is intentionally conservative: the installer still behaves like the minimal debug build from earlier phases, but we now have a structured way to log what happens during boot.
