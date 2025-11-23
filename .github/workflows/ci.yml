@@ -12,7 +12,7 @@ on:
 jobs:
   ci:
     name: Lint, Build Image, QEMU Smoke
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, Linux, X64]
 
     env:
       DEBIAN_FRONTEND: noninteractive
