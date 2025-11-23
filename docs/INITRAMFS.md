@@ -166,3 +166,26 @@ The helpers are designed to be best-effort:
 - Logging to `/run/sp/log/init.log` is opportunistic and must not cause failures if the path is unavailable.
 
 Future phases will redirect logs to the config partition (e.g., `/config/logs/YYYYMMDD-HHMMSS/`) once it is mounted, but P1-B is limited to in-RAM logging and console output.
+
+### Phase 1 — Config Stub Wiring (P1-C)
+
+P1-C introduces a non-fatal config handling stub inside the initramfs:
+
+- A helper script (`initramfs/lib/config.sh`) defines:
+  - `sp_config_probe`, which:
+    - Assumes that `/config` may already be mounted by the time init runs.
+    - Looks for `/config/installer-config.yml`.
+    - Logs what it finds using the `[SP-CONFIG]` tag.
+    - Best-effort copies the config file into `/run/sp/config/installer-config.yml` for later use.
+
+- The main `init` script:
+  - Sources `config.sh` if present.
+  - Calls `sp_config_probe` if it exists.
+  - Treats all config-related issues as **non-fatal** in this phase.
+
+The goal of P1-C is to shape the config handling surface and get useful logging without changing CI expectations. In other words, QEMU boots and exits exactly as before, but we now have structured `[SP-CONFIG]` log lines when a config partition is present.
+
+Later phases (Phase 2 and beyond) will be responsible for:
+- Actively discovering and mounting the config partition.
+- Validating the structure of `installer-config.yml`.
+- Enforcing config presence for real installs.
