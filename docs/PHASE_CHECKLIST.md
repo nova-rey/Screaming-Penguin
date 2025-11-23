@@ -6,4 +6,5 @@
 - [ ] **P1-B — Initramfs Utilities & Logging Implementation**  
       Implement the utilities and logging scheme in the initramfs scripts, wiring all major steps to the unified logging and error model.
 
-Additional Phase 1 items (P1-C, P1-D, etc.) will be added as they are designed.
+- [ ] **P1-C — Config Stub Wiring (Non-Fatal)**  
+      Add a config helper (`config.sh`) and a non-fatal `sp_config_probe` call from `init` that logs the presence/absence of `/config/installer-config.yml` and stages it into `/run` when available, without changing CI behavior.
