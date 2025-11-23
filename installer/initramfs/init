@@ -1,51 +1,47 @@
 #!/bin/sh
+
 # Screaming Penguin initramfs entrypoint
-# Phase 2: non-destructive skeleton only.
 
 set -eu
 
-# Ensure /dev/console exists so we can always talk to the primary console.
-if [ ! -c /dev/console ]; then
-    mknod /dev/console c 5 1 2>/dev/null || true
+# Basic PATH for BusyBox
+export PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+# Source logging helpers
+if [ -f /lib/log.sh ]; then
+    # Some initramfs layouts may place helpers under /lib
+    . /lib/log.sh
+elif [ -f /initramfs/lib/log.sh ]; then
+    # Fallback: explicit path when running from unpacked tree
+    . /initramfs/lib/log.sh
+else
+    # Minimal inline fallback if log.sh is missing
+    SP_LOG_DIR="/run/sp/log"
+    SP_LOG_FILE="${SP_LOG_DIR}/init.log"
+    mkdir -p "${SP_LOG_DIR}" 2>/dev/null || true
+    sp_log_init() { mkdir -p "${SP_LOG_DIR}" 2>/dev/null || true; }
+    sp_log_info() { echo "INFO [SP-BOOT] $*" >&2; }
+    sp_log_warn() { echo "WARN [SP-BOOT] $*" >&2; }
+    sp_log_error() { echo "ERROR [SP-BOOT] $*" >&2; }
+    sp_die() {
+        echo "ERROR [SP-BOOT] $*" >&2
+        exit 1
+    }
 fi
 
-# Emit a clear CI marker that the installer runtime has started.
-MARKER='[SP-INSTALLER] init starting'
-{
-    echo "$MARKER" > /dev/console 2>/dev/null || true
-    echo "$MARKER" > /dev/ttyS0 2>/dev/null || true
-    echo "$MARKER" >&2 || true
-} || true
+sp_log_init
 
-SP_HOOKS_DIR="/installer/initramfs/hooks"
-SP_LOG_DEV="/dev/console"
+sp_log_info "[SP-BOOT]" "Screaming Penguin initramfs starting"
+sp_log_info "[SP-BOOT]" "Kernel cmdline: $(cat /proc/cmdline 2>/dev/null || echo '<unavailable>')"
 
-log() {
-    # Minimal logging directly to console in initramfs context.
-    echo "[sp-init] $*" >"$SP_LOG_DEV"
-}
+# Existing minimal behavior: we should still reach the installer entry point
+# and print the [SP-INSTALLER] tag used by CI.
+sp_log_info "[SP-INSTALLER]" "init reached; handing off to installer logic (stub)"
 
-run_hooks() {
-    hook_dir="$1"
-    if [ -d "$hook_dir" ]; then
-        for hook in "$hook_dir"/*.sh; do
-            if [ -f "$hook" ]; then
-                log "Running hook: $(basename "$hook")"
-                # shellcheck disable=SC1090
-                sh "$hook" || log "Hook failed: $(basename "$hook") (continuing in Phase 2)"
-            fi
-        done
-    else
-        log "Hooks directory not found: $hook_dir (ok in Phase 2)"
-    fi
-}
+# TODO: later phases will call into real installer scripts here.
+# For now, keep behavior equivalent to the stripped-down init:
+# - Print a message.
+# - Exit cleanly so CI knows the boot path is working.
 
-log "Initramfs entrypoint starting (Phase 2 skeleton)."
-
-# Run early hooks (mount-config, audio init, etc.) in sequence.
-run_hooks "$SP_HOOKS_DIR"
-
-log "Initramfs finishing Phase 2 skeleton. Hand-off to runtime (if wired) is handled by hooks."
-
-# In Phase 2, we terminate successfully here. Later phases may exec runtime.
+sp_log_info "[SP-BOOT]" "Screaming Penguin initramfs exiting cleanly"
 exit 0
