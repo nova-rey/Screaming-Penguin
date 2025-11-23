@@ -338,3 +338,8 @@ Normalized the installer initramfs root directory, added a minimal `/init` scrip
 **Date:** 2025-11-20
 
 Documented the kernel panic era caused by a non-executable `/init` inside the installer initramfs that left the kernel falling through fallback paths. Captured the teardown approach of extracting the initramfs to verify contents and permissions, confirming `/init` existed but was not runnable. Recorded debugging insights from the minimal BusyBox rebuild and the seven-stage init reconstruction that restored mode detection, logging, mounts, config loading, and installer hooks with serial markers. QEMU-CI now verifies El Torito flags, lists initramfs contents before launch, flushes serial logs, and gates success on the `[SP-INSTALLER] init reached` marker, yielding a stable boot path and green pipelines.
+
+## Entry 029 — P1-A Initramfs utilities and logging design
+**Date:** 2025-11-21
+
+Captured the Phase 1 kickoff for rebuilding the installer initramfs. Documented the BusyBox applets and utilities the installer depends on, the expected block-device discovery model at boot, the unified logging tags and storage paths, and the early error surfaces for config, disk selection, partitioning, and rootfs extraction. This design keeps runtime changes scoped for the upcoming implementation work.
