@@ -7,6 +7,16 @@ installer:
     efi_alignment_mib: 1
     root_alignment_mib: 1
     root_reserved_mib: 4
+  bootloader:
+    grub_efi_target: x86_64-efi
+    grub_bootloader_id: ScreamingPenguin
+    grub_timeout: 5
+    fstab_root_options: defaults
+    fstab_root_freq: 1
+    fstab_root_pass: 1
+    fstab_efi_options: umask=0077
+    fstab_efi_freq: 0
+    fstab_efi_pass: 0
 
 target:
   disk: nvme0n1

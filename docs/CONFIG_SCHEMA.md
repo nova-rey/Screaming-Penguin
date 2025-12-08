@@ -98,3 +98,11 @@ The installer enforces the following rules:
 - If `safety.require_erase_word` is true, the installer will prompt for `ERASE` and abort on mismatch.
 
 These requirements are evaluated during the LOAD_CONFIG state.
+
+### Phase 12 — Bootloader & final stage
+
+- Introduce an `installer.bootloader` block that controls the GRUB target (`grub_efi_target`, default `x86_64-efi`), bootloader ID (`grub_bootloader_id`, default `ScreamingPenguin`), timeout (`grub_timeout`, default `5`), and `/etc/fstab` tuning knobs (`fstab_root_options`, `fstab_root_freq`, `fstab_root_pass`, `fstab_efi_options`, `fstab_efi_freq`, `fstab_efi_pass`).
+- The bootloader stage runs **after** the disk executor and rootfs deploy, rewrites `/etc/fstab` with the discovered EFI and root UUIDs, generates a minimal `grub.cfg`, installs GRUB into `/boot/efi`, and emits `[SP-INSTALLER] bootloader START/END` markers. The stage only runs when:
+  - `installer.write_gate` remains true, and
+  - `SP_ENABLE_BOOTLOADER=1` and `SP_ENABLE_DISK_EXECUTE=1` are both enabled.
+- Use `SP_SKIP_BOOTLOADER=1` to skip the stage entirely and `SP_DEBUG_BOOTLOADER=1` to log command details without changing behavior so tests and CI can observe the bootloader command surface without touching disks.

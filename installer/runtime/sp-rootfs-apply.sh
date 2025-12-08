@@ -4,8 +4,15 @@
 
 set -eu
 
+: "${SP_ROOTFS_SCRIPT_DIR:=$(cd "$(dirname "$0")" && pwd)}"
+
+if [ -n "${SP_RUNTIME_LIB_DIR:-}" ]; then
+    LOGGING_LIB="$SP_RUNTIME_LIB_DIR/logging.sh"
+else
+    LOGGING_LIB="$SP_ROOTFS_SCRIPT_DIR/lib/logging.sh"
+fi
 # shellcheck disable=SC1091
-. "$(dirname "$0")/lib/logging.sh"
+. "$LOGGING_LIB"
 
 sp_rootfs_apply() {
     : "${SP_TARGET_MNT:=/mnt/target}"

@@ -546,3 +546,13 @@ No installer behavior changes are planned for this phase.
 - Update the config schema, installer contract, architecture docs, and the new `docs/Phase10_Roadmap.md` so downstream tooling knows how writes happen and that `[SP-INSTALLER] disk-exec START/END` wraps the work.
 
 **Done When:** the executor rewrites the GPT table, formats EFI+root, logs the disk-exec window, and the harness proves a safe virtual-disk path that stays gated unless `SP_ENABLE_DISK_EXECUTE=1`.
+
+## Phase 12 — Final Bootstrap & Bootloader
+
+This phase finalizes the install runtime by extracting the rootfs, installing GRUB into the EFI partition, and emitting a clean completion marker so the installed system can boot.
+
+**Tasks:**
+- Run `sp_rootfs_apply` (Phase 5) once the disk executor finishes, then call `sp_install_bootloader_and_finalize` with `bootloader.sh` so the EFI partition is mounted, `/etc/fstab` is rewritten with UUIDs, and `grub-install` plus the generated `grub.cfg` live inside the chroot.
+- Introduce the `installer.bootloader` schema block, new env toggles (`SP_ENABLE_BOOTLOADER`, `SP_SKIP_BOOTLOADER`, `SP_DEBUG_BOOTLOADER`), and the `[SP-INSTALLER] bootloader START/END` plus `[SP-INSTALLER] marker=complete` logging sequence.
+- Add `docs/Phase12_Roadmap.md` plus updates to `docs/CONFIG_SCHEMA.md`, `docs/installer_contract.md`, and `docs/architecture.md` describing the stage, and cover the functionality in `docs/DEV_ROADMAP.md` to capture the completion milestone.
+- Introduce `tests/installer/test_bootloader.py` to exercise fstab generation, chroot command assembly, gating behavior, and skip/debug toggles so CI can observe the bootloader surface without touching real disks.

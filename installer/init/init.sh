@@ -5,6 +5,7 @@
 
 SP_LOG_DEVICE="${SP_LOG_DEVICE:-/dev/console}"
 SP_WRITE_GATE_SERIAL_DEVICE="${SP_WRITE_GATE_SERIAL_DEVICE:-/dev/ttyS0}"
+SP_BOOTLOADER_READY="${SP_BOOTLOADER_READY:-0}"
 
 sp_log() {
     # Simple structured logger. All lines should start with [SP-INSTALLER].
@@ -30,9 +31,14 @@ sp_log_write_gate_marker() {
 
 SP_INIT_SCRIPT_PATH="${SP_INIT_SCRIPT_PATH:-$0}"
 SP_SCRIPT_DIR="$(cd "$(dirname "$SP_INIT_SCRIPT_PATH")" && pwd)"
-SP_RUNTIME_LIB_DIR="$(cd "$SP_SCRIPT_DIR/../runtime/lib" && pwd)"
+SP_RUNTIME_DIR="$(cd "$SP_SCRIPT_DIR/../runtime" && pwd)"
+SP_RUNTIME_LIB_DIR="$(cd "$SP_RUNTIME_DIR/lib" && pwd)"
+export SP_RUNTIME_LIB_DIR
 SP_DISK_LAYOUT_LIB="$SP_RUNTIME_LIB_DIR/disk_layout.sh"
 SP_DISK_EXECUTE_LIB="$SP_RUNTIME_LIB_DIR/disk_execute.sh"
+SP_SAFETY_LIB="$SP_RUNTIME_LIB_DIR/safety_checks.sh"
+SP_BOOTLOADER_LIB="$SP_RUNTIME_LIB_DIR/bootloader.sh"
+SP_ROOTFS_APPLY_SCRIPT="$SP_RUNTIME_DIR/sp-rootfs-apply.sh"
 
 if [ -f "$SP_DISK_LAYOUT_LIB" ]; then
     # shellcheck disable=SC1090
@@ -44,6 +50,28 @@ if [ -f "$SP_DISK_EXECUTE_LIB" ]; then
     # shellcheck disable=SC1090
     # shellcheck source=installer/runtime/lib/disk_execute.sh
     . "$SP_DISK_EXECUTE_LIB"
+fi
+
+if [ -f "$SP_SAFETY_LIB" ]; then
+    # shellcheck disable=SC1090
+    # shellcheck source=installer/runtime/lib/safety_checks.sh
+    . "$SP_SAFETY_LIB"
+fi
+
+if [ -f "$SP_ROOTFS_APPLY_SCRIPT" ]; then
+    # Ensure the rootfs helper can resolve its logging helpers.
+    SP_ROOTFS_SCRIPT_DIR="$SP_RUNTIME_DIR"
+    export SP_ROOTFS_SCRIPT_DIR
+
+    # shellcheck disable=SC1090
+    # shellcheck source=installer/runtime/sp-rootfs-apply.sh
+    . "$SP_ROOTFS_APPLY_SCRIPT"
+fi
+
+if [ -f "$SP_BOOTLOADER_LIB" ]; then
+    # shellcheck disable=SC1090
+    # shellcheck source=installer/runtime/lib/bootloader.sh
+    . "$SP_BOOTLOADER_LIB"
 fi
 
 sp_write_gate_blocked() {
@@ -219,7 +247,7 @@ sp_bootstrap() {
 
     sp_log 'marker=init-reached' 'msg=init reached'
     # CI marker required by qemu_smoke_ci.sh (must remain exact).
-    echo "[SP-INSTALLER] init reached" >/dev/console
+    echo "[SP-INSTALLER] init reached" >/dev/console 2>/dev/null || true
 
     # Stage 1 breadcrumb for future debugging (not enforced by CI yet).
     sp_log 'stage=bootstrapped'
@@ -290,6 +318,7 @@ sp_discover_config() {
 }
 
 sp_parse_config_minimal() {
+    sp_config_set_rootfs_path
     target_disk_found=0
 
     while IFS= read -r line || [ -n "$line" ]; do
@@ -320,7 +349,9 @@ sp_parse_config_minimal() {
                 if [ -n "$value_clean" ]; then
                     SP_TARGET_DISK=$value_clean
                     SP_CONFIG_HAS_TARGET_DISK=1
+                    SP_CFG_TARGET_DISK="$SP_TARGET_DISK"
                     export SP_TARGET_DISK SP_CONFIG_HAS_TARGET_DISK
+                    export SP_CFG_TARGET_DISK
                     sp_log "state=config-load" "key=target_disk" "value=$SP_TARGET_DISK" "result=parsed"
                     target_disk_found=1
                 else
@@ -339,7 +370,26 @@ sp_parse_config_minimal() {
     return 0
 }
 
+sp_config_set_rootfs_path() {
+    path=""
+
+    if [ -n "${SP_CONFIG_PATH:-}" ] && [ -r "$SP_CONFIG_PATH" ] && command -v sp_disk_layout_yaml_value >/dev/null 2>&1; then
+        if cfg=$(sp_disk_layout_yaml_value "$SP_CONFIG_PATH" "rootfs.path" 2>/dev/null); then
+            path="$cfg"
+        fi
+    fi
+
+    if [ -z "$path" ]; then
+        path="/config/rootfs/debian-rootfs.tar.gz"
+    fi
+
+    SP_CFG_ROOTFS_PATH="$path"
+    export SP_CFG_ROOTFS_PATH
+}
+
 sp_load_config() {
+    sp_config_set_rootfs_path
+
     # Precondition: SP_CONFIG_PATH may be set or unset.
     if [ -z "${SP_CONFIG_PATH:-}" ]; then
         sp_log "state=config-load" "result=skip" "reason=no-config-path"
@@ -750,6 +800,40 @@ main() {
             sp_log "state=disk-exec" "result=failed" "target=${SP_TARGET_DISK:-none}"
             exit 1
         fi
+
+        if [ "${SP_MODE:-SMOKE}" = "INSTALL" ]; then
+            if command -v sp_rootfs_apply >/dev/null 2>&1; then
+                if command -v sp_safety_prepare_devices >/dev/null 2>&1; then
+                    if ! sp_safety_prepare_devices; then
+                        sp_log "state=safety" "result=failed" "reason=prepare-target"
+                        exit 1
+                    fi
+                fi
+
+                sp_log "state=rootfs-deploy" "result=start"
+                if ! sp_rootfs_apply; then
+                    sp_log "state=rootfs-deploy" "result=failed"
+                    exit 1
+                fi
+                sp_log "state=rootfs-deploy" "result=ok"
+
+                SP_BOOTLOADER_READY=1
+                export SP_BOOTLOADER_READY
+
+                if command -v sp_install_bootloader_and_finalize >/dev/null 2>&1; then
+                    if ! sp_install_bootloader_and_finalize; then
+                        exit 1
+                    fi
+                else
+                    sp_log "state=bootloader" "result=skipped" "reason=module-missing"
+                fi
+            else
+                sp_log "state=rootfs-deploy" "result=skipped" "reason=module-missing"
+                sp_log "state=bootloader" "result=skipped" "reason=module-missing"
+            fi
+        else
+            sp_log "state=bootloader" "result=skipped" "reason=not-install-mode"
+        fi
     else
         sp_log "state=disk-exec" \
             "result=skipped" \
@@ -771,6 +855,8 @@ main() {
                 "note=smoke-mode-no-writes"
             ;;
     esac
+
+    sp_log "marker=complete" "state=final" "result=complete"
 
     if [ "${SP_EXIT_AFTER_INIT:-}" = "1" ]; then
         sp_log "state=idle-shell" "msg=exit-after-init-env"

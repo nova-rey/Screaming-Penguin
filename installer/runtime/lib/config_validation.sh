@@ -4,8 +4,15 @@
 
 set -eu
 
+if [ -n "${SP_RUNTIME_LIB_DIR:-}" ]; then
+    LOGGING_LIB="$SP_RUNTIME_LIB_DIR/logging.sh"
+else
+    LOGGING_LIB="$(cd "$(dirname "$0")" && pwd)/logging.sh"
+fi
+
 # shellcheck disable=SC1091
-. "$(dirname "$0")/logging.sh"
+# shellcheck source=installer/runtime/lib/logging.sh
+. "$LOGGING_LIB"
 
 sp_config_load() {
     config_path="$1"
@@ -34,6 +41,15 @@ sp_config_load() {
     SP_CFG_SSH_AUTHORIZED_KEYS_COUNT="$(yq -r '.ssh.authorized_keys | length // 0' "$config_path")"
     SP_CFG_REQUIRE_ERASE_WORD="$(yq -r '.safety.require_erase_word // "true"' "$config_path")"
     SP_CFG_INSTALLER_WRITE_GATE="$(yq -r '.installer.write_gate // "false"' "$config_path")"
+    SP_CFG_BOOTLOADER_GRUB_TARGET="$(yq -r '.installer.bootloader.grub_efi_target // "x86_64-efi"' "$config_path")"
+    SP_CFG_BOOTLOADER_ID="$(yq -r '.installer.bootloader.grub_bootloader_id // "ScreamingPenguin"' "$config_path")"
+    SP_CFG_BOOTLOADER_TIMEOUT="$(yq -r '.installer.bootloader.grub_timeout // "5"' "$config_path")"
+    SP_CFG_BOOTLOADER_FSTAB_ROOT_OPTIONS="$(yq -r '.installer.bootloader.fstab_root_options // "defaults"' "$config_path")"
+    SP_CFG_BOOTLOADER_FSTAB_ROOT_FREQ="$(yq -r '.installer.bootloader.fstab_root_freq // "1"' "$config_path")"
+    SP_CFG_BOOTLOADER_FSTAB_ROOT_PASS="$(yq -r '.installer.bootloader.fstab_root_pass // "1"' "$config_path")"
+    SP_CFG_BOOTLOADER_FSTAB_EFI_OPTIONS="$(yq -r '.installer.bootloader.fstab_efi_options // "umask=0077"' "$config_path")"
+    SP_CFG_BOOTLOADER_FSTAB_EFI_FREQ="$(yq -r '.installer.bootloader.fstab_efi_freq // "0"' "$config_path")"
+    SP_CFG_BOOTLOADER_FSTAB_EFI_PASS="$(yq -r '.installer.bootloader.fstab_efi_pass // "0"' "$config_path")"
 
     # Default rootfs path if omitted
     if [ -z "$SP_CFG_ROOTFS_PATH" ] || [ "$SP_CFG_ROOTFS_PATH" = "null" ]; then
@@ -110,7 +126,10 @@ sp_config_load() {
     export SP_CFG_HOSTNAME SP_CFG_TIMEZONE SP_CFG_LOCALE
     export SP_CFG_USER_NAME SP_CFG_USER_PASSWORD_HASH SP_CFG_USER_SUDO
     export SP_CFG_SSH_ENABLE SP_CFG_SSH_AUTHORIZED_KEYS_COUNT
-    export SP_CFG_REQUIRE_ERASE_WORD SP_CFG_INSTALLER_WRITE_GATE
+    export SP_CFG_REQUIRE_ERASE_WORD SP_CFG_INSTALLER_WRITE_GATE \
+        SP_CFG_BOOTLOADER_GRUB_TARGET SP_CFG_BOOTLOADER_ID SP_CFG_BOOTLOADER_TIMEOUT \
+        SP_CFG_BOOTLOADER_FSTAB_ROOT_OPTIONS SP_CFG_BOOTLOADER_FSTAB_ROOT_FREQ SP_CFG_BOOTLOADER_FSTAB_ROOT_PASS \
+        SP_CFG_BOOTLOADER_FSTAB_EFI_OPTIONS SP_CFG_BOOTLOADER_FSTAB_EFI_FREQ SP_CFG_BOOTLOADER_FSTAB_EFI_PASS
 
     log_info "Installer config loaded for target disk '$SP_CFG_TARGET_DISK'."
     return 0

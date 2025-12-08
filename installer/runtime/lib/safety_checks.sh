@@ -4,8 +4,15 @@
 
 set -eu
 
+if [ -n "${SP_RUNTIME_LIB_DIR:-}" ]; then
+    LOGGING_LIB="$SP_RUNTIME_LIB_DIR/logging.sh"
+else
+    LOGGING_LIB="$(cd "$(dirname "$0")" && pwd)/logging.sh"
+fi
+
 # shellcheck disable=SC1091
-. "$(dirname "$0")/logging.sh"
+# shellcheck source=installer/runtime/lib/logging.sh
+. "$LOGGING_LIB"
 
 sp_safety_prepare_devices() {
     if [ -z "${SP_CFG_TARGET_DISK:-}" ]; then

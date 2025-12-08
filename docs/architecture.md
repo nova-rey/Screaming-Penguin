@@ -25,3 +25,10 @@ The installer is split into multiple stages that run inside the initramfs, the h
 ## Testing and tooling hooks
 - Tests under `tests/installer` now verify the init script emits the required markers and that the Python helper rejects invalid gate states.
 - Documentation (contracts and roadmap) highlights the write-gate as the single switch that must be enabled before any installer writes run.
+
+## Phase 12 — Bootloader stage
+
+- After Phase 10 writes the disk and the initramfs extracts the rootfs, the init script now runs a dedicated bootloader stage: it ensures the planned EFI/root partitions are mounted, rewrites `/etc/fstab` with their `blkid` UUIDs, generates a minimal `/boot/grub/grub.cfg`, and calls `grub-install` inside the chroot with `--target=$SP_CFG_BOOTLOADER_GRUB_TARGET` plus the configured bootloader ID.
+- The stage is gated by the existing `installer.write_gate`, the CI-friendly `SP_ENABLE_DISK_EXECUTE=1` toggle, and the new `SP_ENABLE_BOOTLOADER=1` toggle; use `SP_SKIP_BOOTLOADER=1` to skip it entirely and `SP_DEBUG_BOOTLOADER=1` to log each command without altering the sequence.
+- Logging now includes `[SP-INSTALLER] bootloader START` and `[SP-INSTALLER] bootloader END` markers plus a final `[SP-INSTALLER] marker=complete result=complete` so that tooling can verify the installer reached the completion summary after planner → executor → rootfs deploy → bootloader.
+- The `installer.bootloader` config block controls the GRUB target, bootloader ID, timeout, and fstab options so that `/etc/fstab` and GRUB react to a single declarative schema change rather than inline shell tweaks.
