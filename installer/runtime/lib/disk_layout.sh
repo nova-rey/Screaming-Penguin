@@ -297,13 +297,10 @@ sp_plan_partition_entries() {
 sp_plan_gpt_layout() {
     target_disk="$1"
 
-    if [ -z "$target_disk" ] && [ -n "${SP_TARGET_DISK:-}" ]; then
-        target_disk="$SP_TARGET_DISK"
-    fi
-
     if [ -z "$target_disk" ]; then
-        sp_disk_layout_error "target disk must be provided to the planner"
-        return 1
+        if ! target_disk=$(sp_select_target_disk "$target_disk"); then
+            return 1
+        fi
     fi
 
     disk_bytes=""
@@ -343,24 +340,17 @@ sp_plan_gpt_layout() {
     root_alignment_mib=$(sp_disk_layout_to_int "$root_alignment_override" 1)
     root_reserved_mib=$(sp_disk_layout_to_int "$root_reserved_override" 4)
 
-    plan=$(sp_plan_partition_entries "$target_disk" "$disk_bytes" "$efi_size_mib" "$efi_alignment_mib" "$root_alignment_mib" "$root_reserved_mib")
-    if [ $? -ne 0 ]; then
+    if ! SP_DISK_LAYOUT_LAST_PLAN=$(sp_plan_partition_entries "$target_disk" "$disk_bytes" "$efi_size_mib" "$efi_alignment_mib" "$root_alignment_mib" "$root_reserved_mib"); then
         return 1
     fi
 
-    SP_DISK_LAYOUT_LAST_PLAN="$plan"
-    printf '%s
-' "$plan"
+    printf '%s\n' "$SP_DISK_LAYOUT_LAST_PLAN"
 }
 
 sp_print_layout_plan() {
     target_disk="$1"
 
-    if [ -z "$target_disk" ]; then
-        if ! target_disk=$(sp_select_target_disk); then
-            return 1
-        fi
+    if ! sp_plan_gpt_layout "$target_disk"; then
+        return 1
     fi
-
-    sp_plan_gpt_layout "$target_disk"
 }
