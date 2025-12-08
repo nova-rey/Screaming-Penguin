@@ -1,3 +1,4 @@
 # Rootfs builder artifacts
 build/rootfs-*/
 dist/debian-rootfs-*.tar.gz
+build/phase10-disk-execute.img

@@ -534,3 +534,15 @@ No installer behavior changes are planned for this phase.
 - Keep the write gate enforced and refuse to run destructive commands until Phase 10 consumes the plan and writes the GPT table/filesystems.
 
 **Done When:** the planner produces a deterministic plan for one EFI + one root partition, the plan is observable via logs, and no partitioning tool has been invoked yet.
+
+## Phase 10 — Disk execution & mkfs harness
+
+**Goal:** Apply the Phase 9 GPT plan to the target disk, format the EFI FAT32 and ext4 root volumes, and prove the destructive path via a virtual-disk harness so CI can gate real disks safely.
+
+**Tasks:**
+- Add `installer/runtime/lib/disk_execute.sh` plus logging markers so the init script can re-validate `installer.write_gate`, re-read the plan, call `sgdisk`/`sfdisk`, and format partitions only when `SP_ENABLE_DISK_EXECUTE=1`.
+- Extend `installer/init/init.sh` to source the executor, guard it behind readiness checks, and only run it when the gate and toggle align; keep non-destructive runs for CI smoke.
+- Create `tests/installer/test_disk_execute.py`, which builds a 2–4 GiB virtual disk file, attaches it via loop if available, runs the planner/executor, verifies GPT type codes, and (when loop support exists) mounts both partitions.
+- Update the config schema, installer contract, architecture docs, and the new `docs/Phase10_Roadmap.md` so downstream tooling knows how writes happen and that `[SP-INSTALLER] disk-exec START/END` wraps the work.
+
+**Done When:** the executor rewrites the GPT table, formats EFI+root, logs the disk-exec window, and the harness proves a safe virtual-disk path that stays gated unless `SP_ENABLE_DISK_EXECUTE=1`.
