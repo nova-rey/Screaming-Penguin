@@ -1,5 +1,8 @@
 version: 0.1
 
+installer:
+  write_gate: true
+
 target:
   disk: nvme0n1
   wipe: true
