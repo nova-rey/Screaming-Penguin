@@ -15,6 +15,16 @@ installer:
     efi_alignment_mib: 1
     root_alignment_mib: 1
     root_reserved_mib: 4
+  rootfs:
+    tarball: /config/os/rootfs.tar.gz
+    target_mount: /mnt/target
+    hostname: screaming-penguin
+    timezone: Etc/UTC
+    locale: en_US.UTF-8 UTF-8
+    username: penguin
+    password_hash: "$6$..."
+    ssh_authorized_keys:
+      - "ssh-ed25519 AAAAC3..."
 
 target:
   disk: nvme0n1
@@ -25,16 +35,13 @@ filesystem:
   type: ext4
   boot_mode: auto
 
-rootfs:
-  path: /config/rootfs/debian-rootfs.tar.gz
-
 system:
   hostname: penguin-01
   timezone: America/Chicago
   locale: en_US.UTF-8
 
 user:
-  name: rey
+  name: penguin
   sudo: true
   password_hash: "$6$..."
 
@@ -71,6 +78,15 @@ Future work in this document:
 - Until `SP_ENABLE_DISK_EXECUTE` is toggled, no destructive operations run and `installer.write_gate` continues to block writes. The Phase 10 harness lives under `tests/installer/test_disk_execute.py`, which drives a 2–4 GiB virtual disk file in `build/` so CI never touches real disks.
 ```
 
+### Phase 11 — Rootfs deployment & chroot configuration
+
+- Phase 11 extracts `installer.rootfs.tarball` (default `/config/os/rootfs.tar.gz`) from `/config/os/` into `installer.rootfs.target_mount` (default `/mnt/target`), bind-mounts `/dev`, `/proc`, `/sys`, and `/run`, and chroots to configure the installed system.
+- `installer.rootfs.hostname`, `installer.rootfs.timezone`, and `installer.rootfs.locale` seed `/etc/hostname`, `/etc/timezone`, and `/etc/locale.gen`; `installer.rootfs.username`, `installer.rootfs.password_hash`, and `installer.rootfs.ssh_authorized_keys` create the primary user inside the chroot.
+- The stage respects the debug toggles:
+  - `SP_SKIP_ROOTFS_DEPLOY=1` skips the mount/extract phase while still emitting `[SP-INSTALLER] rootfs` markers.
+  - `SP_SKIP_CHROOT_CONFIG=1` skips hostname/timezone/locale/user/SSH configuration while leaving the extracted tree in place.
+  - `SP_DEBUG_ROOTFS=1` emits extra `[SP-INSTALLER] rootfs` markers around each deploy and chroot step for log tracing.
+
 ### Rootfs Builder Integration (Phase 4)
 
 The Screaming Penguin rootfs builder generates a Debian root filesystem tarball under:
@@ -91,10 +107,10 @@ The installer enforces the following rules:
 
 - `target.disk` must be provided and must not match the USB device.
 - `installer.write_gate` must be provided and must evaluate to `true` before any disk changes occur.
-- `rootfs.path` must exist and point to a valid tarball.
-- `user.name` must be provided.
-- If SSH is disabled, `user.password_hash` is required.
-- If SSH is enabled, at least one `authorized_keys` entry is required.
+- `installer.rootfs.tarball` (default `/config/os/rootfs.tar.gz`) must be readable on the config partition.
+- `installer.rootfs.hostname`, `.timezone`, `.locale`, and `.username` must be supplied (legacy `system.*` / `user.name` values are accepted as fallbacks).
+- If SSH is disabled, `installer.rootfs.password_hash` or `user.password_hash` is required so a login path exists.
+- If SSH is enabled, at least one entry must appear under `installer.rootfs.ssh_authorized_keys` or `ssh.authorized_keys`.
 - If `safety.require_erase_word` is true, the installer will prompt for `ERASE` and abort on mismatch.
 
 These requirements are evaluated during the LOAD_CONFIG state.

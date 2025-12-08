@@ -25,11 +25,11 @@ The installer follows a linear state machine:
 2. **LOAD_CONFIG**
    - Parse YAML config.
    - Validate fields:
-     - target.disk
-     - rootfs.path
-     - hostname, locale, timezone
-     - user.{name, password_hash or SSH}
-     - SSH enable rules
+    - target.disk
+    - installer.rootfs.tarball (defaults to `/config/os/rootfs.tar.gz`)
+    - installer.rootfs.hostname, `.locale`, and `.timezone`
+    - installer.rootfs.username (fallback to `user.name`)
+    - user.{password_hash or SSH} (the runtime still accepts the legacy blocks)
    - Abort on any missing required element.
 
 3. **PLAN_INSTALL**

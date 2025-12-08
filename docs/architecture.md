@@ -22,6 +22,10 @@ The installer is split into multiple stages that run inside the initramfs, the h
 - The executor tracks EFI+root device paths, enforces the write gate again, and exits non-zero if any `sgdisk` or `mkfs` step fails so the boot path never leaves a partially formatted disk.
 - A dedicated harness (`tests/installer/test_disk_execute.py`) drives a 3 GiB file in `build/`, invokes both the planner and executor under `SP_ENABLE_DISK_EXECUTE=1`, and asserts the partitions exist, carry EFI+Linux GPT type codes, and remain mountable via loop offsets.
 
+## Rootfs deployment
+- Phase 11 mounts the formatted root partition (tracked as `SP_DISK_EXECUTE_ROOT_PART`), extracts `installer.rootfs.tarball` (default `/config/os/rootfs.tar.gz`), binds `/dev`, `/proc`, `/sys`, and `/run`, and chroots into `/mnt/target` to seed hostname, timezone, locale, user, and SSH keys before leaving the target ready for bootloader configuration.
+- The rootfs stage emits `[SP-INSTALLER] rootfs` markers around each step and honors `SP_SKIP_ROOTFS_DEPLOY=1`, `SP_SKIP_CHROOT_CONFIG=1`, and `SP_DEBUG_ROOTFS=1` so CI can validate the span without performing destructive work.
+
 ## Testing and tooling hooks
 - Tests under `tests/installer` now verify the init script emits the required markers and that the Python helper rejects invalid gate states.
 - Documentation (contracts and roadmap) highlights the write-gate as the single switch that must be enabled before any installer writes run.

@@ -140,7 +140,7 @@ safety:
 
 The installer must reject the configuration and abort if:
 •target.disk is missing.
-•rootfs.path is missing or unreadable.
+•installer.rootfs.tarball (or legacy `rootfs.path`) is missing or unreadable.
 •target.disk resolves to the installer USB itself.
 •ssh.enable is false and user.password_hash is missing (no login path).
 •version is unsupported.
