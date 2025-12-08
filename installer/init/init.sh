@@ -33,7 +33,7 @@ SP_DISK_LAYOUT_LIB="$SP_RUNTIME_LIB_DIR/disk_layout.sh"
 
 if [ -f "$SP_DISK_LAYOUT_LIB" ]; then
     # shellcheck disable=SC1090
-    # shellcheck source=../runtime/lib/disk_layout.sh
+    # shellcheck source=installer/runtime/lib/disk_layout.sh
     . "$SP_DISK_LAYOUT_LIB"
 fi
 
@@ -542,7 +542,7 @@ sp_disk_layout_debug_plan() {
     sp_log "state=disk-layout" "marker=plan-start"
     sp_write_gate_serial_log "[SP-INSTALLER] disk-layout plan START"
 
-    if ! sp_print_layout_plan; then
+    if ! sp_print_layout_plan ""; then
         sp_log "state=disk-layout" "result=failed" "reason=planner-exit"
         sp_write_gate_serial_log "[SP-INSTALLER] disk-layout plan FAILED"
         return 1
