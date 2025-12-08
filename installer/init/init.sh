@@ -28,6 +28,15 @@ sp_log_write_gate_marker() {
     sp_write_gate_serial_log "[SP-INSTALLER] $1"
 }
 
+SP_RUNTIME_LIB_DIR="$(dirname "$0")/../runtime/lib"
+SP_DISK_LAYOUT_LIB="$SP_RUNTIME_LIB_DIR/disk_layout.sh"
+
+if [ -f "$SP_DISK_LAYOUT_LIB" ]; then
+    # shellcheck disable=SC1090
+    # shellcheck source=../runtime/lib/disk_layout.sh
+    . "$SP_DISK_LAYOUT_LIB"
+fi
+
 sp_write_gate_blocked() {
     reason="$1"
     sp_log "state=write-gate" "result=blocked" "reason=$reason"
@@ -525,6 +534,33 @@ sp_plan_partitioning() {
     return 0
 }
 
+sp_disk_layout_debug_plan() {
+    if [ "${SP_DEBUG_DISK_LAYOUT:-0}" != "1" ]; then
+        return 0
+    fi
+
+    sp_log "state=disk-layout" "marker=plan-start"
+    sp_write_gate_serial_log "[SP-INSTALLER] disk-layout plan START"
+
+    if ! sp_print_layout_plan; then
+        sp_log "state=disk-layout" "result=failed" "reason=planner-exit"
+        sp_write_gate_serial_log "[SP-INSTALLER] disk-layout plan FAILED"
+        return 1
+    fi
+
+    plan="${SP_DISK_LAYOUT_LAST_PLAN:-}"
+    if [ -n "$plan" ]; then
+        printf '%s\n' "$plan" | while IFS= read -r line; do
+            sp_write_gate_serial_log "[SP-INSTALLER] disk-layout plan BODY $line"
+        done
+    fi
+
+    sp_write_gate_serial_log "[SP-INSTALLER] disk-layout plan END"
+    sp_log "state=disk-layout" "marker=plan-end"
+
+    return 0
+}
+
 sp_idle_shell() {
     sp_log "state=idle-shell" "msg=waiting-for-next-stage"
     exec sh -i </dev/console >/dev/console 2>&1
@@ -660,6 +696,13 @@ main() {
 
     if ! sp_plan_partitioning; then
         sp_log "state=plan-partitioning" "result=failed" "severity=non-fatal"
+    fi
+
+    if [ "${SP_DEBUG_DISK_LAYOUT:-0}" = "1" ]; then
+        if ! sp_disk_layout_debug_plan; then
+            sp_log "state=disk-layout" "result=failed" "note=debug-plan"
+            exit 1
+        fi
     fi
 
     sp_summary || true

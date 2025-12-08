@@ -2,6 +2,11 @@ version: 0.1
 
 installer:
   write_gate: true
+  disk_layout:
+    efi_size_mib: 512
+    efi_alignment_mib: 1
+    root_alignment_mib: 1
+    root_reserved_mib: 4
 
 target:
   disk: nvme0n1

@@ -8,6 +8,14 @@ For v0, the draft schema is:
 ```yaml
 version: 0.1
 
+installer:
+  write_gate: true
+  disk_layout:
+    efi_size_mib: 512
+    efi_alignment_mib: 1
+    root_alignment_mib: 1
+    root_reserved_mib: 4
+
 target:
   disk: nvme0n1
   wipe: true
@@ -45,6 +53,16 @@ Future work in this document:
 •Provide JSON Schema and/or YAML meta-schema for offline validation tooling.
 
 ---
+
+### Phase 9 — Disk layout planning
+
+- The Phase 9 planner targets the single device named under `target.disk` and never runs `sfdisk`, `sgdisk`, or any filesystem/tooling commands. It only makes decisions and emits a plan.
+- `installer.disk_layout` exposes the tuning knobs documented above:
+  - `efi_size_mib` (default `512`) declares the EFI System partition size in MiB.
+  - `efi_alignment_mib` and `root_alignment_mib` (default `1`) align the partition start offsets in MiB.
+  - `root_reserved_mib` (default `4`) reserves spare MiB at the end of the disk to keep rounding errors out of the layout.
+- The planner outputs a JSON structure: the target disk path, `table: gpt`, and a `partitions` list where each entry records `index`, `role`, `type`, `start_mib`, `size_mib`, and `filesystem`. EFI entries use `role=efi`/`filesystem=fat32`, and the root entry uses `role=root`/`filesystem=ext4`.
+- Debug boots (when `SP_DEBUG_DISK_LAYOUT=1`) print the plan to the console and also write `[SP-INSTALLER] disk-layout plan START/END` markers plus plan body lines to the serial log so later phases (and tests) can observe the declarative plan surface.
 ```
 
 ### Rootfs Builder Integration (Phase 4)
