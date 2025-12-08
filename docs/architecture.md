@@ -12,6 +12,11 @@ The installer is split into multiple stages that run inside the initramfs, the h
 - When the gate is satisfied the init script prints `[SP-INSTALLER] write-gate OK`. If it is missing or explicit `false`, the boot path logs `[SP-INSTALLER] write-gate BLOCKED` to both console and serial, and the process exits with an error.
 - `installer/runtime/lib/config_validation.sh` revalidates this flag with `yq` so the Phase 5 state machine never starts unless the gate remains `true`.
 
+## Disk layout planner
+- Phase 9 plants `installer/runtime/lib/disk_layout.sh` in the runtime libs. It reads `target.disk`, the optional `installer.disk_layout` tuning block from `installer-config.yml`, and deterministic `/sys/block` metadata to emit a GPT plan (EFI + root) without ever running partitioners or filesystem writers.
+- The init script sources the planner after the write gate clears and, when `SP_DEBUG_DISK_LAYOUT=1`, emits `[SP-INSTALLER] disk-layout plan START`, prints the JSON plan, writes the plan body and `[SP-INSTALLER] disk-layout plan END` lines into the serial log, and leaves the produced plan for later phases that will perform the destructive work.
+- Until the execute phase consumes that plan, writes remain gated off (`sp_plan_partitioning` still only logs and never mutates the device, and the runtime state machine will still refuse to touch disks without the gate).
+
 ## Testing and tooling hooks
 - Tests under `tests/installer` now verify the init script emits the required markers and that the Python helper rejects invalid gate states.
 - Documentation (contracts and roadmap) highlights the write-gate as the single switch that must be enabled before any installer writes run.

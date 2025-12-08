@@ -523,3 +523,14 @@ No installer behavior changes are planned for this phase.
 - **P10.5·A** — Document the current ISO boot failure (kernel dropping to initramfs) and design the custom installer initramfs / GRUB wiring.
 - **P10.5·B** — Implement `build_installer_initramfs.sh`, integrate the custom installer initrd into the ISO builder, and update GRUB to boot with `root=/dev/ram0 rdinit=/init`.
 - **P10.5·C** — Add CI smoke tests for the installer initramfs and GRUB config; run QEMU-based sanity tests to validate the full boot path.
+## Phase 9 — Disk layout planner
+
+**Goal:** Provide a declarative GPT plan for the EFI and root partitions without touching the target disk, so later phases can safely apply the same plan under the write gate.
+
+**Tasks:**
+- Add `installer/runtime/lib/disk_layout.sh` and support `installer.disk_layout` tuning knobs (EFI size, alignments, reserved MiB) plus the existing `target.disk` target.
+- Expose the plan surface via `sp_print_layout_plan`, and let init scripts log the plan body between `[SP-INSTALLER] disk-layout plan START/END` when `SP_DEBUG_DISK_LAYOUT=1` so CI/tests can verify the JSON output.
+- Update config schema, installer contract, and architecture docs to describe the planner, and record Phase 9 in `docs/Phase9_Roadmap.md` and the master roadmap.
+- Keep the write gate enforced and refuse to run destructive commands until Phase 10 consumes the plan and writes the GPT table/filesystems.
+
+**Done When:** the planner produces a deterministic plan for one EFI + one root partition, the plan is observable via logs, and no partitioning tool has been invoked yet.
