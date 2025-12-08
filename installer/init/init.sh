@@ -28,13 +28,22 @@ sp_log_write_gate_marker() {
     sp_write_gate_serial_log "[SP-INSTALLER] $1"
 }
 
-SP_RUNTIME_LIB_DIR="$(dirname "$0")/../runtime/lib"
+SP_INIT_SCRIPT_PATH="${SP_INIT_SCRIPT_PATH:-$0}"
+SP_SCRIPT_DIR="$(cd "$(dirname "$SP_INIT_SCRIPT_PATH")" && pwd)"
+SP_RUNTIME_LIB_DIR="$(cd "$SP_SCRIPT_DIR/../runtime/lib" && pwd)"
 SP_DISK_LAYOUT_LIB="$SP_RUNTIME_LIB_DIR/disk_layout.sh"
+SP_DISK_EXECUTE_LIB="$SP_RUNTIME_LIB_DIR/disk_execute.sh"
 
 if [ -f "$SP_DISK_LAYOUT_LIB" ]; then
     # shellcheck disable=SC1090
     # shellcheck source=installer/runtime/lib/disk_layout.sh
     . "$SP_DISK_LAYOUT_LIB"
+fi
+
+if [ -f "$SP_DISK_EXECUTE_LIB" ]; then
+    # shellcheck disable=SC1090
+    # shellcheck source=installer/runtime/lib/disk_execute.sh
+    . "$SP_DISK_EXECUTE_LIB"
 fi
 
 sp_write_gate_blocked() {
@@ -708,16 +717,44 @@ main() {
     sp_summary || true
 
     # Evaluate readiness for the current mode (no writes performed here).
-    if ! sp_check_readiness; then
-        sp_log "state=readiness-dispatch" \
-            "mode=${SP_MODE:-SMOKE}" \
-            "result=not-ready" \
-            "note=installer-will-not-proceed-with-writes-in-this-build"
-    else
+    readiness_ok=0
+    if sp_check_readiness; then
+        readiness_ok=1
         sp_log "state=readiness-dispatch" \
             "mode=${SP_MODE:-SMOKE}" \
             "result=ready" \
             "note=writes-still-disabled-in-this-build"
+    else
+        readiness_ok=0
+        sp_log "state=readiness-dispatch" \
+            "mode=${SP_MODE:-SMOKE}" \
+            "result=not-ready" \
+            "note=installer-will-not-proceed-with-writes-in-this-build"
+    fi
+
+    disk_exec_reason=""
+    if [ "${SP_ENABLE_DISK_EXECUTE:-0}" != "1" ]; then
+        disk_exec_reason="toggle-disabled"
+    elif [ "${SP_MODE:-SMOKE}" != "INSTALL" ]; then
+        disk_exec_reason="not-install-mode"
+    elif [ "${readiness_ok:-0}" != "1" ]; then
+        disk_exec_reason="readiness-failed"
+    elif [ "${SP_SKIP_CONFIG_DISCOVERY:-}" = "1" ]; then
+        disk_exec_reason="skip-config-discovery"
+    elif [ "${SP_EXIT_AFTER_INIT:-}" = "1" ]; then
+        disk_exec_reason="exit-after-init"
+    fi
+
+    if [ -z "$disk_exec_reason" ]; then
+        if ! sp_execute_gpt_plan; then
+            sp_log "state=disk-exec" "result=failed" "target=${SP_TARGET_DISK:-none}"
+            exit 1
+        fi
+    else
+        sp_log "state=disk-exec" \
+            "result=skipped" \
+            "reason=$disk_exec_reason" \
+            "target=${SP_TARGET_DISK:-none}"
     fi
 
     case "${SP_MODE:-SMOKE}" in
@@ -743,4 +780,6 @@ main() {
     sp_idle_shell
 }
 
-main "$@"
+if [ "${SP_SKIP_INIT_MAIN:-0}" != "1" ]; then
+    main "$@"
+fi

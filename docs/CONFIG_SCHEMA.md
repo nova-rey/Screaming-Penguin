@@ -63,6 +63,12 @@ Future work in this document:
   - `root_reserved_mib` (default `4`) reserves spare MiB at the end of the disk to keep rounding errors out of the layout.
 - The planner outputs a JSON structure: the target disk path, `table: gpt`, and a `partitions` list where each entry records `index`, `role`, `type`, `start_mib`, `size_mib`, and `filesystem`. EFI entries use `role=efi`/`filesystem=fat32`, and the root entry uses `role=root`/`filesystem=ext4`.
 - Debug boots (when `SP_DEBUG_DISK_LAYOUT=1`) print the plan to the console and also write `[SP-INSTALLER] disk-layout plan START/END` markers plus plan body lines to the serial log so later phases (and tests) can observe the declarative plan surface.
+
+### Phase 10 — Disk execution
+
+- Phase 10 consumes the deterministic JSON plan produced in Phase 9, re-validates `installer.write_gate`, and only writes the GPT table + filesystems when `SP_ENABLE_DISK_EXECUTE=1` and the gate is satisfied.
+- The execution layer (`installer/runtime/lib/disk_execute.sh`) zaps the target, writes partitions via `sgdisk`, dumps/summarizes the layout with `sfdisk -l`, and formats the EFI partition with `mkfs.vfat -F 32` and the root partition with `mkfs.ext4 -F`. All commands log `[SP-INSTALLER] disk-exec` markers so CI/tests can detect the span.
+- Until `SP_ENABLE_DISK_EXECUTE` is toggled, no destructive operations run and `installer.write_gate` continues to block writes. The Phase 10 harness lives under `tests/installer/test_disk_execute.py`, which drives a 2–4 GiB virtual disk file in `build/` so CI never touches real disks.
 ```
 
 ### Rootfs Builder Integration (Phase 4)
