@@ -7,6 +7,16 @@ installer:
     efi_alignment_mib: 1
     root_alignment_mib: 1
     root_reserved_mib: 4
+  rootfs:
+    tarball: "/config/os/rootfs.tar.gz"
+    target_mount: "/mnt/target"
+    hostname: "screaming-penguin"
+    timezone: "Etc/UTC"
+    locale: "en_US.UTF-8 UTF-8"
+    username: "penguin"
+    password_hash: "$6$replace-with-real-hash"
+    ssh_authorized_keys:
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...replace..."
 
 target:
   disk: nvme0n1
@@ -17,16 +27,14 @@ filesystem:
   type: ext4
   boot_mode: auto
 
-rootfs:
-  path: /config/rootfs/debian-rootfs.tar.gz
-
+# Legacy sections are still honored but installer.rootfs.* is the canonical source.
 system:
   hostname: penguin-01
   timezone: America/Chicago
   locale: en_US.UTF-8
 
 user:
-  name: user
+  name: penguin
   sudo: true
   password_hash: "$6$replace-with-real-hash"
 

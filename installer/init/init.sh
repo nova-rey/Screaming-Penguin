@@ -33,6 +33,7 @@ SP_SCRIPT_DIR="$(cd "$(dirname "$SP_INIT_SCRIPT_PATH")" && pwd)"
 SP_RUNTIME_LIB_DIR="$(cd "$SP_SCRIPT_DIR/../runtime/lib" && pwd)"
 SP_DISK_LAYOUT_LIB="$SP_RUNTIME_LIB_DIR/disk_layout.sh"
 SP_DISK_EXECUTE_LIB="$SP_RUNTIME_LIB_DIR/disk_execute.sh"
+SP_ROOTFS_DEPLOY_LIB="$SP_RUNTIME_LIB_DIR/rootfs_deploy.sh"
 
 if [ -f "$SP_DISK_LAYOUT_LIB" ]; then
     # shellcheck disable=SC1090
@@ -44,6 +45,12 @@ if [ -f "$SP_DISK_EXECUTE_LIB" ]; then
     # shellcheck disable=SC1090
     # shellcheck source=installer/runtime/lib/disk_execute.sh
     . "$SP_DISK_EXECUTE_LIB"
+fi
+
+if [ -f "$SP_ROOTFS_DEPLOY_LIB" ]; then
+    # shellcheck disable=SC1090
+    # shellcheck source=installer/runtime/lib/rootfs_deploy.sh
+    . "$SP_ROOTFS_DEPLOY_LIB"
 fi
 
 sp_write_gate_blocked() {
@@ -755,6 +762,16 @@ main() {
             "result=skipped" \
             "reason=$disk_exec_reason" \
             "target=${SP_TARGET_DISK:-none}"
+    fi
+
+    if [ -z "$disk_exec_reason" ] && [ "${SP_MODE:-SMOKE}" = "INSTALL" ]; then
+        if ! sp_rootfs_deploy_and_configure; then
+            sp_log "state=rootfs" "result=failed" "reason=deploy-failed"
+            exit 1
+        fi
+    else
+        rootfs_skip_reason="${disk_exec_reason:-mode-${SP_MODE:-SMOKE}}"
+        sp_log "state=rootfs" "result=skipped" "reason=$rootfs_skip_reason"
     fi
 
     case "${SP_MODE:-SMOKE}" in

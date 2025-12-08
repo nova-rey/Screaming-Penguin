@@ -187,7 +187,7 @@ Provide a reproducible, scripted method to build the Debian root filesystem tarb
 
 3. **Documentation**  
    - `docs/ROOTFS_BUILD.md` describing usage, requirements, and assumptions.
-   - Updated `docs/CONFIG_SCHEMA.md` clarifying how `rootfs.path` maps to the generated tarball.
+   - Updated `docs/CONFIG_SCHEMA.md` clarifying how `installer.rootfs.tarball` maps to the generated tarball and defaults to `/config/os/rootfs.tar.gz`.
 
 4. **Safety Requirements**  
    - Builder must operate *only* under `build/` and `dist/`.
@@ -546,3 +546,15 @@ No installer behavior changes are planned for this phase.
 - Update the config schema, installer contract, architecture docs, and the new `docs/Phase10_Roadmap.md` so downstream tooling knows how writes happen and that `[SP-INSTALLER] disk-exec START/END` wraps the work.
 
 **Done When:** the executor rewrites the GPT table, formats EFI+root, logs the disk-exec window, and the harness proves a safe virtual-disk path that stays gated unless `SP_ENABLE_DISK_EXECUTE=1`.
+
+## Phase 11 — Rootfs deploy & chroot configuration
+
+**Goal:** Extract a prebuilt Debian rootfs tarball onto the freshly-formatted root partition, bind the virtual filesystems, and chroot to apply hostname, timezone, locale, user, and SSH-key configuration driven by `installer.rootfs.*`.
+
+**Tasks:**
+- Add `installer/runtime/lib/rootfs_deploy.sh`, hook it into `installer/init/init.sh` after `sp_execute_gpt_plan`, and emit `[SP-INSTALLER] rootfs START/END` markers so logs show the span.
+- Parse `installer.rootfs.tarball` (default `/config/os/rootfs.tar.gz`), `installer.rootfs.target_mount`, and the hostname/timezone/locale/username/password/SSH-key fields, and honor the `SP_SKIP_ROOTFS_DEPLOY`, `SP_SKIP_CHROOT_CONFIG`, and `SP_DEBUG_ROOTFS` toggles for CI.
+- Update `config/installer-config.example.yml`, `docs/CONFIG_SCHEMA.md`, `docs/installer_contract.md`, `docs/architecture.md`, `docs/Phase11_Roadmap.md`, and the analysis notes so the new stage, default paths, and toggle semantics are documented.
+- Add `tests/installer/test_rootfs_deploy.py` (and any supporting helpers) so CI can exercise tarball extraction and the configuration helpers in a non-destructive, temp-dir-friendly way.
+
+**Done When:** the initramfs can extract `/config/os/rootfs.tar.gz` into `/mnt/target`, bind the usual `/dev|/proc|/sys|/run` mounts, chroot to configure hostname/timezone/locale/user/SSH, log `[SP-INSTALLER] rootfs` spans, and the new tests and docs confirm the behavior while honoring the skip/debug toggles.
