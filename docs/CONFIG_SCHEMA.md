@@ -66,6 +66,7 @@ During later phases, the builder may optionally copy or symlink its output to th
 The installer enforces the following rules:
 
 - `target.disk` must be provided and must not match the USB device.
+- `installer.write_gate` must be provided and must evaluate to `true` before any disk changes occur.
 - `rootfs.path` must exist and point to a valid tarball.
 - `user.name` must be provided.
 - If SSH is disabled, `user.password_hash` is required.

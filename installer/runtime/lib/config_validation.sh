@@ -33,6 +33,7 @@ sp_config_load() {
     SP_CFG_SSH_ENABLE="$(yq -r '.ssh.enable // "false"' "$config_path")"
     SP_CFG_SSH_AUTHORIZED_KEYS_COUNT="$(yq -r '.ssh.authorized_keys | length // 0' "$config_path")"
     SP_CFG_REQUIRE_ERASE_WORD="$(yq -r '.safety.require_erase_word // "true"' "$config_path")"
+    SP_CFG_INSTALLER_WRITE_GATE="$(yq -r '.installer.write_gate // "false"' "$config_path")"
 
     # Default rootfs path if omitted
     if [ -z "$SP_CFG_ROOTFS_PATH" ] || [ "$SP_CFG_ROOTFS_PATH" = "null" ]; then
@@ -53,6 +54,11 @@ sp_config_load() {
     case "$SP_CFG_USER_SUDO" in
         true|True|yes|on|1) SP_CFG_USER_SUDO="true" ;;
         *) SP_CFG_USER_SUDO="false" ;;
+    esac
+
+    case "$SP_CFG_INSTALLER_WRITE_GATE" in
+        true|True|yes|on|1) SP_CFG_INSTALLER_WRITE_GATE="true" ;;
+        *) SP_CFG_INSTALLER_WRITE_GATE="false" ;;
     esac
 
     # Required fields
@@ -81,6 +87,11 @@ sp_config_load() {
         return 1
     fi
 
+    if [ "$SP_CFG_INSTALLER_WRITE_GATE" != "true" ]; then
+        log_error "Config error: installer.write_gate must be true"
+        return 1
+    fi
+
     # SSH/password safety
     if [ "$SP_CFG_SSH_ENABLE" = "false" ]; then
         if [ -z "$SP_CFG_USER_PASSWORD_HASH" ] || [ "$SP_CFG_USER_PASSWORD_HASH" = "null" ]; then
@@ -99,7 +110,7 @@ sp_config_load() {
     export SP_CFG_HOSTNAME SP_CFG_TIMEZONE SP_CFG_LOCALE
     export SP_CFG_USER_NAME SP_CFG_USER_PASSWORD_HASH SP_CFG_USER_SUDO
     export SP_CFG_SSH_ENABLE SP_CFG_SSH_AUTHORIZED_KEYS_COUNT
-    export SP_CFG_REQUIRE_ERASE_WORD
+    export SP_CFG_REQUIRE_ERASE_WORD SP_CFG_INSTALLER_WRITE_GATE
 
     log_info "Installer config loaded for target disk '$SP_CFG_TARGET_DISK'."
     return 0

@@ -3,10 +3,159 @@
 
 # Minimal, POSIX-friendly bootstrap for the installer initramfs.
 
+SP_LOG_DEVICE="${SP_LOG_DEVICE:-/dev/console}"
+SP_WRITE_GATE_SERIAL_DEVICE="${SP_WRITE_GATE_SERIAL_DEVICE:-/dev/ttyS0}"
+
 sp_log() {
     # Simple structured logger. All lines should start with [SP-INSTALLER].
     # Usage: sp_log "key=value" "message=..."
-    printf '[SP-INSTALLER] %s\n' "$@" >/dev/console 2>&1
+    printf '[SP-INSTALLER] %s\n' "$@" >>"$SP_LOG_DEVICE" 2>&1
+}
+
+sp_trim() {
+    printf '%s' "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+}
+
+sp_write_gate_serial_log() {
+    serial_device="${SP_WRITE_GATE_SERIAL_DEVICE:-}"
+    if [ -n "$serial_device" ]; then
+        printf '%s\n' "$1" >>"$serial_device" 2>/dev/null || true
+    fi
+}
+
+sp_log_write_gate_marker() {
+    printf '[SP-INSTALLER] %s\n' "$1" >>"$SP_LOG_DEVICE" 2>&1 || true
+    sp_write_gate_serial_log "[SP-INSTALLER] $1"
+}
+
+sp_write_gate_blocked() {
+    reason="$1"
+    sp_log "state=write-gate" "result=blocked" "reason=$reason"
+    sp_log_write_gate_marker "write-gate BLOCKED"
+    sp_write_gate_serial_log "[SP-INSTALLER] write-gate BLOCKED reason=$reason"
+}
+
+sp_write_gate_ok() {
+    sp_log "state=write-gate" "result=ok"
+    sp_log_write_gate_marker "write-gate OK"
+}
+
+sp_parse_write_gate_bool() {
+    line="$1"
+    value=${line#*:}
+    value=$(sp_trim "$value")
+    value=${value%%#*}
+    value=$(sp_trim "$value")
+
+    # strip surrounding quotes if present
+    while [ "${value#\"}" != "$value" ]; do
+        value=${value#\"}
+    done
+    while [ "${value%\"}" != "$value" ]; do
+        value=${value%\"}
+    done
+    while [ "${value#\'}" != "$value" ]; do
+        value=${value#\'}
+    done
+    while [ "${value%\'}" != "$value" ]; do
+        value=${value%\'}
+    done
+
+    if [ -z "$value" ]; then
+        return 1
+    fi
+
+    case "$value" in
+        true|True|TRUE|yes|YES|on|1)
+            printf 'true'
+            return 0
+            ;;
+        false|False|FALSE|no|NO|off|0)
+            printf 'false'
+            return 0
+            ;;
+        *)
+            return 2
+            ;;
+    esac
+}
+
+
+sp_find_write_gate_line() {
+    awk '
+    BEGIN {
+        installer_indent = -1
+        found = 0
+    }
+    /^[[:space:]]*installer[[:space:]]*:/ {
+        match($0, /^[[:space:]]*/)
+        installer_indent = RLENGTH
+        next
+    }
+    {
+        if (installer_indent < 0) {
+            next
+        }
+
+        if ($0 ~ /^[[:space:]]*$/) {
+            next
+        }
+        if ($0 ~ /^[[:space:]]*#/) {
+            next
+        }
+
+        match($0, /^[[:space:]]*/)
+        if (RLENGTH <= installer_indent) {
+            exit
+        }
+
+        if ($0 ~ /^[[:space:]]*write_gate[[:space:]]*:/) {
+            line = $0
+            sub(/^[[:space:]]*/, "", line)
+            sub(/#.*/, "", line)
+            print line
+            found = 1
+            exit
+        }
+    }
+    END {
+        if (found == 0) {
+            exit 1
+        }
+    }
+    ' "$SP_CONFIG_PATH"
+}
+sp_enforce_write_gate() {
+    if [ -z "${SP_CONFIG_PATH:-}" ]; then
+        sp_write_gate_blocked "missing-config-path"
+        return 1
+    fi
+
+    if ! write_gate_line=$(sp_find_write_gate_line); then
+        sp_write_gate_blocked "installer.write_gate not defined"
+        return 1
+    fi
+
+    gate_value=$(sp_parse_write_gate_bool "$write_gate_line")
+    gate_status=$?
+
+    if [ "$gate_status" -eq 2 ]; then
+        sp_write_gate_blocked "installer.write_gate has invalid value"
+        return 1
+    fi
+
+    if [ "$gate_status" -ne 0 ]; then
+        sp_write_gate_blocked "installer.write_gate value missing"
+        return 1
+    fi
+
+    if [ "$gate_value" != "true" ]; then
+        sp_write_gate_blocked "installer.write_gate disabled"
+        return 1
+    fi
+
+    sp_write_gate_ok
+    return 0
 }
 
 sp_dev_to_base() {
@@ -487,10 +636,18 @@ main() {
 
     sp_detect_mode || true
 
-    sp_discover_config || true
+    if [ "${SP_SKIP_CONFIG_DISCOVERY:-}" != "1" ]; then
+        sp_discover_config || true
+    else
+        sp_log "state=discover-config" "result=skipped" "reason=skip-env"
+    fi
 
     if ! sp_load_config; then
         sp_log "state=config-load" "result=error" "severity=non-fatal"
+    fi
+
+    if ! sp_enforce_write_gate; then
+        exit 1
     fi
 
     if ! sp_resolve_target_disk; then
@@ -534,6 +691,11 @@ main() {
                 "note=smoke-mode-no-writes"
             ;;
     esac
+
+    if [ "${SP_EXIT_AFTER_INIT:-}" = "1" ]; then
+        sp_log "state=idle-shell" "msg=exit-after-init-env"
+        exit 0
+    fi
 
     sp_idle_shell
 }
