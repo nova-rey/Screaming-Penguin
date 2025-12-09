@@ -571,3 +571,15 @@ No installer behavior changes are planned for this phase.
 - Document the new stage in `docs/Phase12_Roadmap.md`, `docs/installer_contract.md`, `docs/architecture.md`, and update this roadmap to reference the new behavior and toggles.
 
 **Done When:** the bootloader stage runs after rootfs, writes `/etc/fstab`, installs GRUB, honors `SP_ENABLE_BOOTLOADER`, and the docs/tests describe the new config block plus `[SP-INSTALLER] COMPLETE` signal.
+
+## Phase 13 — Installer media bootability
+
+**Goal:** Ensure the raw installer `.img` is itself a bootable USB by creating a FAT32 EFI System Partition with the installer kernel, initrd, and EFI loader artifacts.
+
+**Tasks:**
+- Rewrite `tools/make_installer_img.sh` to build a GPT image with a FAT32 ESP, format both partitions, copy `/boot/vmlinuz-installer` + `/boot/initrd-installer.img`, install `grubx64.efi` into `/EFI/BOOT/BOOTX64.EFI`, and write `grub.cfg` that loads the same kernel/initrd paths.
+- Share the `linux`/`initrd` lines via `tools/grub_shared.sh` so `tools/make_installer_iso.sh` and the `.img` builder stay in sync while the ISO path can still inject serial/BIOS options.
+- Add `tests/installer/test_installer_media_bootability.py` that builds a small image, mounts the ESP via loop, and asserts the FAT32 signature plus the presence of `/EFI/BOOT/BOOTX64.EFI` and a `grub.cfg` referencing `vmlinuz-installer`/`initrd-installer.img`.
+- Capture the new behavior in documentation (`docs/Phase13_Roadmap.md`, `docs/installer_contract.md`, `docs/architecture.md`, `docs/CONFIG_SCHEMA.md`, and `docs/DEV_ROADMAP.md`) and in the bibles so Phase 13’s completion is recorded.
+
+**Done When:** `tools/make_installer_img.sh` emits a GPT image with a FAT32 ESP containing `/EFI/BOOT/BOOTX64.EFI` and a loader that points at `/boot/vmlinuz-installer` + `/boot/initrd-installer.img`, the installer-media test passes, and the related docs/roadmaps note the new guarantees.

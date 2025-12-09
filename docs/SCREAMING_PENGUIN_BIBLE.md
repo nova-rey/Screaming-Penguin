@@ -359,3 +359,8 @@ Behavior is intentionally conservative: the installer still behaves like the min
 **Date:** 2025-11-17
 
 We added the first bit of config awareness to the initramfs without making any install decisions depend on it. A `config.sh` helper introduces `sp_config_probe` to look for `/config/installer-config.yml`, log findings with `[SP-CONFIG]`, and stage a copy in `/run/sp/config/installer-config.yml`. The `init` script now sources the helper when available and calls the probe, keeping missing or malformed config non-fatal while preserving CI and boot behavior.
+## Entry 030 — Phase 13 Installer Media Bootability Complete
+
+**Date:** 2025-12-09
+
+Closed Phase 13 by reworking `tools/make_installer_img.sh` so the raw USB image now builds a FAT32 EFI System Partition, copies `/boot/vmlinuz-installer` + `/boot/initrd-installer.img`, installs `grubx64.efi` as `/EFI/BOOT/BOOTX64.EFI`, and writes `EFI/BOOT/grub.cfg` that loads the installer kernel+initrd. The iso and img builders now share `tools/grub_shared.sh` for the canonical loader lines, and `tests/installer/test_installer_media_bootability.py` mounts the ESP to assert FAT32, `BOOTX64.EFI`, and the correct `grub.cfg` entries exist. Documentation (roadmaps, contract, architecture, CONFIG_SCHEMA) and the new phase roadmap capture the guarantees so Phase 13 is now reflected end-to-end.
