@@ -34,6 +34,14 @@ sp_config_load() {
     SP_CFG_SSH_AUTHORIZED_KEYS_COUNT="$(yq -r '(.installer.rootfs.ssh_authorized_keys // .ssh.authorized_keys // []) | length // 0' "$config_path")"
     SP_CFG_REQUIRE_ERASE_WORD="$(yq -r '.safety.require_erase_word // "true"' "$config_path")"
     SP_CFG_INSTALLER_WRITE_GATE="$(yq -r '.installer.write_gate // "false"' "$config_path")"
+    SP_CFG_BOOTLOADER_EFI_MOUNTPOINT="$(yq -r '.installer.bootloader.efi_mount_point // ""' "$config_path")"
+    SP_CFG_BOOTLOADER_GRUB_TARGET="$(yq -r '.installer.bootloader.grub_efi_target // "x86_64-efi"' "$config_path")"
+    SP_CFG_BOOTLOADER_BOOTLOADER_ID="$(yq -r '.installer.bootloader.bootloader_id // "screaming-penguin"' "$config_path")"
+    SP_CFG_BOOTLOADER_GRUB_CFG_PATH="$(yq -r '.installer.bootloader.grub_cfg_path // "/boot/grub/grub.cfg"' "$config_path")"
+    SP_CFG_BOOTLOADER_MENU_ENTRY="$(yq -r '.installer.bootloader.menu_entry // "Screaming Penguin"' "$config_path")"
+    SP_CFG_BOOTLOADER_GRUB_TIMEOUT="$(yq -r '.installer.bootloader.grub_timeout // "5"' "$config_path")"
+    SP_CFG_BOOTLOADER_FSTAB_ROOT_OPTIONS="$(yq -r '.installer.bootloader.fstab_root_options // "defaults,noatime"' "$config_path")"
+    SP_CFG_BOOTLOADER_FSTAB_EFI_OPTIONS="$(yq -r '.installer.bootloader.fstab_efi_options // "umask=0077,fmask=0077,dmask=0077"' "$config_path")"
 
     # Default rootfs path if omitted
     if [ -z "$SP_CFG_ROOTFS_PATH" ] || [ "$SP_CFG_ROOTFS_PATH" = "null" ]; then
@@ -111,6 +119,11 @@ sp_config_load() {
     export SP_CFG_USER_NAME SP_CFG_USER_PASSWORD_HASH SP_CFG_USER_SUDO
     export SP_CFG_SSH_ENABLE SP_CFG_SSH_AUTHORIZED_KEYS_COUNT
     export SP_CFG_REQUIRE_ERASE_WORD SP_CFG_INSTALLER_WRITE_GATE
+    export SP_CFG_BOOTLOADER_EFI_MOUNTPOINT
+    export SP_CFG_BOOTLOADER_GRUB_TARGET SP_CFG_BOOTLOADER_BOOTLOADER_ID
+    export SP_CFG_BOOTLOADER_GRUB_CFG_PATH SP_CFG_BOOTLOADER_MENU_ENTRY
+    export SP_CFG_BOOTLOADER_GRUB_TIMEOUT
+    export SP_CFG_BOOTLOADER_FSTAB_ROOT_OPTIONS SP_CFG_BOOTLOADER_FSTAB_EFI_OPTIONS
 
     log_info "Installer config loaded for target disk '$SP_CFG_TARGET_DISK'."
     return 0

@@ -26,6 +26,13 @@ The installer is split into multiple stages that run inside the initramfs, the h
 - Phase 11 mounts the formatted root partition (tracked as `SP_DISK_EXECUTE_ROOT_PART`), extracts `installer.rootfs.tarball` (default `/config/os/rootfs.tar.gz`), binds `/dev`, `/proc`, `/sys`, and `/run`, and chroots into `/mnt/target` to seed hostname, timezone, locale, user, and SSH keys before leaving the target ready for bootloader configuration.
 - The rootfs stage emits `[SP-INSTALLER] rootfs` markers around each step and honors `SP_SKIP_ROOTFS_DEPLOY=1`, `SP_SKIP_CHROOT_CONFIG=1`, and `SP_DEBUG_ROOTFS=1` so CI can validate the span without performing destructive work.
 
+## Phase 12 — Bootloader install
+
+- Phase 12 takes place after Phase 11 completes. It remounts the root tree, mounts the EFI partition into `/boot/efi`, writes `/etc/fstab` using the UUIDs discovered via `blkid`, generates a minimal `/boot/grub/grub.cfg` (pointing at the discovered kernel/initrd), and chroots to run `grub-install --target=<grub_efi_target>` so the installer kernel becomes bootable.
+- The stage is gated by two new toggles: `SP_ENABLE_BOOTLOADER=1` must be set before any GRUB work runs, while `SP_SKIP_BOOTLOADER=1` skips the stage but leaves behind the `[SP-INSTALLER] bootloader` markers. Debug logging is available via `SP_DEBUG_BOOTLOADER=1`.
+- A new config block `installer.bootloader` exposes the defaults for `efi_mount_point`, `fstab_*_options`, `grub_efi_target`, `bootloader_id`, `grub_cfg_path`, `grub_timeout`, and `menu_entry`. These values are also consumed by the validator in `installer/runtime/lib/config_validation.sh`.
+- After the bootloader work finalizes, the init script writes `state=complete` and a literal `[SP-INSTALLER] COMPLETE` line so observers can detect that planner → executor → rootfs → bootloader all completed in order.
+
 ## Testing and tooling hooks
 - Tests under `tests/installer` now verify the init script emits the required markers and that the Python helper rejects invalid gate states.
 - Documentation (contracts and roadmap) highlights the write-gate as the single switch that must be enabled before any installer writes run.

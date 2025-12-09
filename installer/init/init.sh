@@ -34,6 +34,7 @@ SP_RUNTIME_LIB_DIR="$(cd "$SP_SCRIPT_DIR/../runtime/lib" && pwd)"
 SP_DISK_LAYOUT_LIB="$SP_RUNTIME_LIB_DIR/disk_layout.sh"
 SP_DISK_EXECUTE_LIB="$SP_RUNTIME_LIB_DIR/disk_execute.sh"
 SP_ROOTFS_DEPLOY_LIB="$SP_RUNTIME_LIB_DIR/rootfs_deploy.sh"
+SP_BOOTLOADER_LIB="$SP_RUNTIME_LIB_DIR/bootloader.sh"
 
 if [ -f "$SP_DISK_LAYOUT_LIB" ]; then
     # shellcheck disable=SC1090
@@ -51,6 +52,12 @@ if [ -f "$SP_ROOTFS_DEPLOY_LIB" ]; then
     # shellcheck disable=SC1090
     # shellcheck source=installer/runtime/lib/rootfs_deploy.sh
     . "$SP_ROOTFS_DEPLOY_LIB"
+fi
+
+if [ -f "$SP_BOOTLOADER_LIB" ]; then
+    # shellcheck disable=SC1090
+    # shellcheck source=installer/runtime/lib/bootloader.sh
+    . "$SP_BOOTLOADER_LIB"
 fi
 
 sp_write_gate_blocked() {
@@ -764,7 +771,9 @@ main() {
             "target=${SP_TARGET_DISK:-none}"
     fi
 
+    rootfs_executed=0
     if [ -z "$disk_exec_reason" ] && [ "${SP_MODE:-SMOKE}" = "INSTALL" ]; then
+        rootfs_executed=1
         if ! sp_rootfs_deploy_and_configure; then
             sp_log "state=rootfs" "result=failed" "reason=deploy-failed"
             exit 1
@@ -772,6 +781,14 @@ main() {
     else
         rootfs_skip_reason="${disk_exec_reason:-mode-${SP_MODE:-SMOKE}}"
         sp_log "state=rootfs" "result=skipped" "reason=$rootfs_skip_reason"
+    fi
+
+    if [ "$rootfs_executed" -eq 1 ]; then
+        if ! sp_install_bootloader_and_finalize; then
+            exit 1
+        fi
+    else
+        sp_log "state=bootloader" "result=skipped" "reason=rootfs-not-run"
     fi
 
     case "${SP_MODE:-SMOKE}" in
@@ -789,6 +806,8 @@ main() {
             ;;
     esac
 
+    sp_log "state=complete" "result=done"
+    printf '[SP-INSTALLER] COMPLETE\n' >>"$SP_LOG_DEVICE" 2>/dev/null || true
     if [ "${SP_EXIT_AFTER_INIT:-}" = "1" ]; then
         sp_log "state=idle-shell" "msg=exit-after-init-env"
         exit 0

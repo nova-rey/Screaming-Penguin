@@ -558,3 +558,16 @@ No installer behavior changes are planned for this phase.
 - Add `tests/installer/test_rootfs_deploy.py` (and any supporting helpers) so CI can exercise tarball extraction and the configuration helpers in a non-destructive, temp-dir-friendly way.
 
 **Done When:** the initramfs can extract `/config/os/rootfs.tar.gz` into `/mnt/target`, bind the usual `/dev|/proc|/sys|/run` mounts, chroot to configure hostname/timezone/locale/user/SSH, log `[SP-INSTALLER] rootfs` spans, and the new tests and docs confirm the behavior while honoring the skip/debug toggles.
+
+## Phase 12 — Bootloader install & completion cues
+
+**Goal:** Teach the installer how to mount the EFI partition, write a valid `/etc/fstab`, install GRUB via `grub-install --target=<grub_efi_target>`, and emit a final `[SP-INSTALLER] COMPLETE` marker so downstream systems know the entire pipeline finished.
+
+**Tasks:**
+- Add `installer/runtime/lib/bootloader.sh` that mounts the target root + EFI trees, writes `/etc/fstab` from `blkid` UUIDs, builds a minimal `/boot/grub/grub.cfg`, and runs `grub-install` inside the chroot while logging `[SP-INSTALLER] bootloader START/END`.
+- Update `installer/init/init.sh` to source the bootloader helper right after rootfs, call `sp_install_bootloader_and_finalize`, and log the final completion cue.
+- Extend `installer/runtime/lib/config_validation.sh`, `config/installer-config.example.yml`, and `docs/CONFIG_SCHEMA.md` with the optional `installer.bootloader` block plus defaults.
+- Add `tests/installer/test_bootloader.py` to validate fstab generation, GRUB command assembly, gating, skip/debug flags, and the init shim reaching the bootloader stage only when `SP_ENABLE_BOOTLOADER=1`.
+- Document the new stage in `docs/Phase12_Roadmap.md`, `docs/installer_contract.md`, `docs/architecture.md`, and update this roadmap to reference the new behavior and toggles.
+
+**Done When:** the bootloader stage runs after rootfs, writes `/etc/fstab`, installs GRUB, honors `SP_ENABLE_BOOTLOADER`, and the docs/tests describe the new config block plus `[SP-INSTALLER] COMPLETE` signal.
