@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -68,7 +69,7 @@ def test_installer_image_esp_is_fat32(tmp_path: Path) -> None:
         loop_device = loop_probe.stdout.strip()
         subprocess.run(["sudo", "-E", "losetup", "-d", loop_device], check=True)
         subprocess.run(
-            ["sudo", "-E", "/bin/sh", "tools/make_installer_img.sh"],
+            ["sudo", "-E", "/bin/bash", "tools/make_installer_img.sh"],
             cwd=str(REPO_ROOT),
             env=env,
             check=True,
@@ -92,6 +93,88 @@ def test_installer_image_esp_is_fat32(tmp_path: Path) -> None:
 
         assert "vmlinuz-installer" in grub_contents
         assert "initrd-installer.img" in grub_contents
+        runtime_kernel = REPO_ROOT / "build" / "runtime" / "vmlinuz"
+        assert runtime_kernel.exists(), (
+            "build/runtime/vmlinuz should still exist after make_installer_img.sh; "
+            "the img build must not delete the shared runtime artifacts."
+        )
     finally:
         _restore_dist_file(kernel_path, kernel_backup)
         _restore_dist_file(initrd_path, initrd_backup)
+
+
+def test_make_installer_iso_falls_back_to_dist_artifacts(tmp_path: Path) -> None:
+    for tool in ("xorriso", "grub-mkstandalone"):
+        if shutil.which(tool) is None:
+            pytest.skip(f"{tool} unavailable; skipping ISO fallback test")
+
+    dist_kernel = REPO_ROOT / "dist" / "vmlinuz-installer"
+    dist_initrd = REPO_ROOT / "dist" / "initrd-installer.img"
+    dist_kernel_backup: Path | None = None
+    dist_initrd_backup: Path | None = None
+    runtime_kernel = REPO_ROOT / "build" / "runtime" / "vmlinuz"
+    runtime_initrd = REPO_ROOT / "build" / "runtime" / "initrd.img"
+    runtime_kernel_backup: Path | None = None
+    runtime_initrd_backup: Path | None = None
+    iso_output = REPO_ROOT / "dist" / "screaming-penguin.iso"
+    stub_efi = tmp_path / "grubx64.efi"
+    stub_efi.write_bytes(b"EFI-STUB")
+    env = os.environ.copy()
+    env["SP_GRUB_EFI_BIN"] = str(stub_efi)
+
+    try:
+        dist_kernel_backup = _stage_dist_file(dist_kernel, b"kernel")
+        dist_initrd_backup = _stage_dist_file(dist_initrd, b"initrd")
+
+        if runtime_kernel.exists():
+            kernel_backup_path = runtime_kernel.with_suffix(
+                runtime_kernel.suffix + ".bak-test"
+            )
+            if kernel_backup_path.exists():
+                kernel_backup_path.unlink()
+            runtime_kernel.rename(kernel_backup_path)
+            runtime_kernel_backup = kernel_backup_path
+
+        if runtime_initrd.exists():
+            initrd_backup_path = runtime_initrd.with_suffix(
+                runtime_initrd.suffix + ".bak-test"
+            )
+            if initrd_backup_path.exists():
+                initrd_backup_path.unlink()
+            runtime_initrd.rename(initrd_backup_path)
+            runtime_initrd_backup = initrd_backup_path
+
+        if iso_output.exists():
+            iso_output.unlink()
+
+        subprocess.run(
+            ["/bin/bash", "tools/make_installer_iso.sh"],
+            cwd=str(REPO_ROOT),
+            env=env,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+        assert iso_output.exists()
+    finally:
+        _restore_dist_file(dist_kernel, dist_kernel_backup)
+        _restore_dist_file(dist_initrd, dist_initrd_backup)
+
+        if runtime_kernel_backup is not None and runtime_kernel_backup.exists():
+            if runtime_kernel.exists():
+                runtime_kernel.unlink()
+            runtime_kernel_backup.rename(runtime_kernel)
+        elif runtime_kernel.exists() and runtime_kernel_backup is None:
+            runtime_kernel.unlink()
+
+        if runtime_initrd_backup is not None and runtime_initrd_backup.exists():
+            if runtime_initrd.exists():
+                runtime_initrd.unlink()
+            runtime_initrd_backup.rename(runtime_initrd)
+        elif runtime_initrd.exists() and runtime_initrd_backup is None:
+            runtime_initrd.unlink()
+
+        if iso_output.exists():
+            iso_output.unlink()

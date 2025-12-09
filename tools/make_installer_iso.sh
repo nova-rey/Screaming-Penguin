@@ -6,13 +6,14 @@ BUILD_DIR="${PROJECT_ROOT}/build"
 ISO_ROOT="${BUILD_DIR}/iso-root"
 RUNTIME_DIR="${BUILD_DIR}/runtime"
 INSTALLER_DIR="${BUILD_DIR}/installer"
-RUNTIME_KERNEL_PATH="${BUILD_DIR}/runtime/vmlinuz"
+RUNTIME_KERNEL="${BUILD_DIR}/runtime/vmlinuz"
+RUNTIME_INITRD="${BUILD_DIR}/runtime/initrd.img"
 INSTALLER_INITRD_PATH="${BUILD_DIR}/initrd-installer.img"
 DIST_DIR="${PROJECT_ROOT}/dist"
 ISO_OUT="${DIST_DIR}/screaming-penguin.iso"
 ISO_BOOT_DIR="${ISO_ROOT}/boot"
-DIST_KERNEL_PATH="${DIST_DIR}/vmlinuz-installer"
-DIST_INITRD_PATH="${DIST_DIR}/initrd-installer.img"
+DIST_KERNEL="${DIST_DIR}/vmlinuz-installer"
+DIST_INITRD="${DIST_DIR}/initrd-installer.img"
 
 GRUB_HELPER="${PROJECT_ROOT}/tools/grub_shared.sh"
 if [ ! -f "${GRUB_HELPER}" ]; then
@@ -24,6 +25,18 @@ fi
 . "${GRUB_HELPER}"
 
 mkdir -p "${DIST_DIR}"
+
+if [ -f "${RUNTIME_KERNEL}" ] && [ -f "${RUNTIME_INITRD}" ]; then
+  SP_BOOT_KERNEL="${RUNTIME_KERNEL}"
+  SP_BOOT_INITRD="${RUNTIME_INITRD}"
+elif [ -f "${DIST_KERNEL}" ] && [ -f "${DIST_INITRD}" ]; then
+  echo "[SP-ISO] Runtime kernel not found in build/runtime; falling back to dist/ artifacts..."
+  SP_BOOT_KERNEL="${DIST_KERNEL}"
+  SP_BOOT_INITRD="${DIST_INITRD}"
+else
+  echo "[SP-ISO] ERROR: Runtime kernel not found at ${RUNTIME_KERNEL}/${RUNTIME_INITRD} or ${DIST_KERNEL}/${DIST_INITRD}" >&2
+  exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # Build minimal installer initramfs (BusyBox + /init) for the ISO
@@ -190,24 +203,19 @@ _build_installer_initramfs
 echo "[SP-ISO] Preparing /boot contents for ISO..."
 mkdir -p "${ISO_ROOT}/boot"
 
-if [ ! -f "${RUNTIME_KERNEL_PATH}" ]; then
-  echo "[SP-ISO] ERROR: Runtime kernel not found at ${RUNTIME_KERNEL_PATH}" >&2
-  exit 1
-fi
-
 if [ ! -f "${INSTALLER_INITRD_PATH}" ]; then
   echo "[SP-ISO] ERROR: Installer initrd not found at ${INSTALLER_INITRD_PATH}" >&2
   exit 1
 fi
 
-cp "${RUNTIME_KERNEL_PATH}" "${ISO_ROOT}/boot/vmlinuz-installer"
-cp "${INSTALLER_INITRD_PATH}" "${ISO_ROOT}/boot/initrd-installer.img"
+cp "${SP_BOOT_KERNEL}" "${ISO_ROOT}/boot/vmlinuz-installer"
+cp "${SP_BOOT_INITRD}" "${ISO_ROOT}/boot/initrd-installer.img"
 
 echo "[SP-ISO] /boot contents in ISO root:"
 ls -lh "${ISO_ROOT}/boot"
 
-cp -f "${RUNTIME_KERNEL_PATH}" "${DIST_KERNEL_PATH}"
-cp -f "${INSTALLER_INITRD_PATH}" "${DIST_INITRD_PATH}"
+cp -f "${SP_BOOT_KERNEL}" "${DIST_KERNEL}"
+cp -f "${INSTALLER_INITRD_PATH}" "${DIST_INITRD}"
 
 echo "[SP-ISO] Writing GRUB configuration..."
 mkdir -p "${ISO_ROOT}/boot/grub"
