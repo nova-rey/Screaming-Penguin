@@ -87,6 +87,21 @@ Future work in this document:
   - `SP_SKIP_CHROOT_CONFIG=1` skips hostname/timezone/locale/user/SSH configuration while leaving the extracted tree in place.
   - `SP_DEBUG_ROOTFS=1` emits extra `[SP-INSTALLER] rootfs` markers around each deploy and chroot step for log tracing.
 
+### Phase 12 — Bootloader install & fstab generation
+
+- After the rootfs is deployed, Phase 12 mounts the EFI partition (`SP_DISK_EXECUTE_EFI_PART`), generates `/etc/fstab` with UUID references discovered via `blkid`, writes a minimal GRUB 2 config (`/boot/grub/grub.cfg`), and runs `grub-install --target=<grub_efi_target>` inside the chroot so the new system can boot.
+- The stage is gated behind the new toggle lifecycle:
+  - `SP_ENABLE_BOOTLOADER=1` must be set before any GRUB work begins.
+  - `SP_SKIP_BOOTLOADER=1` skips the stage but still emits `[SP-INSTALLER] bootloader` markers.
+  - `SP_DEBUG_BOOTLOADER=1` emits extra debug context for each helper.
+- `installer.bootloader` exposes tuning knobs:
+  - `efi_mount_point` (default `/boot/efi`) controls where the EFI partition is mounted for GRUB and fstab entries.
+  - `fstab_root_options` (`defaults,noatime`) / `fstab_efi_options` (`umask=0077,fmask=0077,dmask=0077`) dictate the `/etc/fstab` option strings.
+  - `grub_efi_target` (`x86_64-efi`) and `bootloader_id` (`screaming-penguin`) configure `grub-install`.
+  - `menu_entry`, `grub_timeout`, and `grub_cfg_path` define the boot menu entry text, timeout, and config location.
+  - The stage still writes `installer.bootloader` defaults even when the block is omitted.
+
+Future work: document how target kernels/initrds are discovered before writing `grub.cfg` and how the final system can regenerate GRUB via `update-grub`.
 ### Rootfs Builder Integration (Phase 4)
 
 The Screaming Penguin rootfs builder generates a Debian root filesystem tarball under:

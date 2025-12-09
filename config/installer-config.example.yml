@@ -17,6 +17,15 @@ installer:
     password_hash: "$6$replace-with-real-hash"
     ssh_authorized_keys:
       - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...replace..."
+  bootloader:
+    efi_mount_point: "/boot/efi"
+    grub_efi_target: "x86_64-efi"
+    bootloader_id: "screaming-penguin"
+    grub_cfg_path: "/boot/grub/grub.cfg"
+    grub_timeout: 5
+    menu_entry: "Screaming Penguin"
+    fstab_root_options: "defaults,noatime"
+    fstab_efi_options: "umask=0077,fmask=0077,dmask=0077"
 
 target:
   disk: nvme0n1
