@@ -97,9 +97,15 @@ Future work in this document:
 - `installer.bootloader` exposes tuning knobs:
   - `efi_mount_point` (default `/boot/efi`) controls where the EFI partition is mounted for GRUB and fstab entries.
   - `fstab_root_options` (`defaults,noatime`) / `fstab_efi_options` (`umask=0077,fmask=0077,dmask=0077`) dictate the `/etc/fstab` option strings.
-  - `grub_efi_target` (`x86_64-efi`) and `bootloader_id` (`screaming-penguin`) configure `grub-install`.
-  - `menu_entry`, `grub_timeout`, and `grub_cfg_path` define the boot menu entry text, timeout, and config location.
-  - The stage still writes `installer.bootloader` defaults even when the block is omitted.
+- `grub_efi_target` (`x86_64-efi`) and `bootloader_id` (`screaming-penguin`) configure `grub-install`.
+- `menu_entry`, `grub_timeout`, and `grub_cfg_path` define the boot menu entry text, timeout, and config location.
+- The stage still writes `installer.bootloader` defaults even when the block is omitted.
+
+### Phase 13 — Installer media bootability
+
+- Phase 13 ensures that the raw `.img` builder is a valid UEFI ROM: `tools/make_installer_img.sh` now writes a GPT table whose first partition is a FAT32 EFI System Partition, copies `/boot/vmlinuz-installer` + `/boot/initrd-installer.img` into that partition, installs `grubx64.efi` under `/EFI/BOOT/BOOTX64.EFI`, and drops a minimal `EFI/BOOT/grub.cfg` that loads the upstream installer kernel/initrd.
+- The shared `tools/grub_shared.sh` helper renders the canonical `linux`/`initrd` lines so both the `.img` and `.iso` builders keep their loader arguments synchronized while the ISO path retains its serial/BIOS extras.
+- An installer-media test mounts the ESP via loop, validates that the filesystem reports FAT32, and asserts that `/EFI/BOOT/BOOTX64.EFI` plus `grub.cfg` referencing `vmlinuz-installer`/`initrd-installer.img` exist to prove the USB image can boot.
 
 Future work: document how target kernels/initrds are discovered before writing `grub.cfg` and how the final system can regenerate GRUB via `update-grub`.
 ### Rootfs Builder Integration (Phase 4)

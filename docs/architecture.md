@@ -33,6 +33,11 @@ The installer is split into multiple stages that run inside the initramfs, the h
 - A new config block `installer.bootloader` exposes the defaults for `efi_mount_point`, `fstab_*_options`, `grub_efi_target`, `bootloader_id`, `grub_cfg_path`, `grub_timeout`, and `menu_entry`. These values are also consumed by the validator in `installer/runtime/lib/config_validation.sh`.
 - After the bootloader work finalizes, the init script writes `state=complete` and a literal `[SP-INSTALLER] COMPLETE` line so observers can detect that planner → executor → rootfs → bootloader all completed in order.
 
+## Phase 13 — Installer media bootability
+
+- With the installer tree now writing a bootloader to the target disk, Phase 13 makes the installer image itself a valid USB by building a GPT table whose first partition is a FAT32 ESP that hosts `/EFI/BOOT/BOOTX64.EFI`, `/EFI/BOOT/grub.cfg`, and the real installer kernel/initrd under `/boot`.
+- The ESP's `grub.cfg` is generated with the shared helper so both the `.img` and `.iso` builders reference `/boot/vmlinuz-installer` and `/boot/initrd-installer.img`, while the script copies `grubx64.efi` into `EFI/BOOT` and ensures `BOOTX64.EFI` exists for removable firmware lookups. A new installer-media test mounts the ESP via loop, validates the FAT32 signature, and inspects `grub.cfg` for the canonical kernel/initrd paths before asserting Phase 13 is complete.
+
 ## Testing and tooling hooks
 - Tests under `tests/installer` now verify the init script emits the required markers and that the Python helper rejects invalid gate states.
 - Documentation (contracts and roadmap) highlights the write-gate as the single switch that must be enabled before any installer writes run.

@@ -14,6 +14,15 @@ ISO_BOOT_DIR="${ISO_ROOT}/boot"
 DIST_KERNEL_PATH="${DIST_DIR}/vmlinuz-installer"
 DIST_INITRD_PATH="${DIST_DIR}/initrd-installer.img"
 
+GRUB_HELPER="${PROJECT_ROOT}/tools/grub_shared.sh"
+if [ ! -f "${GRUB_HELPER}" ]; then
+  echo "[SP-ISO] ERROR: Missing GRUB helper: ${GRUB_HELPER}" >&2
+  exit 1
+fi
+
+# shellcheck source=tools/grub_shared.sh
+. "${GRUB_HELPER}"
+
 mkdir -p "${DIST_DIR}"
 
 # ---------------------------------------------------------------------------
@@ -203,7 +212,9 @@ cp -f "${INSTALLER_INITRD_PATH}" "${DIST_INITRD_PATH}"
 echo "[SP-ISO] Writing GRUB configuration..."
 mkdir -p "${ISO_ROOT}/boot/grub"
 
-cat > "${ISO_ROOT}/boot/grub/grub.cfg" <<'EOF_GRUB'
+GRUB_CFG="${ISO_ROOT}/boot/grub/grub.cfg"
+LINUX_ARGS="root=/dev/ram0 rdinit=/init console=tty0 console=ttyS0,115200n8 earlyprintk=serial"
+cat <<'EOF_GRUB' > "${GRUB_CFG}"
 set timeout=0
 set default=0
 
@@ -213,10 +224,11 @@ terminal_output serial
 
 menuentry "Screaming Penguin Installer" {
     search --file --set=root /boot/vmlinuz-installer
-    linux /boot/vmlinuz-installer root=/dev/ram0 rdinit=/init console=tty0 console=ttyS0,115200n8 earlyprintk=serial
-    initrd /boot/initrd-installer.img
-}
 EOF_GRUB
+sp_installer_grub_kernel_lines "${LINUX_ARGS}" "" >> "${GRUB_CFG}"
+cat <<'EOF_GRUB_END' >> "${GRUB_CFG}"
+}
+EOF_GRUB_END
 
 GRUB_CFG="${ISO_ROOT}/boot/grub/grub.cfg"
 
@@ -253,7 +265,17 @@ fi
 
 echo "[SP-ISO] Creating EFI boot image..."
 mkdir -p "${ISO_ROOT}/efi/boot"
-cp /usr/lib/grub/x86_64-efi/monolithic/grubx64.efi "${ISO_ROOT}/efi/boot/bootx64.efi"
+GRUB_EFI_BINARY=""
+if ! GRUB_EFI_BINARY=$(sp_resolve_grub_efi_binary); then
+  GRUB_EFI_BINARY=""
+fi
+
+if [ -z "${GRUB_EFI_BINARY}" ]; then
+  echo "[SP-ISO] ERROR: grubx64.efi not found (install grub-efi-amd64-bin or set SP_GRUB_EFI_BIN)." >&2
+  exit 1
+fi
+
+cp "${GRUB_EFI_BINARY}" "${ISO_ROOT}/efi/boot/bootx64.efi"
 
 echo "[SP-ISO] Building final ISO..."
 # Ensure output directory exists for the ISO
