@@ -37,7 +37,8 @@ jobs:
             dosfstools \
             parted \
             gdisk \
-            debootstrap
+            debootstrap \
+            xorriso
 
       - name: Run dist-release packaging
         run: |
