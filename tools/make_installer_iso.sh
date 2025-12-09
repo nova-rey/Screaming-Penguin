@@ -4,7 +4,6 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build"
 ISO_ROOT="${BUILD_DIR}/iso-root"
-RUNTIME_DIR="${BUILD_DIR}/runtime"
 DIST_DIR="${PROJECT_ROOT}/dist"
 ISO_OUT="${DIST_DIR}/screaming-penguin.iso"
 DIST_KERNEL="${DIST_DIR}/vmlinuz-installer"
@@ -25,19 +24,6 @@ fi
 
 mkdir -p "${DIST_DIR}"
 
-SP_BOOT_KERNEL="${RUNTIME_DIR}/vmlinuz"
-SP_BOOT_INITRD="${RUNTIME_DIR}/initrd.img"
-
-if [ ! -f "${SP_BOOT_KERNEL}" ] || [ ! -f "${SP_BOOT_INITRD}" ]; then
-  echo "[SP-ISO] Runtime artifacts not found in ${RUNTIME_DIR}; falling back to dist/..." >&2
-  SP_BOOT_KERNEL="${DIST_KERNEL}"
-  SP_BOOT_INITRD="${DIST_INITRD}"
-fi
-
-if [ ! -f "${SP_BOOT_KERNEL}" ] || [ ! -f "${SP_BOOT_INITRD}" ]; then
-  echo "[SP-ISO] ERROR: Could not locate installer kernel/initrd for ISO build." >&2
-  exit 1
-fi
 
 echo "[SP-ISO] Building installer initramfs..."
 bash "${PROJECT_ROOT}/tools/build_installer_initramfs.sh"
@@ -54,13 +40,16 @@ rm -rf "${ISO_ROOT}"
 echo "[SP-ISO] Preparing /boot contents for ISO..."
 mkdir -p "${SP_ISO_BOOT_DIR}"
 
-cp "${SP_BOOT_KERNEL}" "${SP_ISO_KERNEL}"
-cp "${SP_BOOT_INITRD}" "${SP_ISO_INITRD}"
+if [ ! -f "${DIST_KERNEL}" ]; then
+  echo "[SP-ISO] ERROR: Installer kernel not found at ${DIST_KERNEL}" >&2
+  exit 1
+fi
+
+cp "${DIST_KERNEL}" "${SP_ISO_KERNEL}"
+cp "${DIST_INITRD}" "${SP_ISO_INITRD}"
 
 echo "[SP-ISO] /boot contents in ISO root:"
 ls -lh "${SP_ISO_BOOT_DIR}"
-
-cp -f "${SP_BOOT_KERNEL}" "${DIST_KERNEL}"
 
 echo "[SP-ISO] Writing GRUB configuration..."
 mkdir -p "${ISO_ROOT}/boot/grub"

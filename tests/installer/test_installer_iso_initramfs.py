@@ -16,7 +16,9 @@ HAS_REQUIRED_TOOLS = all(shutil.which(tool) for tool in REQUIRED_TOOLS)
 def test_installer_iso_contains_busybox(tmp_path: Path) -> None:
     iso = Path("dist/screaming-penguin.iso")
     if not iso.exists():
-        pytest.skip("dist/screaming-penguin.iso not present; run make iso/dist-release first")
+        pytest.skip(
+            "dist/screaming-penguin.iso not present; run make iso/dist-release first"
+        )
 
     initrd_path = tmp_path / "initrd-installer.img"
     subprocess.run(
