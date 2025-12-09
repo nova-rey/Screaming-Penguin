@@ -1,22 +1,32 @@
 # Screaming Penguin - Makefile
 
-RUNTIME_DIR := build/runtime
+BUILD_DIR := build
+RUNTIME_DIR := $(BUILD_DIR)/runtime
 
-.PHONY: img iso rootfs clean qemu-acceptance runtime
-
-img:
+.PHONY: img iso rootfs clean qemu-acceptance runtime installer-runtime
+img: $(RUNTIME_DIR)/.installer-runtime-built
 	@echo "[MAKE] Building Screaming Penguin installer image…"
 	sh tools/make_installer_img.sh
 
-iso:
+iso: $(RUNTIME_DIR)/.installer-runtime-built
 	@echo "[MAKE] Building Screaming Penguin ISO…"
-	bash tools/build_runtime.sh
 	bash tools/make_installer_iso.sh
 
-.PHONY: runtime
-runtime:
-	@echo "[MAKE] Building minimal boot runtime…"
+installer-runtime:
+	@rm -f $(RUNTIME_DIR)/.installer-runtime-built
+	@$(MAKE) $(RUNTIME_DIR)/.installer-runtime-built
+
+$(RUNTIME_DIR)/.installer-runtime-built:
+	@echo "[MAKE] Building installer runtime artifacts…"
 	bash tools/build_runtime.sh
+	bash tools/build_installer_initramfs.sh
+	mkdir -p dist
+	cp "$(RUNTIME_DIR)/vmlinuz" dist/vmlinuz-installer
+	mkdir -p $(BUILD_DIR)
+	cp -f dist/initrd-installer.img $(BUILD_DIR)/initrd-installer.img
+	touch "$@"
+
+runtime: installer-runtime
 
 rootfs:
 	@echo "[MAKE] Building Debian rootfs (bookworm-amd64)…"
@@ -43,4 +53,3 @@ dist-release: img iso rootfs
 	mkdir -p dist/release/example-configs
 	cp -r config/examples/*.yml dist/release/example-configs/
 	cd dist/release && find . -type f -maxdepth 1 -print0 | xargs -0 sha256sum > SHA256SUMS
-
