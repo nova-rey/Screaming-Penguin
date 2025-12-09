@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import filecmp
 import os
 import shutil
 import subprocess
@@ -178,3 +179,62 @@ def test_make_installer_iso_falls_back_to_dist_artifacts(tmp_path: Path) -> None
 
         if iso_output.exists():
             iso_output.unlink()
+
+
+def test_iso_initrd_matches_dist_installer_initrd(tmp_path: Path) -> None:
+    if shutil.which("xorriso") is None:
+        pytest.skip("xorriso unavailable; skipping ISO initrd identity test")
+
+    dist_dir = REPO_ROOT / "dist"
+    dist_initrd = dist_dir / "initrd-installer.img"
+    iso_output = dist_dir / "screaming-penguin.iso"
+    stub_efi = tmp_path / "grubx64.efi"
+    stub_efi.write_bytes(b"EFI-STUB")
+    env = os.environ.copy()
+    env["SP_GRUB_EFI_BIN"] = str(stub_efi)
+
+    if iso_output.exists():
+        iso_output.unlink()
+
+    subprocess.run(
+        ["/bin/bash", "tools/build_installer_initramfs.sh"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    subprocess.run(
+        ["/bin/bash", "tools/make_installer_iso.sh"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    assert iso_output.exists(), "ISO build failed to produce screaming-penguin.iso"
+
+    extracted_initrd = tmp_path / "initrd-installer.iso.img"
+    subprocess.run(
+        [
+            "xorriso",
+            "-osirrox",
+            "on",
+            "-indev",
+            str(iso_output),
+            "-extract",
+            "/boot/initrd-installer.img",
+            str(extracted_initrd),
+        ],
+        check=True,
+    )
+
+    assert filecmp.cmp(
+        str(dist_initrd),
+        str(extracted_initrd),
+        shallow=False,
+    ), "ISO initrd image differs from dist/initrd-installer.img"
