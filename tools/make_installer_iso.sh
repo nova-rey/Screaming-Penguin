@@ -5,8 +5,6 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build"
 ISO_ROOT="${BUILD_DIR}/iso-root"
 RUNTIME_DIR="${BUILD_DIR}/runtime"
-RUNTIME_KERNEL="${BUILD_DIR}/runtime/vmlinuz"
-RUNTIME_INITRD="${BUILD_DIR}/runtime/initrd.img"
 DIST_DIR="${PROJECT_ROOT}/dist"
 ISO_OUT="${DIST_DIR}/screaming-penguin.iso"
 DIST_KERNEL="${DIST_DIR}/vmlinuz-installer"
@@ -27,13 +25,17 @@ fi
 
 mkdir -p "${DIST_DIR}"
 
-if [ -f "${RUNTIME_KERNEL}" ] && [ -f "${RUNTIME_INITRD}" ]; then
-  SP_BOOT_KERNEL="${RUNTIME_KERNEL}"
-elif [ -f "${DIST_KERNEL}" ]; then
-  echo "[SP-ISO] Runtime kernel not found in build/runtime; falling back to dist/ artifacts..."
+SP_BOOT_KERNEL="${RUNTIME_DIR}/vmlinuz"
+SP_BOOT_INITRD="${RUNTIME_DIR}/initrd.img"
+
+if [ ! -f "${SP_BOOT_KERNEL}" ] || [ ! -f "${SP_BOOT_INITRD}" ]; then
+  echo "[SP-ISO] Runtime artifacts not found in ${RUNTIME_DIR}; falling back to dist/..." >&2
   SP_BOOT_KERNEL="${DIST_KERNEL}"
-else
-  echo "[SP-ISO] ERROR: Runtime kernel not found at ${RUNTIME_KERNEL} or ${DIST_KERNEL}" >&2
+  SP_BOOT_INITRD="${DIST_INITRD}"
+fi
+
+if [ ! -f "${SP_BOOT_KERNEL}" ] || [ ! -f "${SP_BOOT_INITRD}" ]; then
+  echo "[SP-ISO] ERROR: Could not locate installer kernel/initrd for ISO build." >&2
   exit 1
 fi
 
@@ -53,7 +55,7 @@ echo "[SP-ISO] Preparing /boot contents for ISO..."
 mkdir -p "${SP_ISO_BOOT_DIR}"
 
 cp "${SP_BOOT_KERNEL}" "${SP_ISO_KERNEL}"
-cp "${DIST_INITRD}" "${SP_ISO_INITRD}"
+cp "${SP_BOOT_INITRD}" "${SP_ISO_INITRD}"
 
 echo "[SP-ISO] /boot contents in ISO root:"
 ls -lh "${SP_ISO_BOOT_DIR}"
