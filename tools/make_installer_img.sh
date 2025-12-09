@@ -1,12 +1,18 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Screaming Penguin - Image Builder (Phase 13)
 # Builds a GPT-based installer image with a FAT32 EFI System Partition.
 
-set -eu
+set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST_DIR="$PROJECT_ROOT/dist"
 BUILD_DIR="$PROJECT_ROOT/build"
+
+SP_IMG_BUILD_DIR="${SP_IMG_BUILD_DIR:-$PROJECT_ROOT/build/installer-img}"
+SP_IMG_MNT_DIR="${SP_IMG_MNT_DIR:-$PROJECT_ROOT/build/installer-img-mnt}"
+
+BOOT_TREE="$SP_IMG_BUILD_DIR/boot-tree"
+ESP_DIR="$BOOT_TREE/EFI/BOOT"
 
 IMG_OUT="${SP_IMG_OUT:-$DIST_DIR/screaming-penguin.img}"
 IMG_SIZE="${SP_IMG_SIZE:-3G}"
@@ -41,14 +47,12 @@ sp_find_installer_artifact() {
     return 1
 }
 
-BOOT_TREE="$BUILD_DIR/boot-tree"
-ESP_DIR="$BOOT_TREE/EFI/BOOT"
-
 mkdir -p "$BUILD_DIR" "$DIST_DIR"
 
 echo "[SP-IMG] Cleaning build directory…"
-rm -rf "$BUILD_DIR"
-mkdir -p "$BUILD_DIR" "$BOOT_TREE"
+rm -rf "$SP_IMG_BUILD_DIR" "$SP_IMG_MNT_DIR"
+mkdir -p "$SP_IMG_BUILD_DIR" "$SP_IMG_MNT_DIR"
+mkdir -p "$BOOT_TREE"
 
 INSTALLER_KERNEL_PATH=""
 INSTALLER_INITRD_PATH=""
@@ -146,15 +150,16 @@ EOF_GRUB_END
 ### POPULATE P1 ###
 
 echo "[SP-IMG] Mounting boot partition…"
-mkdir -p "$BUILD_DIR/mount-p1"
-mount "$P1_DEV" "$BUILD_DIR/mount-p1"
+P1_MNT="$SP_IMG_MNT_DIR/mount-p1"
+mkdir -p "$P1_MNT"
+mount "$P1_DEV" "$P1_MNT"
 
-cp -a "$BOOT_TREE"/. "$BUILD_DIR/mount-p1/"
+cp -a "$BOOT_TREE"/. "$P1_MNT/"
 
 sync
 
 echo "[SP-IMG] Unmounting boot partition…"
-umount "$BUILD_DIR/mount-p1"
+umount "$P1_MNT"
 
 ### FINALIZE ###
 

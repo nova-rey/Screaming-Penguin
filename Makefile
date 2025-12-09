@@ -6,7 +6,7 @@ RUNTIME_DIR := $(BUILD_DIR)/runtime
 .PHONY: img iso rootfs clean qemu-acceptance runtime installer-runtime
 img: $(RUNTIME_DIR)/.installer-runtime-built
 	@echo "[MAKE] Building Screaming Penguin installer image…"
-	sh tools/make_installer_img.sh
+	bash tools/make_installer_img.sh
 
 iso: $(RUNTIME_DIR)/.installer-runtime-built
 	@echo "[MAKE] Building Screaming Penguin ISO…"
