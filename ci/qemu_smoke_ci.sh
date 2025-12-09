@@ -46,21 +46,35 @@ if [ "${has_kernel}" -ne 1 ]; then
 fi
 
 echo "[QEMU-CI] Verifying initramfs contents..."
-INITRD_EXTRACT="${PROJECT_ROOT}/build/initrd-installer.img"
-mkdir -p "$(dirname "${INITRD_EXTRACT}")"
+TMPDIR="$(mktemp -d)"
+trap 'rm -rf "${TMPDIR}"' EXIT
+INITRD_PATH="${TMPDIR}/initrd-installer.img"
 
-if ! xorriso -indev "${ISO_PATH}" -osirrox on -extract /boot/initrd-installer.img "${INITRD_EXTRACT}" 2>/dev/null; then
+if ! xorriso -osirrox on -indev "${ISO_PATH}" \
+    -extract /boot/initrd-installer.img "${INITRD_PATH}"; then
   echo "[QEMU-CI] ERROR: Failed to extract /boot/initrd-installer.img from ISO." >&2
   exit 1
 fi
 
-if ! lsinitramfs "${INITRD_EXTRACT}" | grep -E '^init$'; then
-  echo "[QEMU-CI] ERROR: init not found in installer initramfs." >&2
+echo "[QEMU-CI] Verifying installer initramfs contains /init and bin/busybox..."
+if ! INITRD_LIST="$(
+  zcat "${INITRD_PATH}" \
+    | cpio -t -H newc 2>/dev/null
+)"; then
+  echo "[QEMU-CI] ERROR: failed to list initramfs contents." >&2
   exit 1
 fi
 
-if ! lsinitramfs "${INITRD_EXTRACT}" | grep -E '^bin/busybox$'; then
-  echo "[QEMU-CI] ERROR: /bin/busybox not found in installer initramfs." >&2
+echo "[QEMU-CI] First 20 entries in installer initramfs:"
+printf '%s\n' "${INITRD_LIST}" | head -n 20
+
+if ! printf '%s\n' "${INITRD_LIST}" | grep -qx 'init'; then
+  echo "[QEMU-CI] ERROR: /init not found in installer initramfs." >&2
+  exit 1
+fi
+
+if ! printf '%s\n' "${INITRD_LIST}" | grep -qx 'bin/busybox'; then
+  echo "[QEMU-CI] ERROR: bin/busybox not found in installer initramfs." >&2
   exit 1
 fi
 
