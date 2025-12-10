@@ -35,7 +35,7 @@ The installer is split into multiple stages that run inside the initramfs, the h
 
 ## Phase 13 — Installer media bootability
 
-- With the installer tree now writing a bootloader to the target disk, Phase 13 makes the installer image itself a valid USB by building a GPT table whose first partition is a FAT32 ESP that hosts `/EFI/BOOT/BOOTX64.EFI`, `/EFI/BOOT/grub.cfg`, and the real installer kernel/initrd under `/boot`.
+- With the installer tree now writing a bootloader to the target disk, Phase 13 makes the installer image itself a valid USB by building a GPT table whose first partition is the writable FAT32 `/config` volume, and whose second partition is the FAT32 ESP that hosts `/EFI/BOOT/BOOTX64.EFI`, `/EFI/BOOT/grub.cfg`, and the real installer kernel/initrd under `/boot`. Keeping `/config` as p1 keeps the user-facing data volume visible in desktop environments while UEFI still finds the ESP by type.
 - The ESP's `grub.cfg` is generated with the shared helper so both the `.img` and `.iso` builders reference `/boot/vmlinuz-installer` and `/boot/initrd-installer.img`, while the script copies `grubx64.efi` into `EFI/BOOT` and ensures `BOOTX64.EFI` exists for removable firmware lookups. A new installer-media test mounts the ESP via loop, validates the FAT32 signature, and inspects `grub.cfg` for the canonical kernel/initrd paths before asserting Phase 13 is complete.
 
 ## Testing and tooling hooks

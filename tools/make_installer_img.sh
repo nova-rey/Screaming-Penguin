@@ -16,8 +16,8 @@ ESP_DIR="$BOOT_TREE/EFI/BOOT"
 
 IMG_OUT="${SP_IMG_OUT:-$DIST_DIR/screaming-penguin.img}"
 IMG_SIZE="${SP_IMG_SIZE:-3G}"
-P1_SIZE_MB="${SP_IMG_BOOT_SIZE_MB:-512}"
-P2_SIZE_MB="${SP_IMG_CONFIG_SIZE_MB:-2048}"
+BOOT_SIZE_MB="${SP_IMG_BOOT_SIZE_MB:-512}"
+CONFIG_SIZE_MB="${SP_IMG_CONFIG_SIZE_MB:-2048}"
 ESP_LABEL="${SP_IMG_BOOT_LABEL:-SP_BOOT}"
 CONFIG_LABEL="${SP_IMG_CONFIG_LABEL:-SP_CONFIG}"
 GRUB_HELPER="$PROJECT_ROOT/tools/grub_shared.sh"
@@ -76,14 +76,14 @@ truncate -s "$IMG_SIZE" "$IMG_OUT"
 echo "[SP-IMG] Creating GPT table…"
 parted -s "$IMG_OUT" mklabel gpt >/dev/null
 
-echo "[SP-IMG] Creating boot partition (p1)…"
-parted -s "$IMG_OUT" mkpart primary 1MiB "${P1_SIZE_MB}"MiB >/dev/null
-parted -s "$IMG_OUT" set 1 boot on >/dev/null
-parted -s "$IMG_OUT" set 1 esp on >/dev/null
-parted -s "$IMG_OUT" set 1 legacy_boot on >/dev/null
+echo "[SP-IMG] Creating config partition (p1)…"
+parted -s "$IMG_OUT" mkpart primary 1MiB "${CONFIG_SIZE_MB}"MiB >/dev/null
 
-echo "[SP-IMG] Creating config partition (p2)…"
-parted -s "$IMG_OUT" mkpart primary "${P1_SIZE_MB}"MiB "$((P1_SIZE_MB + P2_SIZE_MB))"MiB >/dev/null
+echo "[SP-IMG] Creating ESP (boot) partition (p2)…"
+parted -s "$IMG_OUT" mkpart primary "${CONFIG_SIZE_MB}"MiB "$((CONFIG_SIZE_MB + BOOT_SIZE_MB))"MiB >/dev/null
+parted -s "$IMG_OUT" set 2 boot on >/dev/null
+parted -s "$IMG_OUT" set 2 esp on >/dev/null
+parted -s "$IMG_OUT" set 2 legacy_boot on >/dev/null
 
 ### LOOP DEVICE SETUP ###
 
@@ -106,11 +106,11 @@ P2_DEV="/dev/mapper/$(basename "$LOOPDEV")p2"
 
 ### FORMAT PARTITIONS ###
 
-echo "[SP-IMG] Formatting p1 as FAT32 (ESP)…"
-mkfs.vfat -n "$ESP_LABEL" "$P1_DEV"
+echo "[SP-IMG] Formatting p1 as FAT32 (CONFIG)…"
+mkfs.vfat -n "$CONFIG_LABEL" "$P1_DEV"
 
-echo "[SP-IMG] Formatting p2 as FAT32 (SP_CONFIG)…"
-mkfs.vfat -n "$CONFIG_LABEL" "$P2_DEV"
+echo "[SP-IMG] Formatting p2 as FAT32 (ESP)…"
+mkfs.vfat -n "$ESP_LABEL" "$P2_DEV"
 
 ### BOOT TREE ###
 
@@ -149,17 +149,17 @@ EOF_GRUB_END
 
 ### POPULATE P1 ###
 
-echo "[SP-IMG] Mounting boot partition…"
-P1_MNT="$SP_IMG_MNT_DIR/mount-p1"
-mkdir -p "$P1_MNT"
-mount "$P1_DEV" "$P1_MNT"
+echo "[SP-IMG] Mounting ESP partition (p2)…"
+ESP_MNT="$SP_IMG_MNT_DIR/mount-p2"
+mkdir -p "$ESP_MNT"
+mount "$P2_DEV" "$ESP_MNT"
 
-cp -a "$BOOT_TREE"/. "$P1_MNT/"
+cp -a "$BOOT_TREE"/. "$ESP_MNT/"
 
 sync
 
-echo "[SP-IMG] Unmounting boot partition…"
-umount "$P1_MNT"
+echo "[SP-IMG] Unmounting ESP partition…"
+umount "$ESP_MNT"
 
 ### FINALIZE ###
 
