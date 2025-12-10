@@ -48,14 +48,9 @@ make iso
 
 This calls the Screaming Penguin image builder (e.g. tools/make_installer_iso.sh) and is expected to:
 •Create a raw disk image at dist/screaming-penguin.img.
-•Partition the image with GPT into:
-•Partition 1 (boot environment).
-•Partition 2 (FAT32 /config).
-•Format the /config partition as FAT32.
-•Populate the boot partition with at least a minimal boot tree, including:
-•Kernel placeholder.
-•Initramfs tree.
-•Bootloader configuration placeholders.
+•Partition the image with GPT so Partition 1 is the writable FAT32 `/config` volume (installer-config.yml, `/config/os/rootfs.tar.gz`, logs) and Partition 2 is the FAT32 ESP that holds `/EFI/BOOT/BOOTX64.EFI`, `/EFI/BOOT/grub.cfg`, `/boot/vmlinuz-installer`, and `/boot/initrd-installer.img`. Placing `/config` first keeps desktop environments from hiding the user-facing data partition, while UEFI locates the boot tree by type rather than index.
+•Format Partition 1 as FAT32 for `/config`.
+•Format Partition 2 as FAT32 (ESP) and populate it with the minimal boot tree, including the kernel placeholder, initramfs tree, and bootloader configuration placeholders.
 
 All actions must operate only on files under the repository (build/, dist/) and loop devices mapped from those files.
 

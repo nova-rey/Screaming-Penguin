@@ -10,8 +10,8 @@ confirmation prompts, and log retrieval.
 
 After writing `screaming-penguin-v1.0.0.img` to a USB device:
 
-- **Partition 1 (read-only)**: Bootable installer system
-- **Partition 2 (`/config`)**: Writable config + logs
+- **Partition 1 (`/config`)**: Writable config + logs. This FAT32 volume already contains `installer-config.yml`, `/config/os/rootfs.tar.gz`, and the logs directory, and placing it first keeps desktop environments from flagging the USB as a boot-only device.
+- **Partition 2 (read-only)**: Bootable installer system (EFI/BIOS tree with `/EFI/BOOT/BOOTX64.EFI`, `/EFI/BOOT/grub.cfg`, `/boot/vmlinuz-installer`, and `/boot/initrd-installer.img`). The second partition remains an ESP as before, so UEFI firmware locates it by type rather than index.
 
 ---
 
@@ -121,4 +121,3 @@ Screaming Penguin is designed for unattended environments:
 ## Troubleshooting
 
 See `TROUBLESHOOTING.md` for detailed failure modes and log extraction.
-

@@ -10,10 +10,11 @@ from pathlib import Path
 
 import pytest
 
-from pyfatfs import PyFat, PyFatFS
+from pyfatfs.PyFat import PyFat
+from pyfatfs.PyFatFS import PyFatFS
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-BOOT_OFFSET = 1 * 1024 * 1024
+SGDISK_BIN = shutil.which("sgdisk")
 
 
 def _stage_dist_file(path: Path, contents: bytes) -> Path | None:
@@ -37,7 +38,9 @@ def _restore_dist_file(path: Path, backup: Path | None) -> None:
         path.unlink()
 
 
-def test_installer_image_esp_is_fat32(tmp_path: Path) -> None:
+def _build_test_installer_img(
+    tmp_path: Path, extra_env: dict[str, str] | None = None
+) -> tuple[Path, dict[str, str]]:
     kernel_path = REPO_ROOT / "dist" / "vmlinuz-installer"
     initrd_path = REPO_ROOT / "dist" / "initrd-installer.img"
     kernel_backup: Path | None = None
@@ -46,17 +49,21 @@ def test_installer_image_esp_is_fat32(tmp_path: Path) -> None:
         kernel_backup = _stage_dist_file(kernel_path, b"kernel")
         initrd_backup = _stage_dist_file(initrd_path, b"initrd")
         env = os.environ.copy()
-
-        env = os.environ.copy()
-        env["SP_IMG_OUT"] = str(tmp_path / "installer.img")
-        env["SP_IMG_SIZE"] = "32M"
-        env["SP_IMG_BOOT_SIZE_MB"] = "12"
-        env["SP_IMG_CONFIG_SIZE_MB"] = "12"
+        env.update(
+            {
+                "SP_IMG_OUT": str(tmp_path / "installer.img"),
+                "SP_IMG_SIZE": "32M",
+                "SP_IMG_BOOT_SIZE_MB": "12",
+                "SP_IMG_CONFIG_SIZE_MB": "12",
+            }
+        )
         stub_efi = tmp_path / "grubx64.efi"
         stub_efi.write_bytes(b"EFI-STUB")
         env["SP_GRUB_EFI_BIN"] = str(stub_efi)
+        if extra_env:
+            env.update(extra_env)
 
-        loop_probe: subprocess.CompletedProcess[str] = subprocess.run(
+        loop_probe = subprocess.run(
             ["sudo", "-E", "losetup", "--find", "--show", "/dev/null"],
             check=False,
             stdout=subprocess.PIPE,
@@ -69,6 +76,7 @@ def test_installer_image_esp_is_fat32(tmp_path: Path) -> None:
             )
         loop_device = loop_probe.stdout.strip()
         subprocess.run(["sudo", "-E", "losetup", "-d", loop_device], check=True)
+
         subprocess.run(
             ["sudo", "-E", "/bin/bash", "tools/make_installer_img.sh"],
             cwd=str(REPO_ROOT),
@@ -81,27 +89,95 @@ def test_installer_image_esp_is_fat32(tmp_path: Path) -> None:
 
         image_path = Path(env["SP_IMG_OUT"])
         assert image_path.exists(), "Installer image was not created"
-
-        with PyFatFS(str(image_path), offset=BOOT_OFFSET) as fat_fs:
-            assert fat_fs.fs.fat_type == PyFat.FAT_TYPE_FAT32
-            assert fat_fs.exists("EFI/BOOT/BOOTX64.EFI")
-            assert fat_fs.exists("EFI/BOOT/grub.cfg")
-            assert fat_fs.exists("boot/vmlinuz-installer")
-            assert fat_fs.exists("boot/initrd-installer.img")
-
-            with fat_fs.openbin("EFI/BOOT/grub.cfg") as grub_cfg:
-                grub_contents = grub_cfg.read().decode()
-
-        assert "vmlinuz-installer" in grub_contents
-        assert "initrd-installer.img" in grub_contents
-        runtime_kernel = REPO_ROOT / "build" / "runtime" / "vmlinuz"
-        assert runtime_kernel.exists(), (
-            "build/runtime/vmlinuz should still exist after make_installer_img.sh; "
-            "the img build must not delete the shared runtime artifacts."
-        )
+        return image_path, env
     finally:
         _restore_dist_file(kernel_path, kernel_backup)
         _restore_dist_file(initrd_path, initrd_backup)
+
+
+def _sgdisk_partition_info(image_path: Path, index: int) -> dict[str, str]:
+    assert SGDISK_BIN is not None, "sgdisk is required for partition introspection"
+    result = subprocess.run(
+        [SGDISK_BIN, "-i", str(index), str(image_path)],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    info: dict[str, str] = {}
+    for line in result.stdout.splitlines():
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        info[key.strip()] = value.strip()
+    return info
+
+
+def _sgdisk_partition_start_bytes(image_path: Path, index: int) -> int:
+    info = _sgdisk_partition_info(image_path, index)
+    first_sector = int(info["First sector"])
+    return first_sector * 512
+
+
+def test_installer_image_esp_is_fat32(tmp_path: Path) -> None:
+    if SGDISK_BIN is None:
+        pytest.skip(
+            "sgdisk unavailable; skipping installer media bootability smoke test"
+        )
+    image_path, env = _build_test_installer_img(tmp_path)
+
+    parted_output = subprocess.run(
+        ["parted", "-s", str(image_path), "print"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    ).stdout
+    assert "Partition Table: gpt" in parted_output
+
+    config_info = _sgdisk_partition_info(image_path, 1)
+    esp_info = _sgdisk_partition_info(image_path, 2)
+    assert "efi system" not in config_info["Partition GUID code"].lower()
+    assert "efi system" in esp_info["Partition GUID code"].lower()
+
+    esp_offset = _sgdisk_partition_start_bytes(image_path, 2)
+    with PyFatFS(str(image_path), offset=esp_offset) as fat_fs:
+        assert fat_fs.fs.fat_type == PyFat.FAT_TYPE_FAT32
+        assert fat_fs.exists("EFI/BOOT/BOOTX64.EFI")
+        assert fat_fs.exists("EFI/BOOT/grub.cfg")
+        assert fat_fs.exists("boot/vmlinuz-installer")
+        assert fat_fs.exists("boot/initrd-installer.img")
+
+        with fat_fs.openbin("EFI/BOOT/grub.cfg") as grub_cfg:
+            grub_contents = grub_cfg.read().decode()
+
+    assert "vmlinuz-installer" in grub_contents
+    assert "initrd-installer.img" in grub_contents
+    runtime_kernel = REPO_ROOT / "build" / "runtime" / "vmlinuz"
+    assert runtime_kernel.exists(), (
+        "build/runtime/vmlinuz should still exist after make_installer_img.sh; "
+        "the img build must not delete the shared runtime artifacts."
+    )
+
+
+def test_img_has_config_partition_first(tmp_path: Path) -> None:
+    if SGDISK_BIN is None:
+        pytest.skip("sgdisk unavailable; skipping config partition layout test")
+    image_path, env = _build_test_installer_img(tmp_path)
+
+    config_info = _sgdisk_partition_info(image_path, 1)
+    esp_info = _sgdisk_partition_info(image_path, 2)
+    assert "basic data" in config_info["Partition GUID code"].lower()
+    assert "efi system" not in config_info["Partition GUID code"].lower()
+    assert "efi system" in esp_info["Partition GUID code"].lower()
+
+    config_offset = _sgdisk_partition_start_bytes(image_path, 1)
+    with PyFatFS(str(image_path), offset=config_offset) as config_fs:
+        assert config_fs.fs.fat_type == PyFat.FAT_TYPE_FAT32
+        label_raw = config_fs.fs.bpb_header["BS_VolLab"]
+        label = label_raw.decode("ascii", errors="ignore").strip()
+        expected_label = env.get("SP_IMG_CONFIG_LABEL", "SP_CONFIG")
+        assert label == expected_label
 
 
 def test_make_installer_iso_falls_back_to_dist_artifacts(tmp_path: Path) -> None:

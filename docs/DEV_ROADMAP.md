@@ -124,14 +124,13 @@ Each milestone is intended to be small, reviewable, and testable on its own. v1 
 
 - GPT partition table on the image.
 - Partition 1 (p1):
-  - Purpose: bootable read-only environment.
-  - Contents: Linux kernel, initramfs, bootloader (GRUB or equivalent), runtime scripts.
-  - Presentation: ISO9660 and/or squashfs as appropriate for the bootloader.
-- Partition 2 (p2):
   - Filesystem: FAT32.
   - Label: `SP_CONFIG` (or equivalent).
   - Mount point at runtime: `/config`.
-  - Purpose: configuration, rootfs tarball, installer logs.
+  - Purpose: writable configuration, rootfs tarball, installer logs.
+- Partition 2 (p2):
+  - Purpose: bootable read-only environment (EFI/BIOS tree).
+  - Presentation: FAT32 ESP containing `/EFI/BOOT/BOOTX64.EFI`, `/EFI/BOOT/grub.cfg`, `/boot/vmlinuz-installer`, `/boot/initrd-installer.img`.
 
 **Tasks:**
 
@@ -141,7 +140,8 @@ Each milestone is intended to be small, reviewable, and testable on its own. v1 
     - Creating a raw image file.
     - Partitioning the image with GPT into p1 and p2.
     - Populating p1 with kernel, initramfs, and bootloader configuration.
-    - Formatting p2 as FAT32 and preparing it for `/config`.
+- Formatting p1 as FAT32 and preparing it for `/config`.
+- Formatting p2 as FAT32/Esp and populating it with the boot tree.
   - Expected outputs and locations, including `dist/screaming-penguin.img`.
 - Reserve the script entrypoint:
   - `tools/make_installer_iso.sh`

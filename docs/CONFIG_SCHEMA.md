@@ -103,7 +103,7 @@ Future work in this document:
 
 ### Phase 13 — Installer media bootability
 
-- Phase 13 ensures that the raw `.img` builder is a valid UEFI ROM: `tools/make_installer_img.sh` now writes a GPT table whose first partition is a FAT32 EFI System Partition, copies `/boot/vmlinuz-installer` + `/boot/initrd-installer.img` into that partition, installs `grubx64.efi` under `/EFI/BOOT/BOOTX64.EFI`, and drops a minimal `EFI/BOOT/grub.cfg` that loads the upstream installer kernel/initrd.
+- Phase 13 ensures that the raw `.img` builder is a valid UEFI ROM: `tools/make_installer_img.sh` now writes a GPT table whose first partition is the writable FAT32 `/config` volume (installer-config.yml, `/config/os/rootfs.tar.gz`, logs) and whose second partition is the FAT32 EFI System Partition. The tool copies `/boot/vmlinuz-installer` + `/boot/initrd-installer.img` into the ESP, installs `grubx64.efi` under `/EFI/BOOT/BOOTX64.EFI`, and drops a minimal `EFI/BOOT/grub.cfg` that loads the shared kernel/initrd.
 - The shared `tools/grub_shared.sh` helper renders the canonical `linux`/`initrd` lines so both the `.img` and `.iso` builders keep their loader arguments synchronized while the ISO path retains its serial/BIOS extras.
 - An installer-media test mounts the ESP via loop, validates that the filesystem reports FAT32, and asserts that `/EFI/BOOT/BOOTX64.EFI` plus `grub.cfg` referencing `vmlinuz-installer`/`initrd-installer.img` exist to prove the USB image can boot.
 

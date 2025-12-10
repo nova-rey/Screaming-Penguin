@@ -79,7 +79,7 @@ sync
 
 4. Prepare the /config Partition
 
-After imaging, unplug/reinsert the USB so its writable second partition appears.
+After imaging, unplug/reinsert the USB so its writable first partition (the `/config` volume) appears.
 
 Place:
 

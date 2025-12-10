@@ -10,8 +10,8 @@ Each item should be verified against a reference build and configuration.
 
 - [ ] `tools/make_installer_iso.sh` (or equivalent) produces a bootable disk image on a supported Debian-based host.
 - [ ] The disk image contains:
-  - [ ] Partition 1: read-only boot environment (kernel, initramfs, bootloader).
-  - [ ] Partition 2: writable FAT32 `/config` partition.
+- [ ] Partition 1: writable FAT32 `/config` partition.
+- [ ] Partition 2: read-only boot environment (EFI/GRUB, `/boot/vmlinuz-installer`, `/boot/initrd-installer.img`).
 - [ ] `docs/ISO_BUILD.md` correctly describes the build steps and dependencies.
 - [ ] A `Makefile` target (e.g., `make iso`) successfully builds the image.
 

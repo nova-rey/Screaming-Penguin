@@ -13,14 +13,14 @@
 
 ## Block B plan (Implementation)
 - Rework `tools/make_installer_img.sh` to honor configurable overrides (e.g., `SP_IMG_SIZE`, `SP_IMG_BOOT_SIZE_MB`, `SP_IMG_CONFIG_SIZE_MB`, `SP_IMG_OUT`). Keep the default `IMG_SIZE=3G` but allow tests to build a smaller image. Truncate & label the image, create a GPT table, add:
-  * Partition 1 → FAT32 EFI System Partition (set the `esp`/`legacy_boot` flags, format with `mkfs.vfat`, label `SP_BOOT` or similar).
-  * Partition 2 → FAT32 `SP_CONFIG` (existing behavior).
+  * Partition 1 → FAT32 `SP_CONFIG` (existing behavior, now deliberately placed first so users see `/config` without partition discovery grief).
+  * Partition 2 → FAT32 EFI System Partition (set the `esp`/`legacy_boot` flags, format with `mkfs.vfat`, label `SP_BOOT` or similar).
 - Build a proper boot tree under `$BUILD_DIR/boot`:
   * Copy `/boot/vmlinuz-installer` and `/boot/initrd-installer.img` from `dist/` (produced by the ISO build) or fallback to `build/runtime/vmlinuz` + `build/initrd-installer.img` when dist files are missing.
   * Create `EFI/BOOT/` and install the host-provided `grubx64.efi` (string path from `/usr/lib/grub/x86_64-efi/monolithic/grubx64.efi` or `/usr/lib/grub/i386-pc/` if only BIOS is available), and ensure `BOOTX64.EFI` exists (copy or symlink to the loaded EFI binary).
   * Stage `EFI/BOOT/grub.cfg` with the exact snippet required by Phase 13 (search for `/boot/vmlinuz-installer`, set default=0, timeout=0, include `linux /boot/vmlinuz-installer quiet`, `initrd /boot/initrd-installer.img`).
-- Mount the FAT32 ESP (`P1_DEV`), copy the boot tree (`EFI/BOOT/` + `/boot/` contents), and also copy `grub.cfg` under `/boot/grub` if desired (to mimic old layout).
-- Ensure Partition 2 is still formatted FAT32 and kept empty for `/config` data, so existing expectations remain.
+- Mount the FAT32 ESP (`P2_DEV`), copy the boot tree (`EFI/BOOT/` + `/boot/` contents), and also copy `grub.cfg` under `/boot/grub` if desired (to mimic old layout).
+- Ensure Partition 1 is formatted FAT32 and kept reserved for `/config` data so the user-facing layout matches expectations.
 - Factor the `grub.cfg` menu entry into a shared template (`tools/installer-grub.cfg`), letting both `tools/make_installer_iso.sh` and the `.img` builder include the same block to keep kernel/initrd arguments synchronized while still allowing the ISO script to prepend serial/terminal configuration.
 
 ## Block C plan (Verification)
