@@ -1,4 +1,20 @@
-# Rootfs builder artifacts
-build/rootfs-*/
-dist/debian-rootfs-*.tar.gz
-build/phase10-disk-execute.img
+# Build artifacts
+/build/
+/dist/
+/tmp/
+/work/
+
+# Images and ISO outputs
+*.iso
+*.img
+
+# Editor noise
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Python cache (if any tooling later)
+/__pycache__/
+*.pyc
