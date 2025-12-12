@@ -1,0 +1,6 @@
+# Ignore temporary outputs produced during Ouroboros work-in-progress
+build/
+dist/
+*.iso
+*.img
+*.log
