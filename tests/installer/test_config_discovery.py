@@ -17,6 +17,10 @@ def _run_command(
     env = os.environ.copy()
     env.update(env_overrides)
     env["PATH"] = f"{TEST_BIN}{os.pathsep}{env.get('PATH', '')}"
+    env.setdefault(
+        "SP_RUNTIME_LIB_DIR",
+        str((ROOT / "installer" / "runtime" / "lib").resolve()),
+    )
 
     return subprocess.run(
         ["bash", "-c", command],
@@ -106,21 +110,22 @@ def test_missing_config_triggers_rescue(tmp_path: Path) -> None:
     by_label = tmp_path / "by-label"
     by_label.mkdir()
 
+    rescue_label_dir = tmp_path / "rescue-labels"
+    rescue_label_dir.mkdir()
+    (rescue_label_dir / "SP_CONFIG").write_text("candidate")
+
     blkid_file = tmp_path / "blkid.txt"
     blkid_file.write_text("")
     lsblk_file = tmp_path / "lsblk.txt"
     lsblk_file.write_text("NAME FSTYPE\n")
 
     mount_point = tmp_path / "config-mount"
+    (tmp_path / "console").write_text("")
+    shell_log = tmp_path / "rescue-shell.log"
+    shell_log.write_text("")
 
-    command = (
-        f". {SCRIPT}; "
-        "if sp_discover_config; then "
-        "  printf 'found'; "
-        "else "
-        "  sp_enter_rescue_mode missing-config && printf 'rescue'; "
-        "fi"
-    )
+    shell_exit = 47
+    command = f". {SCRIPT}; sp_discover_config"
 
     env = {
         "SP_CONFIG_LABEL_DIR": str(by_label),
@@ -129,10 +134,20 @@ def test_missing_config_triggers_rescue(tmp_path: Path) -> None:
         "SP_CONFIG_DISCOVERY_MAX_ATTEMPTS": "1",
         "SP_TEST_BLKID_DATA": str(blkid_file),
         "SP_TEST_LSBLK_DATA": str(lsblk_file),
-        "SP_TEST_NO_RESCUE_SHELL": "1",
+        "SP_RESCUE_LABEL_DIR": str(rescue_label_dir),
+        "SP_TEST_RESCUE_SHELL": str(Path("tests/installer/bin/rescue-shell")),
+        "SP_TEST_RESCUE_SHELL_EXIT": str(shell_exit),
+        "SP_TEST_RESCUE_SHELL_LOG": str(shell_log),
+        "SP_TEST_RESCUE_CONSOLE": str(tmp_path / "console"),
     }
 
     result = _run_command(env, command)
 
-    assert result.returncode == 0
-    assert "rescue" in result.stdout
+    assert result.returncode == shell_exit
+    stderr_output = result.stderr
+    assert "Entering rescue mode" in stderr_output
+    assert "source=lsblk" in stderr_output
+    assert "source=blkid" in stderr_output
+    assert "source=by-label" in stderr_output
+    shell_output = shell_log.read_text()
+    assert "rescue-shell" in shell_output
