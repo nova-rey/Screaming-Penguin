@@ -1,0 +1,22 @@
+# USB-only block device policy (Phase 2)
+#
+# This policy is expressed for both popular device managers; whichever binary
+# is present in the initramfs can ingest the relevant stanza.
+#
+# udev (if available) should drop or ignore any block device whose ENV{ID_BUS}
+# is not usb before it becomes visible in /dev.  When udev is missing, the
+# same enforcement logic is handled by `ouroboros/scripts/assert_usb_only_environment.sh`.
+#
+# Example udev rule:
+# ACTION=="add|change", SUBSYSTEM=="block", ENV{ID_BUS}!="usb", GOTO="ouroboros_usb_only_end"
+# ACTION=="add|change", SUBSYSTEM=="block", ENV{ID_BUS}=="usb", TAG+="ouroboros_usb_only"
+# LABEL="ouroboros_usb_only_end"
+#
+# BusyBox mdev (if available) can also invoke the assertion helper to detect
+# non-USB block nodes as they appear:
+# pattern      mode   uid   gid   command
+# *            0600   root  root  /ouroboros/scripts/assert_usb_only_environment.sh --mdev-hook
+#
+# Once a proper device manager is wired in (Phase 7), this rule file can be
+# migrated verbatim under /etc/udev/rules.d/ (or /etc/mdev.conf) to enforce
+# the USB-only surface declaratively.
