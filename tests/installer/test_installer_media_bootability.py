@@ -272,45 +272,59 @@ def test_iso_initrd_matches_dist_installer_initrd(tmp_path: Path) -> None:
     if iso_output.exists():
         iso_output.unlink()
 
-    subprocess.run(
-        ["/bin/bash", "tools/build_installer_initramfs.sh"],
-        cwd=str(REPO_ROOT),
-        env=env,
-        check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
+    dist_kernel = dist_dir / "vmlinuz-installer"
+    dist_kernel_backup: Path | None = None
+    dist_initrd_backup: Path | None = None
+    try:
+        dist_kernel_backup = _stage_dist_file(dist_kernel, b"kernel")
+        dist_initrd_backup = _stage_dist_file(dist_initrd, b"initrd")
 
-    subprocess.run(
-        ["/bin/bash", "tools/make_installer_iso.sh"],
-        cwd=str(REPO_ROOT),
-        env=env,
-        check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
+        if iso_output.exists():
+            iso_output.unlink()
 
-    assert iso_output.exists(), "ISO build failed to produce screaming-penguin.iso"
+        subprocess.run(
+            ["/bin/bash", "tools/build_installer_initramfs.sh"],
+            cwd=str(REPO_ROOT),
+            env=env,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
 
-    extracted_initrd = tmp_path / "initrd-installer.iso.img"
-    subprocess.run(
-        [
-            "xorriso",
-            "-osirrox",
-            "on",
-            "-indev",
-            str(iso_output),
-            "-extract",
-            "/boot/initrd-installer.img",
+        subprocess.run(
+            ["/bin/bash", "tools/make_installer_iso.sh"],
+            cwd=str(REPO_ROOT),
+            env=env,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+        assert iso_output.exists(), "ISO build failed to produce screaming-penguin.iso"
+        extracted_initrd = tmp_path / "initrd-installer.iso.img"
+        subprocess.run(
+            [
+                "xorriso",
+                "-osirrox",
+                "on",
+                "-indev",
+                str(iso_output),
+                "-extract",
+                "/boot/initrd-installer.img",
+                str(extracted_initrd),
+            ],
+            check=True,
+        )
+
+        assert filecmp.cmp(
+            str(dist_initrd),
             str(extracted_initrd),
-        ],
-        check=True,
-    )
-
-    assert filecmp.cmp(
-        str(dist_initrd),
-        str(extracted_initrd),
-        shallow=False,
-    ), "ISO initrd image differs from dist/initrd-installer.img"
+            shallow=False,
+        ), "ISO initrd image differs from dist/initrd-installer.img"
+    finally:
+        _restore_dist_file(dist_kernel, dist_kernel_backup)
+        _restore_dist_file(dist_initrd, dist_initrd_backup)
+        if iso_output.exists():
+            iso_output.unlink()

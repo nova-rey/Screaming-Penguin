@@ -1,0 +1,32 @@
+#!/bin/sh
+if [ "$#" -lt 2 ]; then
+    exit 1
+fi
+
+last=""
+second_last=""
+for arg in "$@"; do
+    second_last="$last"
+    last="$arg"
+done
+
+device="$second_last"
+mountpoint="$last"
+
+if [ -z "$device" ] || [ -z "$mountpoint" ]; then
+    exit 1
+fi
+
+if [ ! -e "$device" ]; then
+    exit 32
+fi
+
+mkdir -p "$mountpoint" 2>/dev/null || true
+rm -rf "$mountpoint"/* 2>/dev/null || true
+if [ -d "$device" ]; then
+    cp -a "${device}/." "$mountpoint/" 2>/dev/null || true
+else
+    cp "$device" "$mountpoint/" 2>/dev/null || true
+fi
+
+exit 0
