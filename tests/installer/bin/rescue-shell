@@ -1,0 +1,5 @@
+#!/bin/sh
+log="${SP_TEST_RESCUE_SHELL_LOG:-/tmp/rescue-shell.log}"
+printf 'rescue-shell\n' >>"$log" 2>/dev/null || true
+printf 'args=%s\n' "$*" >>"$log" 2>/dev/null || true
+exit "${SP_TEST_RESCUE_SHELL_EXIT:-0}"

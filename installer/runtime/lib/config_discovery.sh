@@ -8,16 +8,18 @@ if ! command -v sp_log >/dev/null 2>&1; then
     }
 fi
 
-if ! command -v sp_idle_shell >/dev/null 2>&1; then
-    sp_idle_shell() {
-        exec sh -i </dev/console >/dev/console 2>&1
-    }
-fi
-
 if ! command -v sp_write_gate_blocked >/dev/null 2>&1; then
     sp_write_gate_blocked() {
         sp_log "state=write-gate" "result=blocked" "$@"
     }
+fi
+
+SP_RUNTIME_LIB_DIR="${SP_RUNTIME_LIB_DIR:-$(cd "$(dirname "$0")" && pwd)}"
+SP_RESCUE_MODE_LIB="$SP_RUNTIME_LIB_DIR/rescue_mode.sh"
+if [ -f "$SP_RESCUE_MODE_LIB" ]; then
+    # shellcheck disable=SC1090
+    # shellcheck source=installer/runtime/lib/rescue_mode.sh
+    . "$SP_RESCUE_MODE_LIB"
 fi
 
 SP_CONFIG_LABEL_NAME="${SP_CONFIG_LABEL_NAME:-SP_CONFIG}"
@@ -270,19 +272,6 @@ sp_discover_config() {
     sp_log_lsblk_diag
     sp_log_blkid_diag
     sp_log_candidate_summary
+    sp_enter_rescue_mode "missing-config"
     return 1
-}
-
-sp_enter_rescue_mode() {
-    reason="${1:-missing-config}"
-    sp_log "state=rescue" "result=enter" "reason=$reason"
-    sp_write_gate_blocked "rescue-reason=$reason"
-
-    if [ "${SP_TEST_NO_RESCUE_SHELL:-0}" = "1" ]; then
-        sp_log "state=rescue" "note=test-mode-skip-shell"
-        return 0
-    fi
-
-    sp_log "state=rescue" "note=entering-shell" "msg=inspect-devices"
-    sp_idle_shell
 }

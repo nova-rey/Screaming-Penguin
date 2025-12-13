@@ -31,11 +31,18 @@ sp_log_write_gate_marker() {
 SP_INIT_SCRIPT_PATH="${SP_INIT_SCRIPT_PATH:-$0}"
 SP_SCRIPT_DIR="$(cd "$(dirname "$SP_INIT_SCRIPT_PATH")" && pwd)"
 SP_RUNTIME_LIB_DIR="$(cd "$SP_SCRIPT_DIR/../runtime/lib" && pwd)"
+SP_RESCUE_MODE_LIB="$SP_RUNTIME_LIB_DIR/rescue_mode.sh"
 SP_DISK_LAYOUT_LIB="$SP_RUNTIME_LIB_DIR/disk_layout.sh"
 SP_DISK_EXECUTE_LIB="$SP_RUNTIME_LIB_DIR/disk_execute.sh"
 SP_ROOTFS_DEPLOY_LIB="$SP_RUNTIME_LIB_DIR/rootfs_deploy.sh"
 SP_BOOTLOADER_LIB="$SP_RUNTIME_LIB_DIR/bootloader.sh"
 SP_CONFIG_DISCOVERY_LIB="$SP_RUNTIME_LIB_DIR/config_discovery.sh"
+
+if [ -f "$SP_RESCUE_MODE_LIB" ]; then
+    # shellcheck disable=SC1090
+    # shellcheck source=installer/runtime/lib/rescue_mode.sh
+    . "$SP_RESCUE_MODE_LIB"
+fi
 
 if [ -f "$SP_DISK_LAYOUT_LIB" ]; then
     # shellcheck disable=SC1090
