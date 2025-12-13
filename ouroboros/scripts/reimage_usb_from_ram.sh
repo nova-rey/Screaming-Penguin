@@ -5,12 +5,23 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 
 "$script_dir/sanity_checks.sh"
 
+usb_assert_script="$script_dir/assert_usb_only_environment.sh"
+if ! "$usb_assert_script"; then
+  echo "[reimage_usb_from_ram] ERROR: USB-only policy violation detected during environment sanitization; aborting." >&2
+  exit 1
+fi
+
 boot_device="$("$script_dir/detect_boot_device.sh")"
 
 cat <<-MSG
 [reimage_usb_from_ram] Detected boot device: $boot_device
 [reimage_usb_from_ram] Default behavior is dry-run. No write operations will happen unless destruction is explicitly allowed.
 MSG
+
+if ! "$usb_assert_script" --check-device "$boot_device"; then
+  echo "[reimage_usb_from_ram] ERROR: Target device '$boot_device' is not USB-backed; aborting." >&2
+  exit 1
+fi
 
 if [ "${OUROBOROS_ENABLE_DESTRUCTIVE:-0}" != "1" ]; then
   echo "[reimage_usb_from_ram] OUROBOROS_ENABLE_DESTRUCTIVE is not set to 1; skipping destructive steps." >&2

@@ -10,6 +10,17 @@ mount -t sysfs sys /sys
 mount -t devtmpfs dev /dev
 
 REIMAGE_SCRIPT="/ouroboros/scripts/reimage_usb_from_ram.sh"
+USB_POLICY_SCRIPT="/ouroboros/scripts/assert_usb_only_environment.sh"
+
+if [ -x "$USB_POLICY_SCRIPT" ]; then
+  if ! "$USB_POLICY_SCRIPT"; then
+    echo "[init] USB-only policy assertion failed; dropping to shell." >&2
+    exec sh
+  fi
+else
+  echo "[init] USB-only policy helper missing at $USB_POLICY_SCRIPT; dropping to shell." >&2
+  exec sh
+fi
 
 if [ -x "$REIMAGE_SCRIPT" ]; then
   if ! "$REIMAGE_SCRIPT"; then
