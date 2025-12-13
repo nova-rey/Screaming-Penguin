@@ -1,7 +1,7 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
 
 "$script_dir/sanity_checks.sh"
 
@@ -12,19 +12,20 @@ cat <<-MSG
 [reimage_usb_from_ram] Default behavior is dry-run. No write operations will happen unless destruction is explicitly allowed.
 MSG
 
-if [[ "${OUROBOROS_ENABLE_DESTRUCTIVE:-0}" != "1" ]]; then
+if [ "${OUROBOROS_ENABLE_DESTRUCTIVE:-0}" != "1" ]; then
   echo "[reimage_usb_from_ram] OUROBOROS_ENABLE_DESTRUCTIVE is not set to 1; skipping destructive steps." >&2
   exit 0
 fi
 
-if [[ -t 0 ]]; then
-  read -rp "Type the confirmation string 'I_ACKNOWLEDGE_OUROBOROS_DESTRUCTION' to proceed: " confirmation
+if [ -t 0 ]; then
+  printf "Type the confirmation string 'I_ACKNOWLEDGE_OUROBOROS_DESTRUCTION' to proceed: "
+  read -r confirmation
 else
   echo "[reimage_usb_from_ram] ERROR: No TTY available for confirmation prompt." >&2
   exit 1
 fi
 
-if [[ "$confirmation" != "I_ACKNOWLEDGE_OUROBOROS_DESTRUCTION" ]]; then
+if [ "$confirmation" != "I_ACKNOWLEDGE_OUROBOROS_DESTRUCTION" ]; then
   echo "[reimage_usb_from_ram] ERROR: Confirmation string did not match; aborting." >&2
   exit 1
 fi
@@ -35,4 +36,3 @@ cat <<'END'
 # sgdisk --zap-all "$boot_device"
 # dd if=/path/to/prebuilt.img of="$boot_device" bs=4M status=progress conv=fsync
 END
-
