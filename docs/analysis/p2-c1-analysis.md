@@ -36,5 +36,5 @@
 - If the environment lacks a usable device manager for policy enforcement, we will document that fact as part of the abort condition (per the brief).
 
 ## Block C verification
-- Running `bash tools/make_ouroboros_iso.sh` does not yet produce an ISO; the script simply prints the intended workflow and exits early, so no `sp-ouroboros-installer.iso` is created for this checkpoint.
+- Running `bash ouroboros/tools/make_ouroboros_iso.sh` does not yet produce an ISO; the script simply prints the intended workflow and exits early, so no `sp-ouroboros-installer.iso` is created for this checkpoint.
 - Because the builder is a scaffold and no ISO is emitted, we cannot boot the image under QEMU or exercise the requested non-USB abort cases; those steps must wait for a real ISO build later in the project.

@@ -3,7 +3,7 @@
 ## Repository scan
 - Top level already hosts `assets`, `build`, `dist`, `docs`, `initramfs_root`, `scripts`, `tools` plus tooling README/entrypoints but no `tests` directory, so new Ouroboros scaffolding must live under `ouroboros/` alone.
 - Running `pytest -q` currently unknown; no pytest config files visible, so plan for a graceful failure note after running it in Block C.
-- Existing docs/`ouroboros-overview.md` documents current project, so we will add the new analysis file without touching the root README or mainline assets.
+- Existing `ouroboros/docs/ouroboros-overview.md` documents current project, so we will add the new analysis file without touching the root README or mainline assets.
 
 ## Assumptions validated
 - This branch focuses on the "Ouroboros ISO" concept that copies boot media into RAM, reimages only the USB with a prebuilt `.img`, then restarts; we will not implement destructive behavior yet and keep everything under `ouroboros/` in isolation.
