@@ -5,6 +5,8 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="${PROJECT_ROOT}/dist"
 INITRAMFS_DIR="${PROJECT_ROOT}/build/installer-initramfs"
+RUNTIME_LIB_SRC="${PROJECT_ROOT}/installer/runtime/lib"
+MIN_INITRD_SIZE_BYTES="${SP_MIN_INITRD_SIZE_BYTES:-$((1 * 1024 * 1024))}"
 
 # Ensure output directories exist
 mkdir -p "${DIST_DIR}"
@@ -37,6 +39,7 @@ mkdir -p "${INITRD_ROOT}"
 
 # Create minimal directory tree
 mkdir -p "${INITRD_ROOT}"/{bin,sbin,etc,proc,sys,usr/bin,usr/sbin,dev,mnt/config,run}
+mkdir -p "${INITRD_ROOT}/runtime/lib"
 
 echo "[SP-INSTALLER] Installing BusyBox..."
 BUSYBOX_PATH="${SP_BUSYBOX_BIN:-$(command -v busybox-static || command -v busybox || true)}"
@@ -113,6 +116,31 @@ fi
   done
 )
 
+if [ ! -d "${RUNTIME_LIB_SRC}" ]; then
+  echo "[SP-BUILD] ERROR: Missing runtime library directory: ${RUNTIME_LIB_SRC}" >&2
+  exit 1
+fi
+
+echo "[SP-INSTALLER] Staging runtime helpers..."
+RUNTIME_LIB_DST="${INITRD_ROOT}/runtime/lib"
+cp -a "${RUNTIME_LIB_SRC}/." "${RUNTIME_LIB_DST}/"
+REQUIRED_RUNTIME_LIBS=(
+  rescue_mode.sh
+  disk_layout.sh
+  disk_execute.sh
+  rootfs_deploy.sh
+  bootloader.sh
+  config_discovery.sh
+)
+for lib in "${REQUIRED_RUNTIME_LIBS[@]}"; do
+  if [ ! -f "${RUNTIME_LIB_DST}/${lib}" ]; then
+    echo "[SP-BUILD] ERROR: Runtime helper missing: ${lib}" >&2
+    exit 1
+  fi
+done
+
+echo "[SP-INSTALLER] Runtime helpers staged in ${RUNTIME_LIB_DST}"
+
 echo "[SP-INSTALLER] Creating init script..."
 if [ ! -f "${INIT_SCRIPT_SRC}" ]; then
   echo "[SP-BUILD] ERROR: init script source missing: ${INIT_SCRIPT_SRC}" >&2
@@ -130,10 +158,24 @@ echo "[SP-INSTALLER] Creating initramfs..."
   find . | cpio -o -H newc | gzip -9 > "${DIST_DIR}/initrd-installer.img"
 )
 
+INITRD_PATH="${DIST_DIR}/initrd-installer.img"
+if ! INITRD_SIZE_BYTES=$(stat -c '%s' "${INITRD_PATH}" 2>/dev/null); then
+  echo "[SP-BUILD] ERROR: Unable to stat ${INITRD_PATH}" >&2
+  exit 1
+fi
+
+if [ "${INITRD_SIZE_BYTES}" -lt "${MIN_INITRD_SIZE_BYTES}" ]; then
+  echo "[SP-BUILD] ERROR: initrd-installer.img is too small (${INITRD_SIZE_BYTES} < ${MIN_INITRD_SIZE_BYTES})" >&2
+  echo "[SP-BUILD]       Ensure the staging tree includes /init, /runtime/lib, and the BusyBox shell." >&2
+  exit 1
+fi
+
+echo "[SP-INSTALLER] initrd-installer.img size: ${INITRD_SIZE_BYTES} bytes (minimum ${MIN_INITRD_SIZE_BYTES})"
+
 # ----------------------------
 # Sanity check: /init must exist in initramfs
 # ----------------------------
-if ! gzip -cd "${DIST_DIR}/initrd-installer.img" | cpio -t 2>/dev/null | grep -Eq '^(init|./init)$'; then
+if ! gzip -cd "${INITRD_PATH}" | cpio -t 2>/dev/null | grep -Eq '^(init|./init)$'; then
     echo "[SP-BUILD] ERROR: initrd-installer.img is missing ./init"
     echo "[SP-BUILD]       Check INITRD_ROOT contents and init creation block."
     exit 1
