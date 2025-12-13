@@ -3,7 +3,7 @@
 ## Deep scan
 - `ouroboros/tools/make_ouroboros_iso.sh` is a stub that only prints notices and no longer produces artefacts; there is nothing yet wiring the initramfs/ISO build.
 - `ouroboros/initramfs_root/init` currently mounts proc/sys/dev and unconditionally invokes the reimage script, so the runtime logic is already close to the desired flow but there is no initramfs image or BusyBox payload yet.
-- `scripts/{detect_boot_device.sh,sanity_checks.sh,reimage_usb_from_ram.sh}` exist and default to dry-run behavior, so the safety constraints are already baked in.
+- `ouroboros/scripts/{detect_boot_device.sh,sanity_checks.sh,reimage_usb_from_ram.sh}` exist and default to dry-run behavior, so the safety constraints are already baked in.
 - There is no busybox binary or initramfs payload under `ouroboros/initramfs_root/`, no ISO builder output, and `ouroboros/docs/` only contains the overview doc.
 
 ## Human brief validation
