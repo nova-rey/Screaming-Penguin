@@ -1,0 +1,18 @@
+#!/bin/sh
+target=""
+for arg in "$@"; do
+    case "$arg" in
+        -*)
+            continue
+            ;;
+        *)
+            target="$arg"
+            ;;
+    esac
+done
+
+if [ -n "$target" ] && [ -d "$target" ]; then
+    rm -rf "$target"/* 2>/dev/null || true
+fi
+
+exit 0

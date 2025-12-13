@@ -35,6 +35,7 @@ SP_DISK_LAYOUT_LIB="$SP_RUNTIME_LIB_DIR/disk_layout.sh"
 SP_DISK_EXECUTE_LIB="$SP_RUNTIME_LIB_DIR/disk_execute.sh"
 SP_ROOTFS_DEPLOY_LIB="$SP_RUNTIME_LIB_DIR/rootfs_deploy.sh"
 SP_BOOTLOADER_LIB="$SP_RUNTIME_LIB_DIR/bootloader.sh"
+SP_CONFIG_DISCOVERY_LIB="$SP_RUNTIME_LIB_DIR/config_discovery.sh"
 
 if [ -f "$SP_DISK_LAYOUT_LIB" ]; then
     # shellcheck disable=SC1090
@@ -58,6 +59,12 @@ if [ -f "$SP_BOOTLOADER_LIB" ]; then
     # shellcheck disable=SC1090
     # shellcheck source=installer/runtime/lib/bootloader.sh
     . "$SP_BOOTLOADER_LIB"
+fi
+
+if [ -f "$SP_CONFIG_DISCOVERY_LIB" ]; then
+    # shellcheck disable=SC1090
+    # shellcheck source=installer/runtime/lib/config_discovery.sh
+    . "$SP_CONFIG_DISCOVERY_LIB"
 fi
 
 sp_write_gate_blocked() {
@@ -281,26 +288,6 @@ sp_detect_mode() {
 
     export SP_MODE
     sp_log "state=mode-detect" "mode=$SP_MODE" "source=$source"
-}
-
-sp_discover_config() {
-    # returns 0 if config found, non-zero otherwise
-    # sets SP_CONFIG_PATH on success
-    SP_CONFIG_PATH=""
-    CONFIG_CANDIDATES="/config/installer-config.yml /mnt/config/installer-config.yml"
-
-    for p in $CONFIG_CANDIDATES; do
-        if [ -f "$p" ]; then
-            SP_CONFIG_PATH=$p
-            export SP_CONFIG_PATH
-            sp_log "state=discover-config" "result=found" "path=$SP_CONFIG_PATH"
-            return 0
-        fi
-    done
-
-    unset SP_CONFIG_PATH
-    sp_log "state=discover-config" "result=not-found"
-    return 1
 }
 
 sp_parse_config_minimal() {
@@ -701,11 +688,20 @@ main() {
         sp_log "state=discover-config" "result=skipped" "reason=skip-env"
     fi
 
+    if [ -z "${SP_CONFIG_PATH:-}" ]; then
+        sp_enter_rescue_mode "missing-config"
+        return 0
+    fi
+
     if ! sp_load_config; then
         sp_log "state=config-load" "result=error" "severity=non-fatal"
     fi
 
     if ! sp_enforce_write_gate; then
+        if [ -z "${SP_CONFIG_PATH:-}" ]; then
+            sp_enter_rescue_mode "missing-config"
+            return 0
+        fi
         exit 1
     fi
 

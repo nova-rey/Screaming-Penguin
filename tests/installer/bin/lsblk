@@ -1,0 +1,6 @@
+#!/bin/sh
+if [ -n "${SP_TEST_LSBLK_DATA:-}" ] && [ -f "${SP_TEST_LSBLK_DATA}" ]; then
+    cat "${SP_TEST_LSBLK_DATA}"
+    exit 0
+fi
+exit 0
