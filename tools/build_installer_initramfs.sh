@@ -111,10 +111,30 @@ fi
 
 (
   cd "${INITRD_ROOT}/bin"
-  for applet in sh mount mkdir echo sleep; do
+  for applet in sh mount mkdir echo sleep umount cat mknod; do
     ln -sf busybox "${applet}"
   done
 )
+
+BUSYBOX_BIN="${INITRD_ROOT}/bin/busybox"
+
+REQUIRED_APPLETS=(
+  cat
+  echo
+  mdev
+  mknod
+  mount
+  sh
+  sleep
+  umount
+)
+
+for applet in "${REQUIRED_APPLETS[@]}"; do
+  if ! "${BUSYBOX_BIN}" --list | grep -Fxq "${applet}"; then
+    echo "[SP-BUILD] ERROR: BusyBox is missing required applet: ${applet}" >&2
+    exit 1
+  fi
+done
 
 if [ ! -d "${RUNTIME_LIB_SRC}" ]; then
   echo "[SP-BUILD] ERROR: Missing runtime library directory: ${RUNTIME_LIB_SRC}" >&2

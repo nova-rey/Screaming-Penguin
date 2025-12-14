@@ -157,6 +157,24 @@ def test_missing_config_triggers_rescue(tmp_path: Path) -> None:
     assert "rescue-shell" in shell_log.read_text()
 
 
+def test_uses_heuristic_partition_names(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
+
+    sys_block = tmp_path / "sys" / "block"
+    dev_root = tmp_path / "dev"
+    (sys_block / "sda").mkdir(exist_ok=True)
+    partition_device = dev_root / "sda1"
+    partition_device.mkdir(exist_ok=True)
+    (partition_device / "installer-config.yml").write_text("heuristic\n")
+
+    command = f'. {SCRIPT}; if sp_discover_config; then printf \'%s\\n%s\\n\' "$SP_CONFIG_PATH" "$CONFIG_MOUNT"; fi'
+    result = _run_command(env, command)
+
+    assert result.returncode == 0, result.stderr
+    assert "phase=partition-heuristic" in result.stderr
+    _assert_config_found(result, "heuristic\n", Path(env["SP_CONFIG_MOUNT_POINT"]))
+
+
 def test_runtime_has_no_util_linux_references() -> None:
     runtime_dir = ROOT / "installer" / "runtime"
     for path in runtime_dir.rglob("*"):
