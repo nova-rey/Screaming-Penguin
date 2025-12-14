@@ -8,27 +8,32 @@ if ! command -v sp_log >/dev/null 2>&1; then
     }
 fi
 
-if ! command -v sp_idle_shell >/dev/null 2>&1; then
-    sp_idle_shell() {
-        exec sh -i </dev/console >/dev/console 2>&1
-    }
-fi
-
 if ! command -v sp_write_gate_blocked >/dev/null 2>&1; then
     sp_write_gate_blocked() {
         sp_log "state=write-gate" "result=blocked" "$@"
     }
 fi
 
+SP_RUNTIME_LIB_DIR="${SP_RUNTIME_LIB_DIR:-$(cd "$(dirname "$0")" && pwd)}"
+SP_RESCUE_MODE_LIB="$SP_RUNTIME_LIB_DIR/rescue_mode.sh"
+if [ -f "$SP_RESCUE_MODE_LIB" ]; then
+    # shellcheck disable=SC1090
+    # shellcheck source=installer/runtime/lib/rescue_mode.sh
+    . "$SP_RESCUE_MODE_LIB"
+fi
+
 SP_CONFIG_LABEL_NAME="${SP_CONFIG_LABEL_NAME:-SP_CONFIG}"
 SP_CONFIG_LABEL_DIR="${SP_CONFIG_LABEL_DIR:-/dev/disk/by-label}"
 SP_CONFIG_MOUNT_POINT="${SP_CONFIG_MOUNT_POINT:-/config}"
 SP_CONFIG_FILE="${SP_CONFIG_FILE:-installer-config.yml}"
-SP_CONFIG_DISCOVERY_MAX_ATTEMPTS="${SP_CONFIG_DISCOVERY_MAX_ATTEMPTS:-10}"
-SP_CONFIG_DISCOVERY_SLEEP="${SP_CONFIG_DISCOVERY_SLEEP:-1}"
+SP_SYS_BLOCK_ROOT="${SP_SYS_BLOCK_ROOT:-/sys/block}"
+SP_DEV_ROOT="${SP_DEV_ROOT:-/dev}"
+SP_CONFIG_DISCOVERY_MAX_ATTEMPTS="${SP_CONFIG_DISCOVERY_MAX_ATTEMPTS:-1}"
+SP_CONFIG_DISCOVERY_EXCLUDE_PREFIXES="${SP_CONFIG_DISCOVERY_EXCLUDE_PREFIXES:-loop ram fd sr dm}"
 
 SP_CONFIG_DISCOVERY_ATTEMPTS_LOG=""
 SP_CONFIG_DISCOVERY_ATTEMPT_COUNT=0
+SP_CONFIG_DISCOVERY_TRIED=""
 
 sp_record_config_candidate() {
     candidate="$1"
@@ -79,69 +84,117 @@ sp_unmount_config_point() {
     sp_cleanup_mount_point
 }
 
-sp_mount_device() {
-    candidate="$1"
-    [ -n "$candidate" ] || return 1
-    if [ ! -e "$candidate" ]; then
+sp_realpath() {
+    path="$1"
+    if [ -z "$path" ]; then
         return 1
     fi
-    mkdir -p "$SP_CONFIG_MOUNT_POINT" 2>/dev/null || true
-    mount -t vfat -o ro "$candidate" "$SP_CONFIG_MOUNT_POINT" >/dev/null 2>&1
-}
 
-sp_wait_for_udev() {
-    if command -v udevadm >/dev/null 2>&1; then
-        udevadm settle >/dev/null 2>&1 || true
+    if command -v readlink >/dev/null 2>&1; then
+        resolved=$(readlink -f "$path" 2>/dev/null || true)
+        if [ -n "$resolved" ]; then
+            printf '%s\n' "$resolved"
+            return 0
+        fi
     fi
+
+    printf '%s\n' "$path"
+    return 0
 }
 
-sp_sleep_between_attempts() {
-    value="${SP_CONFIG_DISCOVERY_SLEEP:-}"
-    case "$value" in
-        ''|*[!0-9]*)
-            return
+sp_mark_candidate_tried() {
+    candidate="$1"
+    case ":${SP_CONFIG_DISCOVERY_TRIED}:" in
+        *:"$candidate":*)
+            ;;
+        *)
+            SP_CONFIG_DISCOVERY_TRIED="${SP_CONFIG_DISCOVERY_TRIED}:$candidate"
             ;;
     esac
-
-    if [ "$value" -gt 0 ]; then
-        sleep "$value"
-    fi
 }
 
-sp_log_lsblk_diag() {
-    if command -v lsblk >/dev/null 2>&1; then
-        lsblk -f 2>/dev/null | while IFS= read -r line; do
-            sp_log "state=discover-config" "source=lsblk" "line=${line:-}"
-        done
-    else
-        sp_log "state=discover-config" "source=lsblk" "note=command-missing"
-    fi
+sp_candidate_already_tried() {
+    candidate="$1"
+    case ":${SP_CONFIG_DISCOVERY_TRIED}:" in
+        *:"$candidate":*)
+            return 0
+            ;;
+    esac
+    return 1
 }
 
-sp_log_blkid_diag() {
-    if command -v blkid >/dev/null 2>&1; then
-        blkid 2>/dev/null | while IFS= read -r line; do
-            sp_log "state=discover-config" "source=blkid" "line=${line:-}"
-        done
-    else
-        sp_log "state=discover-config" "source=blkid" "note=command-missing"
-    fi
+sp_mount_candidate() {
+    candidate="$1"
+    [ -n "$candidate" ] || return 1
+    mkdir -p "$SP_CONFIG_MOUNT_POINT" 2>/dev/null || true
+
+    for fs in vfat ext4; do
+        mount -o ro -t "$fs" "$candidate" "$SP_CONFIG_MOUNT_POINT" >/dev/null 2>&1 && return 0
+    done
+
+    return 1
+}
+
+sp_log_candidate_attempt() {
+    phase="$1"
+    candidate="$2"
+    label="$3"
+
+    sp_log "state=discover-config" \
+        "phase=${phase}" \
+        "result=attempt" \
+        "candidate=${candidate:-unknown}" \
+        "label=${label:-unknown}"
 }
 
 sp_attempt_mount_candidate() {
     candidate="$1"
-    source="$2"
+    phase="$2"
     label="$3"
+
+    resolved="$1"
+    resolved=$(sp_realpath "$resolved" || printf '%s\n' "$candidate")
+    if [ -z "$resolved" ]; then
+        sp_log "state=discover-config" "phase=${phase}" "candidate=${candidate:-unknown}" "result=reject" "reason=empty-path"
+        sp_record_config_candidate "${candidate:-unknown}" "empty-path" "${label:-unknown}"
+        return 1
+    fi
+
+    if sp_candidate_already_tried "$resolved"; then
+        sp_log "state=discover-config" \
+            "phase=${phase}" \
+            "candidate=${resolved}" \
+            "result=skip" \
+            "reason=duplicate"
+        return 1
+    fi
+
+    sp_mark_candidate_tried "$resolved"
+    sp_log_candidate_attempt "$phase" "$resolved" "$label"
+
+    if [ ! -e "$resolved" ]; then
+        sp_log "state=discover-config" \
+            "phase=${phase}" \
+            "candidate=${resolved}" \
+            "result=reject" \
+            "reason=device-missing"
+        sp_record_config_candidate "$resolved" "device-missing" "${label:-unknown}"
+        return 1
+    fi
+
     sp_cleanup_mount_point
-    if sp_mount_device "$candidate"; then
-        if [ -f "$SP_CONFIG_MOUNT_POINT/$SP_CONFIG_FILE" ]; then
-            SP_CONFIG_PATH="$SP_CONFIG_MOUNT_POINT/$SP_CONFIG_FILE"
+    if sp_mount_candidate "$resolved"; then
+        config_path="$SP_CONFIG_MOUNT_POINT/$SP_CONFIG_FILE"
+        if [ -f "$config_path" ]; then
+            SP_CONFIG_PATH="$config_path"
             export SP_CONFIG_PATH
+            CONFIG_MOUNT="${SP_CONFIG_MOUNT_POINT:-/config}"
+            export CONFIG_MOUNT
             sp_log "state=discover-config" \
+                "phase=${phase}" \
                 "result=found" \
-                "path=$SP_CONFIG_PATH" \
-                "source=$source" \
-                "candidate=$candidate" \
+                "path=${SP_CONFIG_PATH}" \
+                "candidate=${resolved}" \
                 "label=${label:-}"
             return 0
         fi
@@ -151,12 +204,12 @@ sp_attempt_mount_candidate() {
     fi
 
     sp_log "state=discover-config" \
-        "candidate=$candidate" \
-        "source=$source" \
-        "label=${label:-}" \
+        "phase=${phase}" \
+        "candidate=${resolved}" \
         "result=reject" \
-        "reason=$reason"
-    sp_record_config_candidate "$candidate" "$reason" "$label"
+        "reason=${reason}" \
+        "label=${label:-}"
+    sp_record_config_candidate "$resolved" "$reason" "${label:-unknown}"
     sp_unmount_config_point
     return 1
 }
@@ -164,66 +217,117 @@ sp_attempt_mount_candidate() {
 sp_try_label_candidate() {
     label_path="${SP_CONFIG_LABEL_DIR%/}/${SP_CONFIG_LABEL_NAME}"
     if [ ! -e "$label_path" ]; then
-        sp_log "state=discover-config" "phase=label" "result=skip" "reason=label-missing" "path=$label_path"
+        sp_log "state=discover-config" \
+            "phase=label" \
+            "result=skip" \
+            "reason=missing-label" \
+            "path=${label_path}"
         return 1
     fi
 
-    sp_log "state=discover-config" "phase=label" "result=attempt" "path=$label_path"
-    sp_attempt_mount_candidate "$label_path" "label" "$SP_CONFIG_LABEL_NAME"
+    target=$(sp_realpath "$label_path" || printf '%s\n' "$label_path")
+    if [ -z "$target" ]; then
+        sp_log "state=discover-config" \
+            "phase=label" \
+            "result=skip" \
+            "reason=label-target-missing" \
+            "path=${label_path}"
+        return 1
+    fi
+
+    if sp_attempt_mount_candidate "$target" "label" "$SP_CONFIG_LABEL_NAME"; then
+        return 0
+    fi
+
+    return 1
 }
 
-sp_scan_vfat_candidates() {
-    if ! command -v blkid >/dev/null 2>&1; then
-        sp_log "state=discover-config" "phase=scan" "result=skip" "reason=blkid-missing"
+sp_should_skip_device() {
+    base="$1"
+    case "$base" in
+        loop*|ram*|fd*|sr*|dm*)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+sp_try_removable_candidates() {
+    if [ ! -d "$SP_SYS_BLOCK_ROOT" ]; then
+        sp_log "state=discover-config" "phase=removable" "result=skip" "reason=sysfs-missing" "path=${SP_SYS_BLOCK_ROOT}"
         return 1
     fi
 
-    blkid_output="$(blkid -t TYPE=vfat -o export 2>/dev/null || true)"
-    if [ -z "$blkid_output" ]; then
-        sp_log "state=discover-config" "phase=scan" "result=skip" "reason=no-vfat-candidates"
-        return 1
-    fi
-
-    candidate_dev=""
-    candidate_label=""
-    while IFS= read -r line; do
-        if [ -z "$line" ]; then
-            if [ -n "$candidate_dev" ]; then
-                sp_log "state=discover-config" \
-                    "phase=scan" \
-                    "result=discovered" \
-                    "candidate=$candidate_dev" \
-                    "label=${candidate_label:-unknown}"
-                if sp_attempt_mount_candidate "$candidate_dev" "scan" "$candidate_label"; then
-                    return 0
-                fi
-            fi
-            candidate_dev=""
-            candidate_label=""
+    found=0
+    for block_dir in "$SP_SYS_BLOCK_ROOT"/*; do
+        if [ ! -d "$block_dir" ]; then
             continue
         fi
 
-        case "$line" in
-            DEVNAME=*)
-                candidate_dev="${line#DEVNAME=}"
-                ;;
-            LABEL=*)
-                candidate_label="${line#LABEL=}"
-                ;;
-        esac
-    done <<EOF
-$blkid_output
-EOF
+        base=$(basename "$block_dir")
+        if sp_should_skip_device "$base"; then
+            continue
+        fi
 
-    if [ -n "$candidate_dev" ]; then
-        sp_log "state=discover-config" \
-            "phase=scan" \
-            "result=discovered" \
-            "candidate=$candidate_dev" \
-            "label=${candidate_label:-unknown}"
-        if sp_attempt_mount_candidate "$candidate_dev" "scan" "$candidate_label"; then
+        removable_file="$block_dir/removable"
+        removable="$(cat "$removable_file" 2>/dev/null || echo "0")"
+        if [ "$removable" != "1" ]; then
+            continue
+        fi
+
+        candidate="${SP_DEV_ROOT%/}/$base"
+        sp_log "state=discover-config" "phase=removable" "result=discovered" "candidate=${candidate}"
+        found=1
+        if sp_attempt_mount_candidate "$candidate" "removable" "$base"; then
             return 0
         fi
+    done
+
+    if [ "$found" -eq 0 ]; then
+        sp_log "state=discover-config" "phase=removable" "result=skip" "reason=no-removable"
+    fi
+
+    return 1
+}
+
+sp_try_partition_candidates() {
+    if [ ! -d "$SP_SYS_BLOCK_ROOT" ]; then
+        sp_log "state=discover-config" "phase=partition" "result=skip" "reason=sysfs-missing" "path=${SP_SYS_BLOCK_ROOT}"
+        return 1
+    fi
+
+    found=0
+    for block_dir in "$SP_SYS_BLOCK_ROOT"/*; do
+        if [ ! -d "$block_dir" ]; then
+            continue
+        fi
+
+        base=$(basename "$block_dir")
+        if sp_should_skip_device "$base"; then
+            continue
+        fi
+
+        for part_dir in "$block_dir"/"$base"*; do
+            if [ ! -e "$part_dir" ]; then
+                continue
+            fi
+
+            part_base=$(basename "$part_dir")
+            if [ "$part_base" = "$base" ]; then
+                continue
+            fi
+
+            candidate="${SP_DEV_ROOT%/}/$part_base"
+            sp_log "state=discover-config" "phase=partition" "result=discovered" "candidate=${candidate}"
+            found=1
+            if sp_attempt_mount_candidate "$candidate" "partition" "$part_base"; then
+                return 0
+            fi
+        done
+    done
+
+    if [ "$found" -eq 0 ]; then
+        sp_log "state=discover-config" "phase=partition" "result=skip" "reason=no-partitions"
     fi
 
     return 1
@@ -232,57 +336,45 @@ EOF
 sp_discover_config() {
     SP_CONFIG_DISCOVERY_ATTEMPTS_LOG=""
     SP_CONFIG_DISCOVERY_ATTEMPT_COUNT=0
+    SP_CONFIG_DISCOVERY_TRIED=""
+
     sp_log "state=discover-config" "phase=start"
 
-    max_attempts="${SP_CONFIG_DISCOVERY_MAX_ATTEMPTS:-10}"
-    case "$max_attempts" in
+    attempts="${SP_CONFIG_DISCOVERY_MAX_ATTEMPTS}"
+    case "${attempts}" in
         ''|*[!0-9]*)
-            max_attempts=10
+            attempts=1
+            ;;
+        *)
+            if [ "${attempts}" -lt 1 ]; then
+                attempts=1
+            fi
             ;;
     esac
-    if [ "$max_attempts" -lt 1 ]; then
-        max_attempts=1
-    fi
 
     attempt=1
-    while [ "$attempt" -le "$max_attempts" ]; do
-        sp_log "state=discover-config" "phase=attempt" "number=$attempt"
+    while [ "$attempt" -le "$attempts" ]; do
+        sp_log "state=discover-config" "phase=attempt" "number=${attempt}"
 
         if sp_try_label_candidate; then
             return 0
         fi
 
-        if sp_scan_vfat_candidates; then
+        if sp_try_removable_candidates; then
             return 0
         fi
 
-        if [ "$attempt" -lt "$max_attempts" ]; then
-            sp_sleep_between_attempts
+        if sp_try_partition_candidates; then
+            return 0
         fi
 
         attempt=$((attempt + 1))
     done
 
-    sp_wait_for_udev
     sp_log "state=discover-config" \
         "result=not-found" \
-        "attempts=$SP_CONFIG_DISCOVERY_ATTEMPT_COUNT"
-    sp_log_lsblk_diag
-    sp_log_blkid_diag
+        "attempts=${SP_CONFIG_DISCOVERY_ATTEMPT_COUNT}"
     sp_log_candidate_summary
+    sp_enter_rescue_mode "missing-config"
     return 1
-}
-
-sp_enter_rescue_mode() {
-    reason="${1:-missing-config}"
-    sp_log "state=rescue" "result=enter" "reason=$reason"
-    sp_write_gate_blocked "rescue-reason=$reason"
-
-    if [ "${SP_TEST_NO_RESCUE_SHELL:-0}" = "1" ]; then
-        sp_log "state=rescue" "note=test-mode-skip-shell"
-        return 0
-    fi
-
-    sp_log "state=rescue" "note=entering-shell" "msg=inspect-devices"
-    sp_idle_shell
 }

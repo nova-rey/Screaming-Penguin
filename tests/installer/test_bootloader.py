@@ -107,16 +107,26 @@ def test_bootloader_generates_fstab(tmp_path: Path) -> None:
     target_dir = tmp_path / "target"
     target_dir.mkdir()
     quoted_target = shlex.quote(str(target_dir))
+    root_part = tmp_path / "dev" / "mock-root"
+    efi_part = tmp_path / "dev" / "mock-efi"
+    root_part.mkdir(parents=True, exist_ok=True)
+    efi_part.mkdir(parents=True, exist_ok=True)
+    by_uuid_dir = tmp_path / "disk" / "by-uuid"
+    by_uuid_dir.mkdir(parents=True, exist_ok=True)
+    (by_uuid_dir / "root-uuid").symlink_to(root_part)
+    (by_uuid_dir / "efi-uuid").symlink_to(efi_part)
+    quoted_root_part = shlex.quote(str(root_part))
+    quoted_efi_part = shlex.quote(str(efi_part))
+    quoted_by_uuid = shlex.quote(str(by_uuid_dir))
 
     script = textwrap.dedent(
         f"""
         { _script_preamble() }
         SP_ROOTFS_TARGET_DIR={quoted_target}
         SP_ROOTFS_TARGET_OVERRIDE_ACTIVE=1
-        SP_DISK_EXECUTE_ROOT_PART=/dev/mock-root
-        SP_DISK_EXECUTE_EFI_PART=/dev/mock-efi
-        export SP_TEST_BLKID_ROOT_UUID=root-uuid
-        export SP_TEST_BLKID_EFI_UUID=efi-uuid
+        SP_DISK_EXECUTE_ROOT_PART={quoted_root_part}
+        SP_DISK_EXECUTE_EFI_PART={quoted_efi_part}
+        SP_DISK_BY_UUID_DIR={quoted_by_uuid}
         . "{ROOTFS_LIB}"
         . "{DISK_EXECUTE_LIB}"
         . "{BOOTLOADER_LIB}"
@@ -197,6 +207,17 @@ def test_bootloader_stage_runs_when_enabled(tmp_path: Path) -> None:
     (target_dir / "boot" / "vmlinuz-test").write_text("kernel")
     (target_dir / "boot" / "initrd.img").write_text("initrd")
     target_path = shlex.quote(str(target_dir))
+    root_part = tmp_path / "dev" / "mock-root"
+    efi_part = tmp_path / "dev" / "mock-efi"
+    root_part.mkdir(parents=True, exist_ok=True)
+    efi_part.mkdir(parents=True, exist_ok=True)
+    by_uuid_dir = tmp_path / "disk" / "by-uuid"
+    by_uuid_dir.mkdir(parents=True, exist_ok=True)
+    (by_uuid_dir / "root-uuid").symlink_to(root_part)
+    (by_uuid_dir / "efi-uuid").symlink_to(efi_part)
+    quoted_root_part = shlex.quote(str(root_part))
+    quoted_efi_part = shlex.quote(str(efi_part))
+    quoted_by_uuid = shlex.quote(str(by_uuid_dir))
 
     script = textwrap.dedent(
         f"""
@@ -204,10 +225,9 @@ def test_bootloader_stage_runs_when_enabled(tmp_path: Path) -> None:
         SP_ROOTFS_TARGET_DIR={target_path}
         SP_ROOTFS_TARGET_OVERRIDE_ACTIVE=1
         SP_ROOTFS_TARGET_DIR_OVERRIDE={target_path}
-        SP_DISK_EXECUTE_ROOT_PART=/dev/mock-root
-        SP_DISK_EXECUTE_EFI_PART=/dev/mock-efi
-        export SP_TEST_BLKID_ROOT_UUID=root-uuid
-        export SP_TEST_BLKID_EFI_UUID=efi-uuid
+        SP_DISK_EXECUTE_ROOT_PART={quoted_root_part}
+        SP_DISK_EXECUTE_EFI_PART={quoted_efi_part}
+        SP_DISK_BY_UUID_DIR={quoted_by_uuid}
         SP_ENABLE_DISK_EXECUTE=1
         SP_MODE=INSTALL
         SP_ENABLE_BOOTLOADER=1
