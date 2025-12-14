@@ -481,13 +481,6 @@ sp_probe_disks() {
         done
     done
 
-    if command -v lsblk >/dev/null 2>&1; then
-        # Supplemental diagnostic output; best-effort only.
-        lsblk -ndo NAME,SIZE,TYPE,MODEL 2>/dev/null | while IFS= read -r line; do
-            sp_log "state=probe-disks" "source=lsblk" "line=$line"
-        done
-    fi
-
     sp_log "state=probe-disks" "phase=done"
     return 0
 }

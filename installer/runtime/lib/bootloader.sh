@@ -13,6 +13,7 @@ SP_BOOTLOADER_DEFAULT_GRUB_TIMEOUT="5"
 SP_BOOTLOADER_DEFAULT_GRUB_MENUENTRY="Screaming Penguin"
 SP_BOOTLOADER_DEFAULT_FSTAB_ROOT_OPTS="defaults,noatime"
 SP_BOOTLOADER_DEFAULT_FSTAB_EFI_OPTS="umask=0077,fmask=0077,dmask=0077"
+SP_DISK_BY_UUID_DIR="${SP_DISK_BY_UUID_DIR:-/dev/disk/by-uuid}"
 
 sp_bootloader_log() {
     sp_log "state=bootloader" "$@"
@@ -45,28 +46,30 @@ sp_bootloader_config_value() {
     printf '%s' "$default"
 }
 
-sp_bootloader_blk_cmd() {
-    if [ -n "${SP_BOOTLOADER_BLKID_CMD:-}" ]; then
-        printf '%s' "$SP_BOOTLOADER_BLKID_CMD"
-        return 0
-    fi
-
-    if command -v blkid >/dev/null 2>&1; then
-        printf '%s' "blkid"
-        return 0
-    fi
-
-    return 1
-}
-
 sp_bootloader_uuid_for_partition() {
     part="$1"
     if [ -z "$part" ]; then
         return 1
     fi
 
-    blkid_cmd=$(sp_bootloader_blk_cmd) || return 1
-    "$blkid_cmd" -s UUID -o value "$part" 2>/dev/null
+    if [ ! -d "${SP_DISK_BY_UUID_DIR}" ]; then
+        sp_bootloader_log "step=uuid" "result=failed" "reason=by-uuid-missing" "path=${SP_DISK_BY_UUID_DIR}"
+        return 1
+    fi
+
+    for entry in "${SP_DISK_BY_UUID_DIR}"/*; do
+        if [ ! -e "$entry" ]; then
+            continue
+        fi
+
+        target=$(readlink -f "$entry" 2>/dev/null || true)
+        if [ "$target" = "$part" ]; then
+            printf '%s\n' "$(basename "$entry")"
+            return 0
+        fi
+    done
+
+    return 1
 }
 
 sp_bootloader_efi_mount_point() {

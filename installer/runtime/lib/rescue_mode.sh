@@ -105,13 +105,52 @@ sp_rescue_find_shell() {
     return 1
 }
 
+sp_rescue_mount_minimal() {
+    mount -t proc proc /proc 2>/dev/null || true
+    mount -t sysfs sysfs /sys 2>/dev/null || true
+    mount -t devtmpfs devtmpfs /dev 2>/dev/null || \
+        mount -t tmpfs devtmpfs /dev 2>/dev/null || true
+}
+
+sp_rescue_dump_proc_partitions() {
+    if [ ! -r /proc/partitions ]; then
+        sp_rescue_log_line "source=proc/partitions" "note=missing"
+        return
+    fi
+
+    sp_rescue_dump_command "proc/partitions" cat /proc/partitions
+}
+
+sp_rescue_dump_sys_block() {
+    if [ ! -d /sys/block ]; then
+        sp_rescue_log_line "source=sysfs" "note=missing" "path=/sys/block"
+        return
+    fi
+
+    for block in /sys/block/*; do
+        if [ ! -d "$block" ]; then
+            continue
+        fi
+
+        name=$(basename "$block")
+        size=$(cat "$block/size" 2>/dev/null || echo "")
+        removable=$(cat "$block/removable" 2>/dev/null || echo "")
+        sp_rescue_log_line \
+            "source=sysfs" \
+            "entry=${name}" \
+            "size=${size:-unknown}" \
+            "removable=${removable:-unknown}"
+    done
+}
+
 sp_enter_rescue_mode() {
     reason="${1:-missing-config}"
 
     sp_write_gate_blocked "rescue-reason=${reason}"
     sp_rescue_write_header "$reason"
-    sp_rescue_dump_command "lsblk" lsblk -f
-    sp_rescue_dump_command "blkid" blkid
+    sp_rescue_mount_minimal
+    sp_rescue_dump_sys_block
+    sp_rescue_dump_proc_partitions
     sp_rescue_list_labels
 
     console_path="${SP_TEST_RESCUE_CONSOLE:-${SP_RESCUE_CONSOLE:-/dev/console}}"
