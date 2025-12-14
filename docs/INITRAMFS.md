@@ -82,6 +82,24 @@ Design decisions for P1-A:
   - List remaining devices as candidates for installation.
 - The exact selection logic and safety checks will be implemented in a later step, but the shape of the detection logic is defined here.
 
+### BusyBox Device Population Model
+
+The installer initramfs intentionally avoids `udev`/`systemd` and runs as a tiny BusyBox-only environment. To keep block-device nodes available while the kernel is still probing hardware, `/init` now runs `sp_bootstrap_dev_nodes` early in `sp_bootstrap`:
+
+- Mount `devtmpfs` (or a tmpfs fallback) on `/dev` (best-effort).
+- Run `mdev -s` so BusyBox reads `/sys/block` and synthesizes `/dev/sdX*`, `/dev/mmcblkNp*`, and `/dev/nvmeNp*p*` nodes before config discovery.
+- Ensure `/dev/console` exists (mknod if necessary) so rescue shells can bind standard I/O.
+
+Because `/dev/disk/by-label` is not guaranteed inside this environment, config discovery now works directly from `/sys/block` and raw `/dev` names: it enumerates slot-specific heuristics (e.g., `sdX1`, `mmcblkNp1`, `nvme0n1p1`) and tries each candidate without pulling in util-linux tools. This approach only needs BusyBox (`mount`, `cat`, `echo`, `mdev`, `mknod`, `sleep`, etc.) and the `/dev` nodes that `mdev -s` creates.
+
+### Rescue Mode Safety
+
+Rescue mode now keeps PID 1 alive even when the shell exits:
+
+- Diagnostics (sysfs, `/proc/partitions`, label listings) still run before entering the shell.
+- Standard I/O is always bound to `/dev/console` (or the test override) so recovery shells remain visible.
+- The shell runs inside a `while true; do ...; done` loop that logs each exit (`note=shell-exited`) and delays before relaunching, guaranteeing a live PID 1 and preventing kernel panics.
+
 ### Unified Logging Scheme
 
 Screaming Penguin should have a single, predictable logging approach for initramfs:

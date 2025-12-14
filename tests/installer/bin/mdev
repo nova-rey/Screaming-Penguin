@@ -1,0 +1,4 @@
+#!/bin/sh
+log="${SP_TEST_MDEV_LOG:-/tmp/mdev.log}"
+printf 'mdev-args=%s\n' "$*" >>"$log" 2>/dev/null || true
+exit 0

@@ -7,3 +7,4 @@
 | P10·B | Minimal init test boots | ✅ Complete | Booted stub init with BusyBox to verify QEMU path and serial visibility |
 | P10·C | Staged initramfs rebuild (1–7) | ✅ Complete | Seven-step reconstruction restored full init pipeline and markers |
 | P10·D | QEMU-CI stabilization | ✅ Complete | Added El Torito checks, initramfs listings, serial stabilizer, and marker gating |
+| P11·A | BusyBox mdev bootstrap + rescue-shell hardening | ✅ Complete | Ensured /dev population, rescue loop, heuristics, docs, and tests for Option B hotfix |
