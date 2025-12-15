@@ -3,120 +3,22 @@
 from __future__ import annotations
 
 import os
-import shlex
-import shutil
 import subprocess
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DIST_INITRD = REPO_ROOT / "dist" / "initrd-installer.img"
-REQUIRED_TOOLS = ("gzip", "cpio")
-HAS_REQUIRED_TOOLS = all(shutil.which(tool) for tool in REQUIRED_TOOLS)
 
 
-def _stage_dist_file(path: Path) -> Path | None:
+def _write_stub_kernel(path: Path, version: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    backup = None
-    if path.exists():
-        backup = path.with_suffix(path.suffix + ".bak-test")
-        if backup.exists():
-            backup.unlink()
-        path.rename(backup)
-    return backup
+    path.write_text(f"Linux version {version}\n", encoding="ascii")
 
 
-def _restore_dist_file(path: Path, backup: Path | None) -> None:
-    if backup is not None and backup.exists():
-        if path.exists():
-            path.unlink()
-        backup.rename(path)
-    elif path.exists():
-        path.unlink()
-
-
-def _list_initrd_entries(initrd_path: Path) -> set[str]:
-    cmd = f"gzip -cd {shlex.quote(str(initrd_path))} | cpio -t -H newc"
-    proc = subprocess.run(
-        ["bash", "-lc", cmd],
-        check=True,
-        capture_output=True,
-        text=True,
-        cwd=str(REPO_ROOT),
-    )
-    return {
-        line.strip().lstrip("./")
-        for line in proc.stdout.splitlines()
-        if line.strip()
-    }
-
-
-def _write_stub_kernel(kernel_path: Path, version: str) -> None:
-    kernel_path.write_bytes(
-        f"Linux version {version} (stub)\nDummy kernel for {version}\n".encode("ascii"),
-        )
-
-
-@pytest.mark.skipif(
-    not HAS_REQUIRED_TOOLS,
-    reason="gzip/cpio required for initrd inspection",
-)
-def test_initrd_contains_matching_modules(tmp_path: Path) -> None:
-    kernel_version = "6.1.0-test-kernel"
-    kernel_image = tmp_path / "vmlinuz-installer"
-    _write_stub_kernel(kernel_image, kernel_version)
-
-    modules_root = tmp_path / "modules"
-    (modules_root / kernel_version).mkdir(parents=True)
-    module_file = modules_root / kernel_version / "dummy.ko"
-    module_file.write_bytes(b"module-data")
-
+def _run_detection(env_overrides: dict[str, str]) -> subprocess.CompletedProcess:
     env = os.environ.copy()
-    env.update(
-        {
-            "SP_INSTALLER_KERNEL_IMAGE": str(kernel_image),
-            "SP_INSTALLER_MODULES_ROOT": str(modules_root),
-            "SP_LOG_DEVICE": str(tmp_path / "installer.log"),
-        }
-    )
-
-    initrd_backup = _stage_dist_file(DIST_INITRD)
-    try:
-        subprocess.run(
-            ["bash", "tools/build_installer_initramfs.sh"],
-            cwd=str(REPO_ROOT),
-            env=env,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-
-        entries = _list_initrd_entries(DIST_INITRD)
-        assert (
-            f"lib/modules/{kernel_version}/dummy.ko" in entries
-        ), "Initrd should contain the kernel-matched module"
-    finally:
-        _restore_dist_file(DIST_INITRD, initrd_backup)
-
-
-def test_build_initrd_fails_without_matching_modules(tmp_path: Path) -> None:
-    kernel_version = "6.1.0-missing"
-    kernel_image = tmp_path / "vmlinuz-installer"
-    _write_stub_kernel(kernel_image, kernel_version)
-    modules_root = tmp_path / "modules"
-
-    env = os.environ.copy()
-    env.update(
-        {
-            "SP_INSTALLER_KERNEL_IMAGE": str(kernel_image),
-            "SP_INSTALLER_MODULES_ROOT": str(modules_root),
-            "SP_LOG_DEVICE": str(tmp_path / "installer.log"),
-        }
-    )
-
-    result = subprocess.run(
+    env.update(env_overrides)
+    env.setdefault("SP_INSTALLER_KERNEL_DETECT_MODE", "1")
+    return subprocess.run(
         ["bash", "tools/build_installer_initramfs.sh"],
         cwd=str(REPO_ROOT),
         env=env,
@@ -124,36 +26,88 @@ def test_build_initrd_fails_without_matching_modules(tmp_path: Path) -> None:
         stderr=subprocess.PIPE,
         text=True,
     )
-    assert result.returncode != 0
-    assert "Kernel modules directory missing" in result.stderr
 
 
-def test_init_script_fails_when_expected_modules_missing(tmp_path: Path) -> None:
-    log_path = tmp_path / "init.log"
-    env = os.environ.copy()
-    env.update(
+def test_detection_prefers_override(tmp_path: Path) -> None:
+    kernel_version = "7.1.0-override"
+    kernel_image = tmp_path / "vmlinuz-installer"
+    _write_stub_kernel(kernel_image, kernel_version)
+
+    modules_root = tmp_path / "modules"
+    modules_src = modules_root / kernel_version
+
+    result = _run_detection(
         {
-            "SP_EXPECTED_KERNEL_VERSION": "missing-runtime-version",
-            "SP_LOG_DEVICE": str(log_path),
+            "SP_INSTALLER_KERNEL_IMAGE": str(kernel_image),
+            "SP_INSTALLER_KERNEL_VERSION": kernel_version,
+            "SP_INSTALLER_MODULES_ROOT": str(modules_root),
         }
     )
 
-    cmd = "\n".join(
-        [
-            "set -euo pipefail",
-            "SP_SKIP_INIT_MAIN=1 . installer/init/init.sh",
-            "sp_validate_kernel_modules",
-        ]
+    assert result.returncode == 0
+    assert "Kernel version detection method: override" in result.stdout
+    assert f"Installer kernel version: {kernel_version}" in result.stdout
+    assert f"Kernel modules source: {modules_src}" in result.stdout
+    expected_dest = REPO_ROOT / "build" / "installer-initramfs" / "lib" / "modules" / kernel_version
+    assert f"Kernel modules destination: {expected_dest}" in result.stdout
+
+
+def test_runtime_chroot_directory_disambiguates(tmp_path: Path) -> None:
+    kernel_version = "6.9.0-runtime"
+    kernel_image = tmp_path / "vmlinuz-installer"
+    _write_stub_kernel(kernel_image, kernel_version)
+
+    runtime_modules = tmp_path / "runtime-chroot" / "lib" / "modules"
+    (runtime_modules / kernel_version).mkdir(parents=True, exist_ok=True)
+
+    modules_root = tmp_path / "modules-root"
+    modules_src = modules_root / kernel_version
+
+    result = _run_detection(
+        {
+            "SP_INSTALLER_KERNEL_IMAGE": str(kernel_image),
+            "SP_INSTALLER_RUNTIME_CHROOT_MODULES": str(runtime_modules),
+            "SP_INSTALLER_MODULES_ROOT": str(modules_root),
+        }
     )
 
-    result = subprocess.run(
-        ["bash", "-c", cmd],
-        cwd=str(REPO_ROOT),
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+    assert result.returncode == 0
+    assert "Kernel version detection method: runtime-chroot" in result.stdout
+    assert f"Installer kernel version: {kernel_version}" in result.stdout
+    assert f"Kernel modules source: {modules_src}" in result.stdout
+
+
+def test_runtime_chroot_conflict_fails(tmp_path: Path) -> None:
+    kernel_image = tmp_path / "vmlinuz-installer"
+    _write_stub_kernel(kernel_image, "ignore.me")
+
+    runtime_modules = tmp_path / "runtime-chroot" / "lib" / "modules"
+    (runtime_modules / "6.7.0-one").mkdir(parents=True, exist_ok=True)
+    (runtime_modules / "6.7.0-two").mkdir(parents=True, exist_ok=True)
+
+    result = _run_detection(
+        {
+            "SP_INSTALLER_KERNEL_IMAGE": str(kernel_image),
+            "SP_INSTALLER_RUNTIME_CHROOT_MODULES": str(runtime_modules),
+        }
     )
 
     assert result.returncode != 0
-    assert "[SP-INSTALLER] FATAL kernel/modules mismatch" in result.stderr
+    assert "Multiple kernel versions found" in result.stderr
+    assert "set SP_INSTALLER_KERNEL_VERSION" in result.stderr
+
+
+def test_detection_fails_when_everything_missing(tmp_path: Path) -> None:
+    kernel_image = tmp_path / "vmlinuz-installer"
+    _write_stub_kernel(kernel_image, "missing.version")
+    runtime_modules = tmp_path / "runtime-chroot" / "lib" / "modules"
+
+    result = _run_detection(
+        {
+            "SP_INSTALLER_KERNEL_IMAGE": str(kernel_image),
+            "SP_INSTALLER_RUNTIME_CHROOT_MODULES": str(runtime_modules),
+        }
+    )
+
+    assert result.returncode != 0
+    assert "Unable to determine installer kernel version" in result.stderr
