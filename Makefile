@@ -3,7 +3,7 @@
 BUILD_DIR := build
 RUNTIME_DIR := $(BUILD_DIR)/runtime
 
-.PHONY: img iso rootfs clean qemu-acceptance runtime installer-runtime
+.PHONY: img iso rootfs clean qemu-acceptance runtime installer-runtime ci-smoke ci-iso
 img: $(RUNTIME_DIR)/.installer-runtime-built
 	@echo "[MAKE] Building Screaming Penguin installer image…"
 	bash tools/make_installer_img.sh
@@ -40,6 +40,14 @@ clean:
 qemu-acceptance:
 	@echo "[MAKE] Running QEMU acceptance harness…"
 	sh tests/harness/qemu-acceptance.sh
+
+ci-smoke:
+	@echo "[MAKE] Running CI smoke suite..."
+	bash tools/ci_smoke.sh
+
+ci-iso:
+	@echo "[MAKE] Running CI ISO suite..."
+	bash tools/ci_iso.sh
 
 # Phase 7 — Release Packaging
 # Assemble installer ISO, rootfs tarball, example configs, and checksums into dist/release/
