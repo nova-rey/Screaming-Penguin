@@ -25,8 +25,12 @@ fi
 mkdir -p "${DIST_DIR}"
 
 
-echo "[SP-ISO] Building installer initramfs..."
-bash "${PROJECT_ROOT}/tools/build_installer_initramfs.sh"
+if [ "${SP_SKIP_INSTALLER_INITRAMFS_BUILD:-0}" != "1" ]; then
+  echo "[SP-ISO] Building installer initramfs..."
+  bash "${PROJECT_ROOT}/tools/build_installer_initramfs.sh"
+else
+  echo "[SP-ISO] Skipping installer initramfs build because SP_SKIP_INSTALLER_INITRAMFS_BUILD=1."
+fi
 
 if [ ! -f "${DIST_INITRD}" ]; then
   echo "[SP-ISO] ERROR: Installer initrd not found at ${DIST_INITRD}" >&2
