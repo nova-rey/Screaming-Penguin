@@ -6,7 +6,9 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="${PROJECT_ROOT}/dist"
 INITRAMFS_DIR="${PROJECT_ROOT}/build/installer-initramfs"
 RUNTIME_LIB_SRC="${PROJECT_ROOT}/installer/runtime/lib"
-RUNTIME_CHROOT_MODULES="${SP_INSTALLER_RUNTIME_CHROOT_MODULES:-${PROJECT_ROOT}/build/runtime-chroot/lib/modules}"
+DEFAULT_RUNTIME_CHROOT="${PROJECT_ROOT}/build/runtime-chroot"
+RUNTIME_CHROOT="${SP_INSTALLER_RUNTIME_CHROOT:-${DEFAULT_RUNTIME_CHROOT}}"
+RUNTIME_CHROOT_MODULES="${SP_INSTALLER_RUNTIME_CHROOT_MODULES:-${RUNTIME_CHROOT}/lib/modules}"
 MIN_INITRD_SIZE_BYTES="${SP_MIN_INITRD_SIZE_BYTES:-$((1 * 1024 * 1024))}"
 
 echo "[SP-INSTALLER] Building installer initramfs..."
@@ -105,15 +107,22 @@ if ! _determine_kernel_version "${INSTALLER_KERNEL_IMAGE}"; then
   exit 1
 fi
 
-MODULES_ROOT="${SP_INSTALLER_MODULES_ROOT:-/lib/modules}"
-MODULES_SRC="${SP_INSTALLER_MODULES_SRC:-${MODULES_ROOT}/${KERNEL_VERSION}}"
+MODULES_ROOT="${SP_INSTALLER_MODULES_ROOT:-${RUNTIME_CHROOT_MODULES}}"
+MODULES_SRC_DIR="${SP_INSTALLER_MODULES_SRC:-${MODULES_ROOT}/${KERNEL_VERSION}}"
 MODULES_DST="${INITRD_ROOT}/lib/modules/${KERNEL_VERSION}"
 
 echo "[SP-INSTALLER] Installer kernel image: ${INSTALLER_KERNEL_IMAGE}"
 echo "[SP-INSTALLER] Kernel version detection method: ${DETECTION_METHOD}"
 echo "[SP-INSTALLER] Installer kernel version: ${KERNEL_VERSION}"
-echo "[SP-INSTALLER] Kernel modules source: ${MODULES_SRC}"
+echo "[SP-INSTALLER] Kernel modules root: ${MODULES_ROOT}"
+echo "[SP-INSTALLER] Kernel modules source: ${MODULES_SRC_DIR}"
 echo "[SP-INSTALLER] Kernel modules destination: ${MODULES_DST}"
+echo "[SP-INSTALLER] Staging kernel modules from ${MODULES_SRC_DIR} to ${MODULES_DST}"
+
+if [ ! -d "${MODULES_SRC_DIR}" ]; then
+  echo "[SP-BUILD] ERROR: Kernel modules directory missing: ${MODULES_SRC_DIR}" >&2
+  exit 1
+fi
 
 if [ "${SP_INSTALLER_KERNEL_DETECT_MODE:-0}" = "1" ]; then
   exit 0
@@ -252,15 +261,8 @@ done
 
 echo "[SP-INSTALLER] Runtime helpers staged in ${RUNTIME_LIB_DST}"
 
-echo "[SP-INSTALLER] Staging kernel modules from ${MODULES_SRC} to ${MODULES_DST}"
-
-if [ ! -d "${MODULES_SRC}" ]; then
-  echo "[SP-BUILD] ERROR: Kernel modules directory missing: ${MODULES_SRC}" >&2
-  exit 1
-fi
-
 mkdir -p "${MODULES_DST}"
-cp -a "${MODULES_SRC}/." "${MODULES_DST}/"
+cp -a "${MODULES_SRC_DIR}/." "${MODULES_DST}/"
 
 echo "[SP-INSTALLER] Creating init script..."
 if [ ! -f "${INIT_SCRIPT_SRC}" ]; then
