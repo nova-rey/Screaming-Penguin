@@ -255,6 +255,50 @@ sp_bootstrap_dev_nodes() {
     sp_log "state=dev-bootstrap" "phase=done"
 }
 
+sp_try_modprobe_storage_module() {
+    module="$1"
+    modprobe_bin="${SP_STORAGE_MODPROBE_BIN:-$(command -v modprobe || true)}"
+
+    if [ -z "$modprobe_bin" ]; then
+        sp_log "state=storage-drivers" "phase=modprobe" "module=$module" "result=missing" "reason=modprobe-unavailable"
+        return 1
+    fi
+
+    if "$modprobe_bin" "$module" >/dev/null 2>&1; then
+        sp_log "state=storage-drivers" "phase=modprobe" "module=$module" "result=loaded" "cmd=$modprobe_bin"
+        SP_STORAGE_MODPROBE_BIN="$modprobe_bin"
+        export SP_STORAGE_MODPROBE_BIN
+        return 0
+    fi
+
+    rc=$?
+    sp_log "state=storage-drivers" "phase=modprobe" "module=$module" "result=failed" "cmd=$modprobe_bin" "rc=$rc"
+    SP_STORAGE_MODPROBE_BIN="$modprobe_bin"
+    export SP_STORAGE_MODPROBE_BIN
+    return 1
+}
+
+sp_initialize_storage_drivers() {
+    sp_log "state=storage-drivers" "phase=start"
+
+    for module in ahci sd_mod usb-storage nvme; do
+        sp_try_modprobe_storage_module "$module"
+    done
+
+    mdev_bin="${SP_BOOTSTRAP_MDEV_BIN:-$(command -v mdev || true)}"
+    if [ -n "$mdev_bin" ]; then
+        if "$mdev_bin" -s >/dev/null 2>&1; then
+            sp_log "state=storage-drivers" "phase=mdev" "result=ok" "cmd=$mdev_bin"
+        else
+            sp_log "state=storage-drivers" "phase=mdev" "result=failed" "cmd=$mdev_bin"
+        fi
+    else
+        sp_log "state=storage-drivers" "phase=mdev" "result=missing"
+    fi
+
+    sp_log "state=storage-drivers" "phase=done"
+}
+
 sp_bootstrap() {
     PATH=/bin:/sbin:/usr/bin:/usr/sbin
     export PATH
@@ -706,6 +750,8 @@ sp_summary() {
 
 main() {
     sp_bootstrap
+
+    sp_initialize_storage_drivers
 
     sp_detect_mode || true
 
