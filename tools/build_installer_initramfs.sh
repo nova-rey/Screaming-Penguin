@@ -6,11 +6,8 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="${PROJECT_ROOT}/dist"
 INITRAMFS_DIR="${PROJECT_ROOT}/build/installer-initramfs"
 RUNTIME_LIB_SRC="${PROJECT_ROOT}/installer/runtime/lib"
+RUNTIME_CHROOT_MODULES="${SP_INSTALLER_RUNTIME_CHROOT_MODULES:-${PROJECT_ROOT}/build/runtime-chroot/lib/modules}"
 MIN_INITRD_SIZE_BYTES="${SP_MIN_INITRD_SIZE_BYTES:-$((1 * 1024 * 1024))}"
-
-# Ensure output directories exist
-mkdir -p "${DIST_DIR}"
-mkdir -p "${INITRAMFS_DIR}"
 
 echo "[SP-INSTALLER] Building installer initramfs..."
 
@@ -34,23 +31,97 @@ _is_busybox_static() {
   return 1
 }
 
-_extract_kernel_version_from_image() {
-  local image="$1"
-  local version=""
+_determine_kernel_version() {
+  local kernel_image="$1"
+  local detected_version=""
+  local runtime_versions=()
+  local runtime_note=""
 
-  if command -v strings >/dev/null 2>&1; then
-    version="$(strings "${image}" 2>/dev/null | awk '/Linux version/ {print $3; exit}')"
-  else
-    version="$(grep -a -m1 'Linux version' "${image}" 2>/dev/null | awk '{print $3; exit}')"
+  DETECTION_METHOD=""
+
+  if [ -n "${SP_INSTALLER_KERNEL_VERSION:-}" ]; then
+    detected_version="${SP_INSTALLER_KERNEL_VERSION}"
+    DETECTION_METHOD="override (SP_INSTALLER_KERNEL_VERSION)"
+    KERNEL_VERSION="${detected_version}"
+    return 0
   fi
 
-  if [ -z "${version}" ]; then
-    echo "[SP-BUILD] ERROR: Unable to determine kernel version from ${image}" >&2
+  if [ -d "${RUNTIME_CHROOT_MODULES}" ]; then
+    mapfile -t runtime_versions < <(find "${RUNTIME_CHROOT_MODULES}" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+  fi
+
+  if [ "${#runtime_versions[@]}" -gt 1 ]; then
+    local version_list="${runtime_versions[0]}"
+    for version in "${runtime_versions[@]:1}"; do
+      version_list+=", ${version}"
+    done
+    echo "[SP-BUILD] ERROR: Multiple kernel versions found in ${RUNTIME_CHROOT_MODULES}: ${version_list}; set SP_INSTALLER_KERNEL_VERSION to pick one." >&2
     return 1
   fi
 
-  printf '%s' "${version}"
+  if [ "${#runtime_versions[@]}" -eq 1 ]; then
+    detected_version="${runtime_versions[0]}"
+    DETECTION_METHOD="runtime-chroot (${detected_version})"
+  fi
+
+  if [ -z "${detected_version}" ] && [ -L "${kernel_image}" ]; then
+    local symlink_name
+    symlink_name="$(basename "$(readlink "${kernel_image}")")"
+    if [[ "${symlink_name}" == vmlinuz-* ]]; then
+      detected_version="${symlink_name#vmlinuz-}"
+      DETECTION_METHOD="symlink (${symlink_name})"
+    fi
+  fi
+
+  if [ -z "${detected_version}" ]; then
+    if [ -d "${RUNTIME_CHROOT_MODULES}" ]; then
+      runtime_note="runtime-chroot modules under ${RUNTIME_CHROOT_MODULES}"
+    else
+      runtime_note="runtime-chroot modules missing at ${RUNTIME_CHROOT_MODULES}; run tools/build_runtime.sh"
+    fi
+    echo "[SP-BUILD] ERROR: Unable to determine installer kernel version; checked SP_INSTALLER_KERNEL_VERSION, ${runtime_note}, and symlink target of ${kernel_image}. Set SP_INSTALLER_KERNEL_VERSION or ensure runtime-chroot modules exist." >&2
+    return 1
+  fi
+
+  KERNEL_VERSION="${detected_version}"
+  return 0
 }
+
+INSTALLER_KERNEL_IMAGE="${SP_INSTALLER_KERNEL_IMAGE:-${PROJECT_ROOT}/build/runtime/vmlinuz}"
+
+if [ ! -f "${INSTALLER_KERNEL_IMAGE}" ]; then
+  DIST_KERNEL="${DIST_DIR}/vmlinuz-installer"
+  if [ -f "${DIST_KERNEL}" ]; then
+    INSTALLER_KERNEL_IMAGE="${DIST_KERNEL}"
+  fi
+fi
+
+if [ ! -f "${INSTALLER_KERNEL_IMAGE}" ]; then
+  echo "[SP-BUILD] ERROR: Installer kernel binary missing: ${INSTALLER_KERNEL_IMAGE}" >&2
+  exit 1
+fi
+
+if ! _determine_kernel_version "${INSTALLER_KERNEL_IMAGE}"; then
+  exit 1
+fi
+
+MODULES_ROOT="${SP_INSTALLER_MODULES_ROOT:-/lib/modules}"
+MODULES_SRC="${SP_INSTALLER_MODULES_SRC:-${MODULES_ROOT}/${KERNEL_VERSION}}"
+MODULES_DST="${INITRD_ROOT}/lib/modules/${KERNEL_VERSION}"
+
+echo "[SP-INSTALLER] Installer kernel image: ${INSTALLER_KERNEL_IMAGE}"
+echo "[SP-INSTALLER] Kernel version detection method: ${DETECTION_METHOD}"
+echo "[SP-INSTALLER] Installer kernel version: ${KERNEL_VERSION}"
+echo "[SP-INSTALLER] Kernel modules source: ${MODULES_SRC}"
+echo "[SP-INSTALLER] Kernel modules destination: ${MODULES_DST}"
+
+if [ "${SP_INSTALLER_KERNEL_DETECT_MODE:-0}" = "1" ]; then
+  exit 0
+fi
+
+# Ensure output directories exist
+mkdir -p "${DIST_DIR}"
+mkdir -p "${INITRAMFS_DIR}"
 
 rm -rf "${INITRAMFS_DIR:?}/"*
 mkdir -p "${INITRD_ROOT}"
@@ -181,36 +252,7 @@ done
 
 echo "[SP-INSTALLER] Runtime helpers staged in ${RUNTIME_LIB_DST}"
 
-INSTALLER_KERNEL_IMAGE="${SP_INSTALLER_KERNEL_IMAGE:-${PROJECT_ROOT}/build/runtime/vmlinuz}"
-
-if [ ! -f "${INSTALLER_KERNEL_IMAGE}" ]; then
-  DIST_KERNEL="${DIST_DIR}/vmlinuz-installer"
-  if [ -f "${DIST_KERNEL}" ]; then
-    INSTALLER_KERNEL_IMAGE="${DIST_KERNEL}"
-  fi
-fi
-
-if [ ! -f "${INSTALLER_KERNEL_IMAGE}" ]; then
-  echo "[SP-BUILD] ERROR: Installer kernel binary missing: ${INSTALLER_KERNEL_IMAGE}" >&2
-  exit 1
-fi
-
-DETECTED_KERNEL_VERSION="$(_extract_kernel_version_from_image "${INSTALLER_KERNEL_IMAGE}" || true)"
-
-if [ -z "${DETECTED_KERNEL_VERSION}" ]; then
-  echo "[SP-BUILD] ERROR: Failed to detect kernel version from ${INSTALLER_KERNEL_IMAGE}" >&2
-  exit 1
-fi
-
-KERNEL_VERSION="${SP_INSTALLER_KERNEL_VERSION:-${DETECTED_KERNEL_VERSION}}"
-MODULES_ROOT="${SP_INSTALLER_MODULES_ROOT:-/lib/modules}"
-MODULES_SRC="${SP_INSTALLER_MODULES_SRC:-${MODULES_ROOT}/${KERNEL_VERSION}}"
-MODULES_DST="${INITRD_ROOT}/lib/modules/${KERNEL_VERSION}"
-
-echo "[SP-INSTALLER] Installer kernel image: ${INSTALLER_KERNEL_IMAGE}"
-echo "[SP-INSTALLER] Detected installer kernel version: ${DETECTED_KERNEL_VERSION}"
-echo "[SP-INSTALLER] Installer kernel version: ${KERNEL_VERSION}"
-echo "[SP-INSTALLER] Staging kernel modules from ${MODULES_SRC}"
+echo "[SP-INSTALLER] Staging kernel modules from ${MODULES_SRC} to ${MODULES_DST}"
 
 if [ ! -d "${MODULES_SRC}" ]; then
   echo "[SP-BUILD] ERROR: Kernel modules directory missing: ${MODULES_SRC}" >&2
