@@ -36,24 +36,14 @@ Verify checksums using:
 sha256sum -c SHA256SUMS
 ```
 
-## Installer Artifacts: .img vs .iso
+## Installer Artifact
 
-Screaming Penguin currently ships two primary artifacts:
-
-- A raw disk image: `screaming-penguin.img`
-- A hybrid ISO: `screaming-penguin.iso`
-
-As a rule of thumb:
-
-- **Linux / macOS** users who are comfortable with `dd`, `lsblk`, and
-  basic disk tools should prefer the **`.img`**. It writes directly to a
-  USB device and produces a bootable stick with a separate `CONFIG`
-  partition ready for `installer-config.yml`.
-
-- **Windows** users, and anyone who prefers GUI USB tools such as Rufus,
-  can use the **`.iso`**. After flashing the ISO to a USB stick, you will
-  create the `CONFIG` partition manually (see below) and drop your
-  `installer-config.yml` there.
+Screaming Penguin ships a single installer image: `screaming-penguin.img`. The
+image includes a preformatted `CONFIG` partition so you can flash it, mount
+`/config`, and immediately drop your `installer-config.yml` + rootfs tarball
+without additional partition juggling. The hybrid ISO build has been pruned from
+this repository; historical instructions remain in `docs/USING_ISO.md`, but any
+modern ISO path lives in the external Ouroboros side project.
 
 ⸻
 
@@ -130,11 +120,6 @@ Proceed to INSTALLER_USAGE.md for detailed workflow and troubleshooting.
 
 ---
 
-## ISO Builds in CI
+## Artifact Builds in CI
 
-The CI pipeline now produces both:
-
-- `screaming-penguin.img`
-- `screaming-penguin.iso`
-
-ISO builds are recommended for Windows/macOS users.
+The CI pipeline now produces only the canonical `.img` artifact (`dist/screaming-penguin.img`). Smoke builds and tests validate the GPT layout, ESP contents, and kernel/initrd references without ever booting the media. ISO builds have been pruned from this repository; see `docs/analysis/sp-mp-prune-iso-analysis.md` for the rationale and follow the Ouroboros side project for any hybrid ISO needs.

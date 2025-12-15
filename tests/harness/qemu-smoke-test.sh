@@ -8,7 +8,7 @@ IMG="dist/screaming-penguin.img"
 
 if [ ! -f "$IMG" ]; then
     echo "[QEMU] Image not found: $IMG"
-    echo "[QEMU] Run 'make iso' first."
+    echo "[QEMU] Run 'make img' first."
     exit 1
 fi
 

@@ -164,7 +164,7 @@ The primary harness entrypoint is:
 This script:
 
 1. Verifies that:
-   - `dist/screaming-penguin.img` exists (built by `make iso`).
+   - `dist/screaming-penguin.img` exists (built by `make img`).
    - `dist/debian-rootfs-bookworm-amd64.tar.gz` exists (built by `make rootfs`).
    - `config/installer-config.qemu-basic.yml` exists.
 
@@ -191,7 +191,7 @@ This script:
 Developers can run the end-to-end happy-path acceptance scenario locally with:
 
 ```bash
-make iso
+make img
 make rootfs
 make qemu-acceptance
 

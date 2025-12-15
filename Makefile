@@ -8,9 +8,9 @@ img: $(RUNTIME_DIR)/.installer-runtime-built
 	@echo "[MAKE] Building Screaming Penguin installer image…"
 	bash tools/make_installer_img.sh
 
-iso: $(RUNTIME_DIR)/.installer-runtime-built
-	@echo "[MAKE] Building Screaming Penguin ISO…"
-	bash tools/make_installer_iso.sh
+iso:
+	@echo "[MAKE] ISO builds are disabled in this repository; see the Ouroboros side project for hybrid ISO support." >&2
+	@false
 
 installer-runtime:
 	@rm -f $(RUNTIME_DIR)/.installer-runtime-built
@@ -46,17 +46,16 @@ ci-smoke:
 	bash tools/ci_smoke.sh
 
 ci-iso:
-	@echo "[MAKE] Running CI ISO suite..."
-	bash tools/ci_iso.sh
+	@echo "[MAKE] CI ISO suite disabled; ISO builds are no longer part of the default workflow (Ouroboros handles them)." >&2
+	@false
 
 # Phase 7 — Release Packaging
 # Assemble installer ISO, rootfs tarball, example configs, and checksums into dist/release/
 
-dist-release: img iso rootfs
+dist-release: img rootfs
 	@echo "[DIST] Assembling v1.0.0 release directory..."
 	mkdir -p dist/release
 	cp dist/screaming-penguin.img dist/release/screaming-penguin-v1.0.0.img
-	cp dist/screaming-penguin.iso dist/release/screaming-penguin-v1.0.0.iso
 	cp dist/debian-rootfs-bookworm-amd64.tar.gz dist/release/debian-rootfs-bookworm-amd64-v1.0.0.tar.gz
 	mkdir -p dist/release/example-configs
 	cp -r config/examples/*.yml dist/release/example-configs/

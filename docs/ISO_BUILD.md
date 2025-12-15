@@ -1,5 +1,7 @@
 # Screaming Penguin ISO Build and Boot Process (v1)
 
+> **Note:** The hybrid ISO builder described here has been removed from the repository. This document remains for historical context; the canonical `.img` path is the supported installer media.
+
 This document explains how the Screaming Penguin ISO is constructed and how to test it manually.
 
 ## Build Pipeline
