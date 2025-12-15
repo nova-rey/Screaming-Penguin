@@ -159,7 +159,9 @@ sp_enter_rescue_mode() {
     if [ -n "${shell_path:-}" ]; then
         sp_rescue_log_line "state=rescue" "note=launching-shell" "shell=${shell_path}" "console=${console_path}"
         while :; do
-            "$shell_path" -i <"$console_path" >"$console_path" 2>&1
+            # Open console read/write once, then reuse the FD (avoids ShellCheck SC2094).
+            exec 3<>"$console_path"
+            "$shell_path" -i <&3 >&3 2>&3
             exit_status=$?
             sp_rescue_log_line \
                 "state=rescue" \
