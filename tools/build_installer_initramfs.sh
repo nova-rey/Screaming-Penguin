@@ -40,6 +40,7 @@ mkdir -p "${INITRD_ROOT}"
 # Create minimal directory tree
 mkdir -p "${INITRD_ROOT}"/{bin,sbin,etc,proc,sys,usr/bin,usr/sbin,dev,mnt/config,run}
 mkdir -p "${INITRD_ROOT}/runtime/lib"
+mkdir -p "${INITRD_ROOT}/lib/modules"
 
 echo "[SP-INSTALLER] Installing BusyBox..."
 BUSYBOX_PATH="${SP_BUSYBOX_BIN:-$(command -v busybox-static || command -v busybox || true)}"
@@ -124,6 +125,7 @@ REQUIRED_APPLETS=(
   mdev
   mknod
   mount
+  modprobe
   sh
   sleep
   umount
@@ -160,6 +162,19 @@ for lib in "${REQUIRED_RUNTIME_LIBS[@]}"; do
 done
 
 echo "[SP-INSTALLER] Runtime helpers staged in ${RUNTIME_LIB_DST}"
+
+KERNEL_VERSION="${SP_INSTALLER_KERNEL_VERSION:-$(uname -r)}"
+MODULES_SRC="${SP_INSTALLER_MODULES_SRC:-/lib/modules/${KERNEL_VERSION}}"
+MODULES_DST="${INITRD_ROOT}/lib/modules/${KERNEL_VERSION}"
+
+if [ ! -d "${MODULES_SRC}" ]; then
+  echo "[SP-BUILD] ERROR: Kernel modules directory missing: ${MODULES_SRC}" >&2
+  exit 1
+fi
+
+echo "[SP-INSTALLER] Staging kernel modules for ${KERNEL_VERSION}"
+mkdir -p "${MODULES_DST}"
+cp -a "${MODULES_SRC}/." "${MODULES_DST}/"
 
 echo "[SP-INSTALLER] Creating init script..."
 if [ ! -f "${INIT_SCRIPT_SRC}" ]; then
