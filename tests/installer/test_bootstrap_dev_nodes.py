@@ -11,7 +11,9 @@ INIT_SCRIPT = Path("installer/init/init.sh")
 TEST_BIN = Path("tests/installer/bin")
 
 
-def _run_command(env_overrides: dict[str, str], command: str) -> subprocess.CompletedProcess:
+def _run_command(
+    env_overrides: dict[str, str], command: str
+) -> subprocess.CompletedProcess:
     env = os.environ.copy()
     env.update(env_overrides)
     env["PATH"] = f"{TEST_BIN}{os.pathsep}{env.get('PATH', '')}"
@@ -80,11 +82,11 @@ def test_bootstrap_runs_mdev_before_config_discovery(tmp_path: Path) -> None:
     }
 
     command = (
-        f'. {INIT_SCRIPT}; '
-        'sp_bootstrap; '
-        'if sp_discover_config; then '
+        f". {INIT_SCRIPT}; "
+        "sp_bootstrap; "
+        "if sp_discover_config; then "
         'printf "%s\\n%s\\n" "$SP_CONFIG_PATH" "$CONFIG_MOUNT"; '
-        'fi'
+        "fi"
     )
 
     result = _run_command(env, command)
@@ -92,7 +94,9 @@ def test_bootstrap_runs_mdev_before_config_discovery(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert "state=dev-bootstrap" in result.stderr
     assert "state=discover-config" in result.stderr
-    assert result.stderr.find("state=dev-bootstrap") < result.stderr.find("state=discover-config")
+    assert result.stderr.find("state=dev-bootstrap") < result.stderr.find(
+        "state=discover-config"
+    )
     assert "installer-config.yml" in result.stdout
     assert mdev_log.exists()
     assert "mdev-args=-s" in mdev_log.read_text()
