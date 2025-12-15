@@ -62,7 +62,7 @@ HB_PID=$!
 wait "${CMD_PID}"
 STATUS=$?
 
-kill "${HB_PID}" >/dev/null 2>&1 || true
+cleanup
 wait "${HB_PID}" >/dev/null 2>&1 || true
 
 if [[ "${STATUS}" -eq 0 ]]; then

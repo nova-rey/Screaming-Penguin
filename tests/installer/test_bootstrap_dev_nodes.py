@@ -6,9 +6,26 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 INIT_SCRIPT = Path("installer/init/init.sh")
 TEST_BIN = Path("tests/installer/bin")
+
+
+def _require_console_and_modules() -> None:
+    console_path = Path("/dev/console")
+    if (
+        not console_path.exists()
+        or (not console_path.is_char_device() and not console_path.is_fifo())
+        or not os.access(console_path, os.W_OK)
+    ):
+        pytest.skip("needs writable /dev/console")
+
+    kernel_version = subprocess.check_output(["uname", "-r"], text=True).strip()
+    modules_path = Path("/lib/modules") / kernel_version
+    if not modules_path.is_dir():
+        pytest.skip(f"needs /lib/modules/{kernel_version} matching `uname -r`")
 
 
 def _run_command(
@@ -58,8 +75,10 @@ def _create_partition(tmp_path: Path, parent: str, partition: str) -> Path:
     device.mkdir(exist_ok=True)
     return device
 
-
+@pytest.mark.needs_console
+@pytest.mark.needs_real_modules
 def test_bootstrap_runs_mdev_before_config_discovery(tmp_path: Path) -> None:
+    _require_console_and_modules()
     _create_block(tmp_path, "sda")
     partition = _create_partition(tmp_path, "sda", "sda1")
     (partition / "installer-config.yml").write_text("bootstrap\n")

@@ -15,8 +15,8 @@ fi
 echo "[CI-SMOKE] Running python3 -m compileall ..."
 python3 -m compileall -q .
 
-echo "[CI-SMOKE] Running pytest installer unit tests..."
-pytest tests/installer
+echo "[CI-SMOKE] Running pytest installer unit tests (hermetic marker filter)..."
+pytest -q tests/installer -m "not needs_console and not needs_real_modules"
 
 detect_config() {
   local path="$1"
