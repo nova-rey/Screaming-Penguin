@@ -255,6 +255,40 @@ sp_bootstrap_dev_nodes() {
     sp_log "state=dev-bootstrap" "phase=done"
 }
 
+sp_validate_kernel_modules() {
+    runtime_kernel=$(uname -r 2>/dev/null || true)
+    kernel_version="${SP_EXPECTED_KERNEL_VERSION:-${runtime_kernel}}"
+
+    if [ -z "${kernel_version}" ]; then
+        sp_log "state=kernel-modules" "phase=validate" "result=fatal" "reason=uname-failed"
+        printf '[SP-INSTALLER] FATAL kernel/modules mismatch: unable to determine running kernel\n' >&2
+        exit 1
+    fi
+
+    modules_path="/lib/modules/${kernel_version}"
+
+    if [ ! -d "${modules_path}" ]; then
+        sp_log "state=kernel-modules" \
+            "phase=validate" \
+            "result=fatal" \
+            "reason=modules-missing" \
+            "kernel=${kernel_version}" \
+            "runtime=${runtime_kernel:-unknown}" \
+            "modules=${modules_path}"
+        printf '[SP-INSTALLER] FATAL kernel/modules mismatch: running kernel=%s requires %s\n' \
+            "${runtime_kernel:-unknown}" \
+            "${modules_path}" >&2
+        exit 1
+    fi
+
+    sp_log "state=kernel-modules" \
+        "phase=validate" \
+        "result=ok" \
+        "kernel=${kernel_version}" \
+        "runtime=${runtime_kernel:-unknown}" \
+        "modules=${modules_path}"
+}
+
 sp_try_modprobe_storage_module() {
     module="$1"
     modprobe_bin="${SP_STORAGE_MODPROBE_BIN:-$(command -v modprobe || true)}"
@@ -750,6 +784,8 @@ sp_summary() {
 
 main() {
     sp_bootstrap
+
+    sp_validate_kernel_modules
 
     sp_initialize_storage_drivers
 

@@ -34,6 +34,24 @@ _is_busybox_static() {
   return 1
 }
 
+_extract_kernel_version_from_image() {
+  local image="$1"
+  local version=""
+
+  if command -v strings >/dev/null 2>&1; then
+    version="$(strings "${image}" 2>/dev/null | awk '/Linux version/ {print $3; exit}')"
+  else
+    version="$(grep -a -m1 'Linux version' "${image}" 2>/dev/null | awk '{print $3; exit}')"
+  fi
+
+  if [ -z "${version}" ]; then
+    echo "[SP-BUILD] ERROR: Unable to determine kernel version from ${image}" >&2
+    return 1
+  fi
+
+  printf '%s' "${version}"
+}
+
 rm -rf "${INITRAMFS_DIR:?}/"*
 mkdir -p "${INITRD_ROOT}"
 
@@ -163,16 +181,42 @@ done
 
 echo "[SP-INSTALLER] Runtime helpers staged in ${RUNTIME_LIB_DST}"
 
-KERNEL_VERSION="${SP_INSTALLER_KERNEL_VERSION:-$(uname -r)}"
-MODULES_SRC="${SP_INSTALLER_MODULES_SRC:-/lib/modules/${KERNEL_VERSION}}"
+INSTALLER_KERNEL_IMAGE="${SP_INSTALLER_KERNEL_IMAGE:-${PROJECT_ROOT}/build/runtime/vmlinuz}"
+
+if [ ! -f "${INSTALLER_KERNEL_IMAGE}" ]; then
+  DIST_KERNEL="${DIST_DIR}/vmlinuz-installer"
+  if [ -f "${DIST_KERNEL}" ]; then
+    INSTALLER_KERNEL_IMAGE="${DIST_KERNEL}"
+  fi
+fi
+
+if [ ! -f "${INSTALLER_KERNEL_IMAGE}" ]; then
+  echo "[SP-BUILD] ERROR: Installer kernel binary missing: ${INSTALLER_KERNEL_IMAGE}" >&2
+  exit 1
+fi
+
+DETECTED_KERNEL_VERSION="$(_extract_kernel_version_from_image "${INSTALLER_KERNEL_IMAGE}" || true)"
+
+if [ -z "${DETECTED_KERNEL_VERSION}" ]; then
+  echo "[SP-BUILD] ERROR: Failed to detect kernel version from ${INSTALLER_KERNEL_IMAGE}" >&2
+  exit 1
+fi
+
+KERNEL_VERSION="${SP_INSTALLER_KERNEL_VERSION:-${DETECTED_KERNEL_VERSION}}"
+MODULES_ROOT="${SP_INSTALLER_MODULES_ROOT:-/lib/modules}"
+MODULES_SRC="${SP_INSTALLER_MODULES_SRC:-${MODULES_ROOT}/${KERNEL_VERSION}}"
 MODULES_DST="${INITRD_ROOT}/lib/modules/${KERNEL_VERSION}"
+
+echo "[SP-INSTALLER] Installer kernel image: ${INSTALLER_KERNEL_IMAGE}"
+echo "[SP-INSTALLER] Detected installer kernel version: ${DETECTED_KERNEL_VERSION}"
+echo "[SP-INSTALLER] Installer kernel version: ${KERNEL_VERSION}"
+echo "[SP-INSTALLER] Staging kernel modules from ${MODULES_SRC}"
 
 if [ ! -d "${MODULES_SRC}" ]; then
   echo "[SP-BUILD] ERROR: Kernel modules directory missing: ${MODULES_SRC}" >&2
   exit 1
 fi
 
-echo "[SP-INSTALLER] Staging kernel modules for ${KERNEL_VERSION}"
 mkdir -p "${MODULES_DST}"
 cp -a "${MODULES_SRC}/." "${MODULES_DST}/"
 
