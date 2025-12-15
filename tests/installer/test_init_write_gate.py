@@ -26,6 +26,13 @@ def _run_init(
     env["SP_EXIT_AFTER_INIT"] = "1"
     env["SP_LOG_DEVICE"] = str(console_log)
     env["SP_WRITE_GATE_SERIAL_DEVICE"] = str(serial_log)
+    kernel_version = (
+        subprocess.run(["uname", "-r"], check=True, capture_output=True, text=True)
+        .stdout.strip()
+    )
+    modules_root = tmp_path / "modules"
+    (modules_root / kernel_version).mkdir(parents=True, exist_ok=True)
+    env["SP_MODULES_ROOT"] = str(modules_root)
 
     result = subprocess.run(
         [str(INSTALL_SCRIPT)],

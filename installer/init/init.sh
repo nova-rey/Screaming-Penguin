@@ -5,6 +5,7 @@
 
 SP_LOG_DEVICE="${SP_LOG_DEVICE:-/dev/console}"
 SP_WRITE_GATE_SERIAL_DEVICE="${SP_WRITE_GATE_SERIAL_DEVICE:-/dev/ttyS0}"
+SP_MODULES_ROOT="${SP_MODULES_ROOT:-/lib/modules}"
 
 sp_log() {
     # Simple structured logger. All lines should start with [SP-INSTALLER].
@@ -26,6 +27,60 @@ sp_write_gate_serial_log() {
 sp_log_write_gate_marker() {
     printf '[SP-INSTALLER] %s\n' "$1" >>"$SP_LOG_DEVICE" 2>&1 || true
     sp_write_gate_serial_log "[SP-INSTALLER] $1"
+}
+
+sp_print_fatal_kernel_error() {
+    reason="$1"
+    message="$2"
+
+    sp_log "state=kernel-check" "result=fatal" "reason=${reason}" "message=${message}"
+    printf 'FATAL: %s\n' "$message" >>"$SP_LOG_DEVICE" 2>&1 || true
+    printf 'FATAL: %s\n' "$message" >&2 || true
+    exit 1
+}
+
+sp_detect_staged_kernel_version() {
+    modules_root="${SP_MODULES_ROOT:-/lib/modules}"
+
+    for candidate in "${modules_root}"/*; do
+        [ -d "$candidate" ] || continue
+        basename "$candidate"
+        return 0
+    done
+    return 1
+}
+
+sp_validate_kernel_module_identity() {
+    modules_root="${SP_MODULES_ROOT:-/lib/modules}"
+    kernel="$(uname -r 2>/dev/null || true)"
+
+    if [ -z "$kernel" ]; then
+        sp_print_fatal_kernel_error "kernel-version" "Unable to determine running kernel version."
+    fi
+
+    if [ ! -d "${modules_root}/${kernel}" ]; then
+        sp_print_fatal_kernel_error \
+            "missing-modules" \
+            "Running kernel ${kernel} lacks ${modules_root}/${kernel}."
+    fi
+
+    if ! staged_kernel=$(sp_detect_staged_kernel_version); then
+        sp_print_fatal_kernel_error \
+            "missing-staged-modules" \
+            "Installer initramfs lacks any ${modules_root}/<version> directory."
+    fi
+
+    if [ "${staged_kernel}" != "${kernel}" ]; then
+        sp_print_fatal_kernel_error \
+            "mismatched-modules" \
+            "Staged modules (${staged_kernel}) do not match running kernel (${kernel})."
+    fi
+
+    sp_log "state=kernel-check" \
+        "result=ok" \
+        "kernel=${kernel}" \
+        "modules_root=${modules_root}" \
+        "staged=${staged_kernel}"
 }
 
 SP_INIT_SCRIPT_PATH="${SP_INIT_SCRIPT_PATH:-$0}"
@@ -316,7 +371,7 @@ sp_bootstrap() {
 
     sp_log 'marker=init-reached' 'msg=init reached'
     # CI marker required by qemu_smoke_ci.sh (must remain exact).
-    echo "[SP-INSTALLER] init reached" >/dev/console
+    echo "[SP-INSTALLER] init reached" >/dev/console 2>/dev/null || true
 
     # Stage 1 breadcrumb for future debugging (not enforced by CI yet).
     sp_log 'stage=bootstrapped'
@@ -749,6 +804,8 @@ sp_summary() {
 }
 
 main() {
+    sp_validate_kernel_module_identity
+
     sp_bootstrap
 
     sp_initialize_storage_drivers

@@ -34,6 +34,26 @@ _is_busybox_static() {
   return 1
 }
 
+INSTALLER_KERNEL_PATH="${SP_INSTALLER_KERNEL_PATH:-${DIST_DIR}/vmlinuz-installer}"
+
+determine_installer_kernel_version() {
+  local version
+  if [ -n "${SP_INSTALLER_KERNEL_VERSION:-}" ]; then
+    printf '%s' "${SP_INSTALLER_KERNEL_VERSION}"
+    return 0
+  fi
+
+  if [ -n "${INSTALLER_KERNEL_PATH:-}" ] && [ -f "${INSTALLER_KERNEL_PATH}" ] && command -v strings >/dev/null 2>&1; then
+    version="$(strings "${INSTALLER_KERNEL_PATH}" | awk '/Linux version/ {print $3; exit}')"
+    if [ -n "${version:-}" ]; then
+      printf '%s' "${version}"
+      return 0
+    fi
+  fi
+
+  uname -r
+}
+
 rm -rf "${INITRAMFS_DIR:?}/"*
 mkdir -p "${INITRD_ROOT}"
 
@@ -163,9 +183,20 @@ done
 
 echo "[SP-INSTALLER] Runtime helpers staged in ${RUNTIME_LIB_DST}"
 
-KERNEL_VERSION="${SP_INSTALLER_KERNEL_VERSION:-$(uname -r)}"
+KERNEL_VERSION="$(determine_installer_kernel_version)"
 MODULES_SRC="${SP_INSTALLER_MODULES_SRC:-/lib/modules/${KERNEL_VERSION}}"
 MODULES_DST="${INITRD_ROOT}/lib/modules/${KERNEL_VERSION}"
+
+if [ -n "${INSTALLER_KERNEL_PATH:-}" ]; then
+  if [ -f "${INSTALLER_KERNEL_PATH}" ]; then
+    echo "[SP-INSTALLER] Installer kernel path: ${INSTALLER_KERNEL_PATH}"
+  else
+    echo "[SP-INSTALLER] Installer kernel path not found: ${INSTALLER_KERNEL_PATH}"
+  fi
+fi
+echo "[SP-INSTALLER] Installer kernel version: ${KERNEL_VERSION}"
+echo "[SP-INSTALLER] Kernel modules source: ${MODULES_SRC}"
+echo "[SP-INSTALLER] Kernel modules destination: ${MODULES_DST}"
 
 if [ ! -d "${MODULES_SRC}" ]; then
   echo "[SP-BUILD] ERROR: Kernel modules directory missing: ${MODULES_SRC}" >&2
