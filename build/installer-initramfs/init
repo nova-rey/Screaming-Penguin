@@ -31,6 +31,10 @@ SP_OUT_DEVICE="$(sp_best_effort_redirect)"
 SP_LOG_DEVICE="${SP_OUT_DEVICE:-$SP_LOG_DEVICE}"
 export SP_LOG_DEVICE
 
+SP_SYS_BLOCK_ROOT="${SP_SYS_BLOCK_ROOT:-/sys/block}"
+SP_DEV_ROOT="${SP_DEV_ROOT:-/dev}"
+export SP_SYS_BLOCK_ROOT SP_DEV_ROOT
+
 SP_SCRIPT_IS_SOURCED="0"
 if [ -n "${BASH_SOURCE:-}" ] && [ "${BASH_SOURCE:-}" != "$0" ]; then
     SP_SCRIPT_IS_SOURCED="1"
@@ -294,15 +298,48 @@ sp_bootstrap_dev_nodes() {
 sp_log_block_devices_snapshot() {
     block_devices=""
 
-    for pattern in /dev/sd* /dev/nvme*; do
+    for pattern in /dev/sd* /dev/nvme* /dev/mmcblk*; do
         for dev in $pattern; do
             [ -e "$dev" ] || continue
             block_devices="${block_devices:+$block_devices }$dev"
         done
     done
 
+    mmc_sys=""
+    for sys_entry in "$SP_SYS_BLOCK_ROOT"/mmcblk*; do
+        [ -e "$sys_entry" ] || continue
+        mmc_sys="${mmc_sys:+$mmc_sys }$sys_entry"
+    done
+
+    mmc_dev=""
+    for dev_entry in /dev/mmcblk*; do
+        [ -e "$dev_entry" ] || continue
+        mmc_dev="${mmc_dev:+$mmc_dev }$dev_entry"
+    done
+
     block_devices="${block_devices:-none}"
-    sp_log "state=storage-bootstrap" "block-devices=${block_devices}" "note=logging-helper-missing"
+    mmc_sys="${mmc_sys:-none}"
+    mmc_dev="${mmc_dev:-none}"
+    sp_log "state=storage-bootstrap" \
+        "block-devices=${block_devices}" \
+        "mmc-sys=${mmc_sys}" \
+        "mmc-dev=${mmc_dev}" \
+        "note=logging-helper-missing"
+}
+
+sp_collect_mmc_device_names() {
+    mmc_devices=""
+    for entry in "$SP_SYS_BLOCK_ROOT"/mmcblk* "$SP_DEV_ROOT"/mmcblk*; do
+        [ -e "$entry" ] || continue
+        name="${entry##*/}"
+        case " ${mmc_devices} " in
+            *" ${name} "*)
+                continue
+                ;;
+        esac
+        mmc_devices="${mmc_devices:+$mmc_devices }${name}"
+    done
+    printf '%s' "${mmc_devices}"
 }
 
 sp_validate_kernel_modules() {
@@ -434,7 +471,7 @@ sp_bootstrap() {
 
     storage_modprobe="${SP_STORAGE_MODPROBE_BIN:-$(command -v modprobe 2>/dev/null || true)}"
     if [ -n "$storage_modprobe" ]; then
-        for module in virtio_blk virtio_pci ahci libahci sd_mod sr_mod usb-storage uas xhci_hcd ehci_pci ehci_hcd nvme nvme_core; do
+        for module in virtio_blk virtio_pci ahci libahci mmc_block sdhci sdhci_pci sd_mod sr_mod usb-storage uas xhci_hcd ehci_pci ehci_hcd nvme nvme_core; do
             "$storage_modprobe" -q "$module" >/dev/null 2>&1
             rc=$?
             if [ -f "$log_lib" ]; then
@@ -455,7 +492,7 @@ sp_bootstrap() {
         sh -c '. "$1"; sp_log_sys_block_snapshot post_modprobe' _ "$log_lib" || true
     fi
 
-    block_entries="$(ls -A /sys/block 2>/dev/null || true)"
+    block_entries="$(ls -A "$SP_SYS_BLOCK_ROOT" 2>/dev/null || true)"
     if [ -z "$block_entries" ]; then
         if [ -f "$log_lib" ]; then
             sh -c '. "$1"; log_error "[SP-INSTALLER][FATAL] no-block-devices-after-storage-bootstrap"' _ "$log_lib" || true
@@ -464,6 +501,15 @@ sp_bootstrap() {
         fi
         sp_enter_rescue_mode "no-block-devices-after-storage-bootstrap"
         return 0
+    fi
+
+    mmc_devices="$(sp_collect_mmc_device_names)"
+    if [ -n "$mmc_devices" ]; then
+        if [ -f "$log_lib" ]; then
+            sh -c '. "$1"; log_info "[SP-INSTALLER] storage-platform=emmc devices=${2}"' _ "$log_lib" "$mmc_devices" || true
+        else
+            sp_log "storage-platform=emmc" "devices=${mmc_devices}"
+        fi
     fi
 
     if [ -f "$log_lib" ]; then
@@ -608,9 +654,9 @@ sp_resolve_target_disk() {
         return 1
     fi
 
-    if [ -d "/sys/block/$base" ]; then
+    if [ -d "$SP_SYS_BLOCK_ROOT/$base" ]; then
         kind="disk"
-    elif [ -d "/sys/block/${base%%[0-9]*}/$base" ]; then
+    elif [ -d "$SP_SYS_BLOCK_ROOT/${base%%[0-9]*}/$base" ]; then
         kind="partition"
     else
         sp_log "state=config-resolve" "result=error" "reason=not-found-in-sysfs" "target=$SP_TARGET_DISK"
@@ -626,11 +672,11 @@ sp_resolve_target_disk() {
 
 sp_disk_size_bytes() {
     base="$1"
-    if [ -z "$base" ] || [ ! -r "/sys/block/$base/size" ]; then
+    if [ -z "$base" ] || [ ! -r "$SP_SYS_BLOCK_ROOT/$base/size" ]; then
         return 1
     fi
 
-    sectors=$(cat "/sys/block/$base/size" 2>/dev/null || echo "")
+    sectors=$(cat "$SP_SYS_BLOCK_ROOT/$base/size" 2>/dev/null || echo "")
     if [ -z "$sectors" ]; then
         return 1
     fi
@@ -641,14 +687,14 @@ sp_disk_size_bytes() {
 sp_probe_disks() {
     sp_log "state=probe-disks" "phase=start"
 
-    if [ ! -d /sys/block ]; then
+    if [ ! -d "$SP_SYS_BLOCK_ROOT" ]; then
         sp_log "state=probe-disks" "error=no-sys-block"
         return 1
     fi
 
     EXCLUDE_PREFIXES="loop ram fd sr dm"
 
-    for dev in /sys/block/*; do
+    for dev in "$SP_SYS_BLOCK_ROOT"/*; do
         base=$(basename "$dev")
 
         skip=false
