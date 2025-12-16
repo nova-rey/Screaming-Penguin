@@ -362,6 +362,18 @@ sp_try_partition_candidates() {
             if sp_attempt_mount_candidate "$candidate" "partition" "$part_base"; then
                 return 0
             fi
+            if [ -d "$candidate" ] && [ -f "$candidate/$SP_CONFIG_FILE" ]; then
+                SP_CONFIG_PATH="$candidate/$SP_CONFIG_FILE"
+                export SP_CONFIG_PATH
+                CONFIG_MOUNT="${SP_CONFIG_MOUNT_POINT:-/config}"
+                export CONFIG_MOUNT
+                sp_log "state=discover-config" \
+                    "phase=partition" \
+                    "result=use-directory" \
+                    "candidate=${candidate}" \
+                    "path=${SP_CONFIG_PATH}"
+                return 0
+            fi
         done
     done
 

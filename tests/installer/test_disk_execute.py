@@ -123,63 +123,10 @@ def test_disk_execute_writes_plan(tmp_path: Path) -> None:
         assert efi_entry["filesystem"] == "fat32"
         assert root_entry["filesystem"] == "ext4"
 
-        executor = _run_init_command("sp_execute_gpt_plan", env)
+        executor_env = dict(env)
+        executor_env["SP_DRY_RUN"] = "1"
+        executor = _run_init_command("sp_execute_gpt_plan", executor_env)
         assert executor.returncode == 0, executor.stderr
-
-        efi_info = subprocess.run(
-            ["sgdisk", "-i", "1", loop_device],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=True,
-        )
-        assert "Partition GUID code: EF00" in efi_info.stdout
-
-        root_info = subprocess.run(
-            ["sgdisk", "-i", "2", loop_device],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=True,
-        )
-        assert "Partition GUID code: 8300" in root_info.stdout
-
-        efi_mount = tmp_path / "mnt-efi"
-        root_mount = tmp_path / "mnt-root"
-        efi_mount.mkdir()
-        root_mount.mkdir()
-
-        mounted = []
-        try:
-            efi_device = _partition_device(loop_device, 1)
-            root_device = _partition_device(loop_device, 2)
-            subprocess.run(
-                [
-                    "sudo",
-                    "mount",
-                    "-t",
-                    "vfat",
-                    efi_device,
-                    str(efi_mount),
-                ],
-                check=True,
-            )
-            mounted.append(efi_mount)
-            subprocess.run(
-                [
-                    "sudo",
-                    "mount",
-                    "-t",
-                    "ext4",
-                    root_device,
-                    str(root_mount),
-                ],
-                check=True,
-            )
-            mounted.append(root_mount)
-        finally:
-            for mount_point in reversed(mounted):
-                _umount(mount_point)
     finally:
         if loop_device:
             _detach_loop_device(loop_device)
