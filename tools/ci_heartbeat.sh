@@ -37,16 +37,19 @@ echo "[CI-HEARTBEAT] Stage '${HEARTBEAT_LABEL}' started (heartbeat every ${HEART
 CMD_PID=""
 HB_PID=""
 
-cleanup() {
+_cleanup() {
+  # shellcheck disable=SC2317
   if [[ -n "${HB_PID}" ]]; then
     kill "${HB_PID}" >/dev/null 2>&1 || true
   fi
+  # shellcheck disable=SC2317
   if [[ -n "${CMD_PID}" ]]; then
     kill "${CMD_PID}" >/dev/null 2>&1 || true
   fi
 }
 
-trap cleanup EXIT
+# Ensure cleanup is explicitly reachable.
+trap _cleanup EXIT INT TERM
 
 "${CMD[@]}" &
 CMD_PID=$!
