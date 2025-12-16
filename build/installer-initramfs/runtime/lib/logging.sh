@@ -58,3 +58,75 @@ log_block_devices_snapshot() {
         printf '[SP-INSTALLER] block-devices=%s\n' "$block_devices" >>"$SP_LOG_DEVICE" 2>/dev/null || true
     fi
 }
+
+sp_log_cmd_one_line() {
+    label="$1"
+    shift
+
+    if [ "$#" -eq 0 ]; then
+        log_warn "[SP-INSTALLER] ${label}=<no-cmd>"
+        return 0
+    fi
+
+    rc=0
+    if ! output="$("$@" 2>&1)"; then
+        rc=$?
+    fi
+
+    output="$(printf '%s' "$output" | tr '\n' ' ')"
+    output="${output:-none}"
+
+    if [ "$rc" -eq 0 ]; then
+        log_info "[SP-INSTALLER] ${label}=${output}"
+    else
+        log_warn "[SP-INSTALLER] ${label}=${output}"
+    fi
+
+    return 0
+}
+
+sp_log_kernel_and_modules_snapshot() {
+    sp_log_cmd_one_line "kernel_release" uname -r
+
+    # shellcheck disable=SC2016
+    sp_log_cmd_one_line "lib_modules_dirs" sh -c '
+        dirs="$(ls -1 /lib/modules 2>/dev/null | tr "\n" " " || true)"
+        if [ -n "$dirs" ]; then
+            printf "%s" "$dirs"
+        else
+            printf "missing"
+        fi
+    '
+
+    kernel_release="$(uname -r 2>/dev/null || true)"
+    modules_dir="/lib/modules"
+    if [ -n "$kernel_release" ]; then
+        modules_dir="${modules_dir}/${kernel_release}"
+    fi
+
+    # shellcheck disable=SC2016
+    sp_log_cmd_one_line "kernel_modules_dir_exists" sh -c '
+        if [ -d "$1" ]; then
+            printf "1"
+        else
+            printf "0"
+        fi
+    ' -- "$modules_dir"
+}
+
+sp_log_sys_block_snapshot() {
+    tag="$1"
+    if [ -z "$tag" ]; then
+        return 0
+    fi
+
+    # shellcheck disable=SC2016
+    sp_log_cmd_one_line "sys_block_${tag}" sh -c '
+        entries="$(ls -1 /sys/block 2>/dev/null | tr "\n" " " || true)"
+        if [ -n "$entries" ]; then
+            printf "%s" "$entries"
+        else
+            printf "none"
+        fi
+    '
+}

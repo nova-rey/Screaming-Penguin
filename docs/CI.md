@@ -61,3 +61,14 @@ The following commands now fail early with a deprecation message:
 
 If you have a compelling ISO requirement, use the Ouroboros side project instead
 of this repository.
+
+## Diagnosing ‘no disks found’ boots
+
+The initramfs now logs kernel/module state and `/sys/block` contents before and
+after the storage bootstrap. Look for `[SP-INSTALLER] sys_block_pre_modprobe=…`
+and `[SP-INSTALLER] sys_block_post_modprobe=…` lines to see what the kernel
+already knows about block devices independent of udev. When `/lib/modules/$(uname
+-r)` is missing, you will also see `[SP-INSTALLER][FATAL] kernel-modules-missing
+kernel=<release>`, and if `/sys/block` is still empty after the probe you get
+`[SP-INSTALLER][FATAL] no-block-devices-after-storage-bootstrap` before the
+installer drops into the rescue shell.
