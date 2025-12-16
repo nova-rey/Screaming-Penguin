@@ -3,6 +3,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${PROJECT_ROOT}"
+export PYTHONUNBUFFERED=1
 
 echo "[CI-SMOKE] Running ShellCheck against tools/*.sh..."
 if command -v shellcheck >/dev/null 2>&1; then
@@ -22,7 +23,13 @@ python3 -c "import pyfatfs; print('pyfatfs ok')"
 : "${CI_SMOKE_PYTEST_TIMEOUT_SECONDS:=600}"
 : "${CI_SMOKE_FULL_INSTALLER:=0}"
 
-PYTEST_ARGS=(-q)
+PYTEST_ARGS=(
+  -vv
+  --maxfail=1
+  --durations=25
+  --durations-min=0.5
+  -o console_output_style=progress
+)
 TEST_TARGET="tests/installer"
 
 if [[ "${CI_SMOKE_FULL_INSTALLER}" == "1" ]]; then
@@ -34,9 +41,23 @@ else
   )
 fi
 
-echo "[CI-SMOKE] pytest timeout=${CI_SMOKE_PYTEST_TIMEOUT_SECONDS}s target=${TEST_TARGET}"
+TIMEOUT_NOTE=""
+if python3 -c "import pytest_timeout" >/dev/null 2>&1; then
+  PYTEST_ARGS+=(--timeout=60 --timeout-method=thread)
+  TIMEOUT_NOTE=" (per-test timeout enabled)"
+  echo "[CI-SMOKE] pytest-timeout detected; capping individual tests at 60s."
+else
+  echo "[CI-SMOKE] pytest-timeout not detected; skipping per-test timeout."
+fi
+
+echo "[CI-SMOKE] pytest collection-only sanity check..."
+python3 -m pytest -q --collect-only "${TEST_TARGET}"
+echo "[CI-SMOKE] pytest collection-only succeeded"
+
+echo "[CI-SMOKE] pytest timeout=${CI_SMOKE_PYTEST_TIMEOUT_SECONDS}s target=${TEST_TARGET}${TIMEOUT_NOTE}"
 timeout "${CI_SMOKE_PYTEST_TIMEOUT_SECONDS}" \
   pytest "${PYTEST_ARGS[@]}" "${TEST_TARGET}"
+echo "[CI-SMOKE] pytest bounded run completed"
 
 detect_config() {
   local path="$1"

@@ -16,6 +16,10 @@ executes a consistent sequence of fast, deterministic steps:
   layout, ensures FAT32 ESP contents (`/EFI/BOOT`, `grub.cfg`) are in place, and
   checks for the canonical kernel/initrd pair without ever booting the image.
 - Optional `ruff` / `black --check` passes when configs are present.
+- `make ci-smoke` now sets `PYTHONUNBUFFERED=1` and `CI_SMOKE_PYTEST_TIMEOUT_SECONDS` (default 600) so the entire pytest session is bounded and progress lines flush immediately.
+- The job runs a fast collection-only pass before the bounded installer suite to fail fast on missing imports or deps.
+- The installer suite is invoked with `-vv`, `--maxfail=1`, `--durations=25 --durations-min=0.5`, and `-o console_output_style=progress` so every progressing test name shows up in the logs — the last-emitted name is the one to inspect when the timeout fires.
+- When `pytest-timeout` is available, `tools/ci_smoke.sh` also appends `--timeout=60 --timeout-method=thread` to kill wedged tests before the outer CI timeout.
 
 With the ISO builder removed, this smoke lane no longer exercises any ISO logic
 and focuses entirely on the canonical `.img` artifact.
