@@ -59,7 +59,7 @@ ensure_artifacts() {
 
     if [ ! -f "$IMAGE" ]; then
         echo "[QEMU-HARNESS] ERROR: Installer image not found at $IMAGE"
-        echo "[QEMU-HARNESS]        Run 'make iso' first."
+        echo "[QEMU-HARNESS]        Run 'make img' first."
         exit 1
     fi
 

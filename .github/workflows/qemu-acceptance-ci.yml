@@ -35,10 +35,10 @@ jobs:
             parted \
             gdisk
 
-      - name: Build installer image (make iso)
+      - name: Build installer image (make img)
         run: |
           echo "[CI-QEMU] Building Screaming Penguin installer image…"
-          make iso
+          make img
           echo "[CI-QEMU] dist/ contents after iso build:"
           ls -lh dist || true
 

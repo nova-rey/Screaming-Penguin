@@ -1,21 +1,7 @@
 #!/usr/bin/env bash
+# Deprecated: ISO CI orchestration removed with this milestone (Ouroboros owns future ISO builds).
 set -euo pipefail
-
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "${PROJECT_ROOT}"
-
-announce() {
-  echo "[CI-ISO] $1"
-}
-
-announce "Stage: runtime build starting..."
-bash tools/build_runtime.sh
-announce "Stage: runtime build completed."
-
-announce "Stage: installer initramfs build starting..."
-bash tools/build_installer_initramfs.sh
-announce "Stage: installer initramfs build completed."
-
-announce "Stage: ISO assembly starting..."
-SP_SKIP_INSTALLER_INITRAMFS_BUILD=1 bash tools/make_installer_iso.sh
-announce "Stage: ISO assembly completed."
+cat <<'MSG' >&2
+[CI-ISO] ISO CI workflows have been pruned; run the smoke suite (`make ci-smoke`) and rely on the .img builder. The Ouroboros side project owns any future hybrid ISO pipelines.
+MSG
+exit 1

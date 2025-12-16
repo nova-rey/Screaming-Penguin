@@ -44,31 +44,26 @@ This provides early detection of:
 The CI pipeline runs:
 
 ```sh
-make iso
+make img
+```
 
-This calls the Screaming Penguin image builder (e.g. tools/make_installer_iso.sh) and is expected to:
-•Create a raw disk image at dist/screaming-penguin.img.
-•Partition the image with GPT so Partition 1 is the writable FAT32 `/config` volume (installer-config.yml, `/config/os/rootfs.tar.gz`, logs) and Partition 2 is the FAT32 ESP that holds `/EFI/BOOT/BOOTX64.EFI`, `/EFI/BOOT/grub.cfg`, `/boot/vmlinuz-installer`, and `/boot/initrd-installer.img`. Placing `/config` first keeps desktop environments from hiding the user-facing data partition, while UEFI locates the boot tree by type rather than index.
-•Format Partition 1 as FAT32 for `/config`.
-•Format Partition 2 as FAT32 (ESP) and populate it with the minimal boot tree, including the kernel placeholder, initramfs tree, and bootloader configuration placeholders.
+`make img` depends on the shared runtime (`make installer-runtime`) and ultimately calls `tools/make_installer_img.sh`. The builder:
+•Creates a GPT table with Partition 1 holding the writable FAT32 CONFIG volume and Partition 2 serving as the FAT32 ESP.
+•Formats both partitions with `mkfs.vfat`, labels them `CONFIG`/`SP_CONFIG` and `ESP`/`SP_BOOT`, and maps them via loop devices.
+•Copies `build/runtime/vmlinuz` → `/boot/vmlinuz-installer`, `build/initrd-installer.img` → `/boot/initrd-installer.img`, installs `grubx64.efi`, and writes the shared `grub.cfg` that points to the canonical kernel/initrd.
+•Validates that the ESP contains `EFI/BOOT/BOOTX64.EFI`, `EFI/BOOT/grub.cfg`, and the kernel/initrd that the installer expects.
 
-All actions must operate only on files under the repository (build/, dist/) and loop devices mapped from those files.
+All of these actions happen on repository files (build/, dist/) and loop devices derived from them. The hybrid ISO flow has been pruned from this repo, so every CI build now focuses on the `.img` path; the historical ISO notes live in `docs/analysis/sp-mp-prune-iso-analysis.md`.
 
 3. QEMU Smoke Boot
 
-After building the image, CI runs a QEMU-based smoke test using:
-•ci/qemu_smoke_ci.sh
+We keep the legacy QEMU smoke harness (`tests/harness/qemu-smoke-test.sh`) for manual verification and periodic acceptance jobs. It:
+•Verifies `dist/screaming-penguin.img` exists (built via `make img`).
+•Boots the `.img` in QEMU (BIOS mode) with `-serial stdio`.
+•Streams the serial output so you can confirm the Phase 2 installer skeleton emits its ready markers.
+•Times out automatically to avoid hangs.
 
-The smoke test:
-•Boots the built image in QEMU (BIOS mode).
-•Captures serial output.
-•Looks for evidence that the Phase 2 installer skeleton is running (e.g., log lines emitted by sp-installer).
-•Uses a timeout to ensure CI does not hang indefinitely.
-
-The smoke test does not currently assert full installer functionality; it verifies that:
-•The image is structurally valid.
-•The kernel and initramfs start.
-•The Phase 2 state machine runs and logs without crashing.
+Because ISO builds are disabled, the harness no longer uses `ci/qemu_smoke_ci.sh` or any ISO helpers; it is purely tied to the `.img` artifact and can be invoked manually or via scheduled acceptance workflows if desired.
 
 ---
 
@@ -102,8 +97,8 @@ These full integration tests would likely run on a reduced schedule (e.g., night
 
 The Screaming Penguin CI pipeline provides:
 •Static safety via ShellCheck.
-•Build validation via make iso.
-•Runtime sanity via QEMU smoke boot.
+•Build validation via make img.
+•Runtime sanity via the QEMU smoke harness when manually invoked or scheduled.
 
 This combination helps prevent regressions in the installer image and catches errors early, while respecting the unique constraints of an installer-focused repository.
 
@@ -165,7 +160,7 @@ The QEMU acceptance job:
 
 1. Installs QEMU and required tools (`qemu-system-x86`, `qemu-utils`, and
    supporting utilities).
-2. Builds the Screaming Penguin installer image via `make iso`.
+2. Builds the Screaming Penguin installer image via `make img` (ISO builds were pruned from this repository).
 3. Builds the Debian Bookworm rootfs via `make rootfs`.
 4. Runs the QEMU acceptance harness using `make qemu-acceptance`, which:
    - Prepares a virtual target disk image under `build/`.
@@ -200,10 +195,11 @@ The dist-release job:
    - Builds the Screaming Penguin installer image (if needed).
    - Builds the Debian Bookworm rootfs tarball (if needed).
    - Assembles the v1.0.0 release bundle under `dist/release/`, including:
-     - Installer images (`screaming-penguin.iso` and `screaming-penguin.img`)
+     - Installer image (`screaming-penguin.img`)
      - Rootfs tarball
      - Example configs
      - `SHA256SUMS`
+     - (The hybrid `.iso` artifact is no longer produced; legacy ISO workflows now live in Ouroboros.)
 3. Lists the contents of `dist/` and `dist/release/` for visibility.
 4. Prints the `SHA256SUMS` file if present.
 5. Uploads the entire `dist/release` directory as a CI artifact.
@@ -218,7 +214,7 @@ This checklist describes the minimal conditions that must be satisfied before
 cutting a v1.0.0 release of Screaming Penguin:
 
 - `make dist-release` successfully assembles a complete release bundle
-- ISO builds successfully and boots under QEMU
+- `make img` completes successfully and the acceptance harness boots the `.img` in QEMU
 - Rootfs tarball builds successfully
 - All user-facing documentation is accurate and free of placeholder language
 - README reflects the final state of the project

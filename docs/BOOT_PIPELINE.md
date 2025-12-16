@@ -1,6 +1,8 @@
 # Screaming Penguin Boot Pipeline (v0)
 
-This document describes the current Screaming Penguin ISO boot path and the planned migration to a custom installer initramfs.
+This document describes the legacy Screaming Penguin ISO boot path and the planned migration to a custom installer initramfs.
+
+> **Note:** ISO builds have been pruned from the main repository; the canonical `.img` path is documented elsewhere, and any future hybrid ISO work lives in the Ouroboros side project. See `docs/analysis/sp-mp-prune-iso-analysis.md` for the cleanup rationale.
 
 ## 1. Current Behaviour (Broken)
 

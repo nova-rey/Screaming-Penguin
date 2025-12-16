@@ -61,9 +61,10 @@ The installer reads configuration from a partition labeled `CONFIG`, containing
 a file named `installer-config.yml`.
 
 - IMG builds: CONFIG partition included
-- ISO builds: user must create CONFIG partition after flashing
 
-Refer to `USING_IMG.md` or `USING_ISO.md` for full instructions.
+Refer to `USING_IMG.md` for the canonical installer workflow. `USING_ISO.md`
+remains in the tree for historical reference only; hybrid ISO builds are no longer
+supported in this repository.
 
 ### Path A: Raw .img (Linux / macOS, recommended)
 
@@ -83,28 +84,6 @@ raw `.img` artifact:
 The raw image already contains a small CONFIG partition. Mount that
 partition and copy your installer-config.yml (or installer-config.yaml)
 into the root of the CONFIG volume before booting the target machine.
-
-### Path B: ISO (Windows / generic USB tools)
-
-For Windows users (and anyone who prefers ISO-centric tools such as Rufus),
-use the `screaming-penguin.iso` artifact:
-
-1. Download `screaming-penguin.iso` from the release or CI artifacts.
-2. Use your preferred USB tool (e.g. Rufus, Balena Etcher, etc.) to write
-   the ISO to a USB stick. A single large bootable partition will be created.
-3. After flashing, **shrink** the main partition to free ~1–2 GiB of space:
-   - On Windows, open **Disk Management**.
-   - Locate the USB device and right-click the main volume.
-   - Choose **Shrink Volume…** and free at least 1024–2048 MB.
-4. Create a new partition in the freed space:
-   - Format it as **FAT32**.
-   - Label it `CONFIG`.
-5. Mount the new `CONFIG` partition and copy your `installer-config.yml`
-   (or `installer-config.yaml`) into its root.
-6. Safely eject the USB stick and boot the target machine from USB.
-
-At boot time, Screaming Penguin will look for a FAT32 partition labeled
-`CONFIG` and load the installer configuration from there.
 
 ---
 
