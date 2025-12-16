@@ -22,14 +22,16 @@ if [ -f "$SP_RESCUE_MODE_LIB" ]; then
     . "$SP_RESCUE_MODE_LIB"
 fi
 
-SP_CONFIG_LABEL_NAME="${SP_CONFIG_LABEL_NAME:-SP_CONFIG}"
-SP_CONFIG_LABEL_DIR="${SP_CONFIG_LABEL_DIR:-/dev/disk/by-label}"
-SP_CONFIG_MOUNT_POINT="${SP_CONFIG_MOUNT_POINT:-/config}"
+SP_CONFIG_LABEL="${SP_CONFIG_LABEL:-${SP_CONFIG_LABEL_NAME:-SP_CONFIG}}"
+SP_CONFIG_LABEL_NAME="${SP_CONFIG_LABEL_NAME:-$SP_CONFIG_LABEL}"
+SP_CONFIG_MOUNTPOINT="${SP_CONFIG_MOUNTPOINT:-${SP_CONFIG_MOUNT_POINT:-/config}}"
+SP_CONFIG_MOUNT_POINT="${SP_CONFIG_MOUNTPOINT}"
 SP_CONFIG_FILE="${SP_CONFIG_FILE:-installer-config.yml}"
+SP_OS_DIR="${SP_OS_DIR:-os}"
+SP_PROC_ROOT="${SP_PROC_ROOT:-/proc}"
 SP_SYS_BLOCK_ROOT="${SP_SYS_BLOCK_ROOT:-/sys/block}"
 SP_DEV_ROOT="${SP_DEV_ROOT:-/dev}"
 SP_CONFIG_DISCOVERY_MAX_ATTEMPTS="${SP_CONFIG_DISCOVERY_MAX_ATTEMPTS:-1}"
-SP_CONFIG_DISCOVERY_EXCLUDE_PREFIXES="${SP_CONFIG_DISCOVERY_EXCLUDE_PREFIXES:-loop ram fd sr dm}"
 
 SP_CONFIG_DISCOVERY_ATTEMPTS_LOG=""
 SP_CONFIG_DISCOVERY_ATTEMPT_COUNT=0
@@ -65,7 +67,7 @@ sp_log_candidate_summary() {
 }
 
 sp_cleanup_mount_point() {
-    target="${SP_CONFIG_MOUNT_POINT:-}"
+    target="${SP_CONFIG_MOUNTPOINT:-}"
     if [ -z "$target" ] || [ "$target" = "/" ]; then
         return
     fi
@@ -76,7 +78,7 @@ sp_cleanup_mount_point() {
 }
 
 sp_unmount_config_point() {
-    target="${SP_CONFIG_MOUNT_POINT:-}"
+    target="${SP_CONFIG_MOUNTPOINT:-}"
     if [ -z "$target" ]; then
         return
     fi
@@ -126,10 +128,10 @@ sp_candidate_already_tried() {
 sp_mount_candidate() {
     candidate="$1"
     [ -n "$candidate" ] || return 1
-    mkdir -p "$SP_CONFIG_MOUNT_POINT" 2>/dev/null || true
+    mkdir -p "$SP_CONFIG_MOUNTPOINT" 2>/dev/null || true
 
     for fs in vfat ext4; do
-        mount -o ro -t "$fs" "$candidate" "$SP_CONFIG_MOUNT_POINT" >/dev/null 2>&1 && return 0
+        mount -o ro -t "$fs" "$candidate" "$SP_CONFIG_MOUNTPOINT" >/dev/null 2>&1 && return 0
     done
 
     return 1
@@ -184,21 +186,30 @@ sp_attempt_mount_candidate() {
 
     sp_cleanup_mount_point
     if sp_mount_candidate "$resolved"; then
-        config_path="$SP_CONFIG_MOUNT_POINT/$SP_CONFIG_FILE"
+        mount_point="${SP_CONFIG_MOUNTPOINT%/}"
+        config_path="${mount_point}/${SP_CONFIG_FILE}"
+        payload_dir="${mount_point}/${SP_OS_DIR}"
         if [ -f "$config_path" ]; then
-            SP_CONFIG_PATH="$config_path"
-            export SP_CONFIG_PATH
-            CONFIG_MOUNT="${SP_CONFIG_MOUNT_POINT:-/config}"
-            export CONFIG_MOUNT
-            sp_log "state=discover-config" \
-                "phase=${phase}" \
-                "result=found" \
-                "path=${SP_CONFIG_PATH}" \
-                "candidate=${resolved}" \
-                "label=${label:-}"
-            return 0
+            if [ -d "$payload_dir" ]; then
+                SP_CONFIG_PATH="$config_path"
+                export SP_CONFIG_PATH
+                CONFIG_MOUNT="${SP_CONFIG_MOUNTPOINT:-/config}"
+                export CONFIG_MOUNT
+                sp_log "state=discover-config" \
+                    "phase=${phase}" \
+                    "result=found" \
+                    "path=${SP_CONFIG_PATH}" \
+                    "candidate=${resolved}" \
+                    "label=${label:-}"
+                sp_log "config-path=${SP_CONFIG_PATH}"
+                sp_log "payload-dir=${payload_dir}"
+                sp_log "config-dev=${resolved}"
+                return 0
+            fi
+            reason="missing-payload-dir"
+        else
+            reason="missing-config-file"
         fi
-        reason="missing-config-file"
     else
         reason="mount-failed"
     fi
@@ -214,175 +225,135 @@ sp_attempt_mount_candidate() {
     return 1
 }
 
-sp_try_label_candidate() {
-    label_path="${SP_CONFIG_LABEL_DIR%/}/${SP_CONFIG_LABEL_NAME}"
-    if [ ! -e "$label_path" ]; then
-        sp_log "state=discover-config" \
-            "phase=label" \
-            "result=skip" \
-            "reason=missing-label" \
-            "path=${label_path}"
-        return 1
-    fi
-
-    target=$(sp_realpath "$label_path" || printf '%s\n' "$label_path")
-    if [ -z "$target" ]; then
-        sp_log "state=discover-config" \
-            "phase=label" \
-            "result=skip" \
-            "reason=label-target-missing" \
-            "path=${label_path}"
-        return 1
-    fi
-
-    if sp_attempt_mount_candidate "$target" "label" "$SP_CONFIG_LABEL_NAME"; then
-        return 0
-    fi
-
-    return 1
-}
-
-sp_should_skip_device() {
-    base="$1"
-    case "$base" in
-        loop*|ram*|fd*|sr*|dm*)
+sp_should_skip_candidate() {
+    candidate="$1"
+    case "$candidate" in
+        loop*|ram*|fd*|sr*|mmcblk*boot*|zram*|dm-*|md*)
             return 0
             ;;
     esac
     return 1
 }
 
-sp_try_removable_candidates() {
+sp_partition_has_sys_entry() {
+    candidate="$1"
     if [ ! -d "$SP_SYS_BLOCK_ROOT" ]; then
-        sp_log "state=discover-config" "phase=removable" "result=skip" "reason=sysfs-missing" "path=${SP_SYS_BLOCK_ROOT}"
         return 1
     fi
 
-    found=0
     for block_dir in "$SP_SYS_BLOCK_ROOT"/*; do
         if [ ! -d "$block_dir" ]; then
             continue
         fi
 
-        base=$(basename "$block_dir")
-        if sp_should_skip_device "$base"; then
-            continue
-        fi
-
-        removable_file="$block_dir/removable"
-        removable="$(cat "$removable_file" 2>/dev/null || echo "0")"
-        if [ "$removable" != "1" ]; then
-            continue
-        fi
-
-        candidate="${SP_DEV_ROOT%/}/$base"
-        sp_log "state=discover-config" "phase=removable" "result=discovered" "candidate=${candidate}"
-        found=1
-        if sp_attempt_mount_candidate "$candidate" "removable" "$base"; then
+        if [ -d "${block_dir%/}/$candidate" ]; then
             return 0
         fi
-    done
-
-    if [ "$found" -eq 0 ]; then
-        sp_log "state=discover-config" "phase=removable" "result=skip" "reason=no-removable"
-    fi
-
-    return 1
-}
-
-sp_try_partition_heuristics() {
-    if [ ! -d "$SP_SYS_BLOCK_ROOT" ]; then
-        return 1
-    fi
-
-    for block_dir in "$SP_SYS_BLOCK_ROOT"/*; do
-        if [ ! -d "$block_dir" ]; then
-            continue
-        fi
-
-        base=$(basename "$block_dir")
-        if sp_should_skip_device "$base"; then
-            continue
-        fi
-
-        case "$base" in
-            nvme*|mmcblk*)
-                prefix="${base}p"
-                ;;
-            *)
-                prefix="${base}"
-                ;;
-        esac
-
-        part_index=1
-        while [ "$part_index" -le 4 ]; do
-            part_name="${prefix}${part_index}"
-            candidate="${SP_DEV_ROOT%/}/${part_name}"
-            sp_log "state=discover-config" "phase=partition-heuristic" "result=discovered" "candidate=${candidate}"
-            if sp_attempt_mount_candidate "$candidate" "partition-heuristic" "$part_name"; then
-                return 0
-            fi
-            part_index=$((part_index + 1))
-        done
     done
 
     return 1
 }
 
-sp_try_partition_candidates() {
-    if [ ! -d "$SP_SYS_BLOCK_ROOT" ]; then
-        sp_log "state=discover-config" "phase=partition" "result=skip" "reason=sysfs-missing" "path=${SP_SYS_BLOCK_ROOT}"
+sp_partition_candidates() {
+    partitions_file="${SP_PROC_ROOT%/}/partitions"
+    if [ ! -r "$partitions_file" ]; then
         return 1
     fi
 
-    found=0
-    for block_dir in "$SP_SYS_BLOCK_ROOT"/*; do
-        if [ ! -d "$block_dir" ]; then
+    awk 'NR>2 && length($4)>0 {print $4}' "$partitions_file" | LC_ALL=C sort
+}
+
+sp_resolve_blkid() {
+    if [ -n "${SP_CONFIG_DISCOVERY_BLKID_BIN:-}" ]; then
+        return 0
+    fi
+
+    sp_blkid="$(command -v blkid 2>/dev/null || true)"
+    if [ -z "$sp_blkid" ]; then
+        return 1
+    fi
+
+    SP_CONFIG_DISCOVERY_BLKID_BIN="$sp_blkid"
+    return 0
+}
+
+sp_probe_fs_label() {
+    device="$1"
+    if [ -z "$device" ]; then
+        return 1
+    fi
+
+    label="$("$SP_CONFIG_DISCOVERY_BLKID_BIN" -s LABEL -o value "$device" 2>/dev/null || true)"
+    label="$(sp_trim "$label")"
+    if [ -n "$label" ]; then
+        printf '%s\n' "$label"
+        return 0
+    fi
+
+    output="$("$SP_CONFIG_DISCOVERY_BLKID_BIN" -o export "$device" 2>/dev/null || true)"
+    label="$(printf '%s\n' "$output" | awk -F= '/^LABEL=/ {print $2; exit}')"
+    label="$(sp_trim "$label")"
+    printf '%s\n' "$label"
+    return 0
+}
+
+sp_search_by_label() {
+    partitions_file="${SP_PROC_ROOT%/}/partitions"
+    if [ ! -r "$partitions_file" ]; then
+        sp_log "state=discover-config" \
+            "phase=probe-label" \
+            "result=skip" \
+            "reason=proc-missing" \
+            "path=${partitions_file}"
+        return 1
+    fi
+
+    if [ ! -d "$SP_SYS_BLOCK_ROOT" ]; then
+        sp_log "state=discover-config" \
+            "phase=probe-label" \
+            "result=skip" \
+            "reason=sysfs-missing" \
+            "path=${SP_SYS_BLOCK_ROOT}"
+        return 1
+    fi
+
+    candidates="$(sp_partition_candidates)"
+    if [ -z "$candidates" ]; then
+        sp_log "state=discover-config" \
+            "phase=probe-label" \
+            "result=skip" \
+            "reason=no-partitions"
+        return 1
+    fi
+
+    for candidate in $candidates; do
+        [ -n "$candidate" ] || continue
+        if sp_should_skip_candidate "$candidate"; then
+            continue
+        fi
+        if ! sp_partition_has_sys_entry "$candidate"; then
             continue
         fi
 
-        base=$(basename "$block_dir")
-        if sp_should_skip_device "$base"; then
+        device="${SP_DEV_ROOT%/}/$candidate"
+        label="$(sp_probe_fs_label "$device")"
+        label="$(sp_trim "$label")"
+        if [ "$label" != "$SP_CONFIG_LABEL" ]; then
+            sp_log "state=discover-config" \
+                "phase=probe-label" \
+                "result=skip" \
+                "candidate=${device}" \
+                "reason=label-mismatch" \
+                "label=${label:-unknown}"
+            sp_record_config_candidate "$device" "label-mismatch" "${label:-unknown}"
             continue
         fi
 
-        for part_dir in "$block_dir"/"$base"*; do
-            if [ ! -e "$part_dir" ]; then
-                continue
-            fi
-
-            part_base=$(basename "$part_dir")
-            if [ "$part_base" = "$base" ]; then
-                continue
-            fi
-
-            candidate="${SP_DEV_ROOT%/}/$part_base"
-            sp_log "state=discover-config" "phase=partition" "result=discovered" "candidate=${candidate}"
-            found=1
-            if sp_attempt_mount_candidate "$candidate" "partition" "$part_base"; then
-                return 0
-            fi
-            if [ -d "$candidate" ] && [ -f "$candidate/$SP_CONFIG_FILE" ]; then
-                SP_CONFIG_PATH="$candidate/$SP_CONFIG_FILE"
-                export SP_CONFIG_PATH
-                CONFIG_MOUNT="${SP_CONFIG_MOUNT_POINT:-/config}"
-                export CONFIG_MOUNT
-                sp_log "state=discover-config" \
-                    "phase=partition" \
-                    "result=use-directory" \
-                    "candidate=${candidate}" \
-                    "path=${SP_CONFIG_PATH}"
-                return 0
-            fi
-        done
-    done
-
-    if [ "$found" -eq 0 ]; then
-        sp_log "state=discover-config" "phase=partition" "result=skip" "reason=no-partitions"
-        if sp_try_partition_heuristics; then
+        sp_log_candidate_attempt "probe-label" "$device" "$label"
+        if sp_attempt_mount_candidate "$device" "probe-label" "$label"; then
             return 0
         fi
-    fi
+    done
 
     return 1
 }
@@ -393,6 +364,15 @@ sp_discover_config() {
     SP_CONFIG_DISCOVERY_TRIED=""
 
     sp_log "state=discover-config" "phase=start"
+
+    if ! sp_resolve_blkid; then
+        printf '[SP-INSTALLER][FATAL] missing-binary cmd=blkid\n' >>"$SP_LOG_DEVICE" 2>&1
+        sp_log_candidate_summary
+        sp_enter_rescue_mode "missing-blkid"
+        return 1
+    fi
+
+    sp_log "config-resolver=probe-label" "config-label=${SP_CONFIG_LABEL}"
 
     attempts="${SP_CONFIG_DISCOVERY_MAX_ATTEMPTS}"
     case "${attempts}" in
@@ -410,21 +390,15 @@ sp_discover_config() {
     while [ "$attempt" -le "$attempts" ]; do
         sp_log "state=discover-config" "phase=attempt" "number=${attempt}"
 
-        if sp_try_label_candidate; then
-            return 0
-        fi
-
-        if sp_try_removable_candidates; then
-            return 0
-        fi
-
-        if sp_try_partition_candidates; then
+        if sp_search_by_label; then
             return 0
         fi
 
         attempt=$((attempt + 1))
     done
 
+    printf '[SP-INSTALLER][FATAL] config-label-not-found label=%s candidates=%s\n' \
+        "$SP_CONFIG_LABEL" "${SP_CONFIG_DISCOVERY_ATTEMPT_COUNT:-0}" >>"$SP_LOG_DEVICE" 2>&1
     sp_log "state=discover-config" \
         "result=not-found" \
         "attempts=${SP_CONFIG_DISCOVERY_ATTEMPT_COUNT}"

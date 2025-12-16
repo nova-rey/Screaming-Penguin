@@ -1,6 +1,21 @@
 #!/bin/sh
+device=""
+for arg in "$@"; do
+    device="$arg"
+done
+
+if [ -n "${SP_TEST_BLKID_DATA_DIR:-}" ] && [ -n "$device" ]; then
+    sanitized="$(printf '%s' "$device" | tr '/' '_')"
+    data_file="${SP_TEST_BLKID_DATA_DIR%/}/${sanitized}"
+    if [ -n "$data_file" ] && [ -f "$data_file" ]; then
+        cat "$data_file"
+        exit 0
+    fi
+fi
+
 if [ -n "${SP_TEST_BLKID_DATA:-}" ] && [ -f "${SP_TEST_BLKID_DATA}" ]; then
     cat "${SP_TEST_BLKID_DATA}"
     exit 0
 fi
+
 exit 0
