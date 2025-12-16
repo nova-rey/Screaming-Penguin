@@ -1,0 +1,3 @@
+installer:
+  write_gate: true
+target_disk: /dev/null
