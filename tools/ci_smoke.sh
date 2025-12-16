@@ -17,6 +17,7 @@ python3 -m compileall -q .
 
 echo "[CI-SMOKE] Running pytest installer unit tests..."
 python3 -c "import pytest; print(pytest.__version__)"
+python3 -c "import pyfatfs; print('pyfatfs ok')"
 python3 -m pytest -q tests/installer
 
 detect_config() {
