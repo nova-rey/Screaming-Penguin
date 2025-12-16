@@ -1,6 +1,32 @@
 #!/bin/sh
+device=""
+for arg in "$@"; do
+    device="$arg"
+done
+
+if [ -n "$device" ] && [ -n "${SP_TEST_BLKID_MAP:-}" ] && [ -f "$SP_TEST_BLKID_MAP" ]; then
+    printing=0
+    while IFS= read -r line; do
+        if [ "$line" = "$device" ]; then
+            printing=1
+            continue
+        fi
+        if [ -z "$line" ]; then
+            if [ "$printing" -eq 1 ]; then
+                exit 0
+            fi
+            continue
+        fi
+        if [ "$printing" -eq 1 ]; then
+            printf '%s\n' "$line"
+        fi
+    done < "$SP_TEST_BLKID_MAP"
+    exit 0
+fi
+
 if [ -n "${SP_TEST_BLKID_DATA:-}" ] && [ -f "${SP_TEST_BLKID_DATA}" ]; then
     cat "${SP_TEST_BLKID_DATA}"
     exit 0
 fi
+
 exit 0

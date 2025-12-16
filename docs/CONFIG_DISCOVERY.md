@@ -1,6 +1,6 @@
 # Config Discovery
 
-The installer now performs configuration discovery with a BusyBox-only toolchain inside the initrd. There are no `blkid`, `lsblk`, or `udevadm` dependencies during early boot; the script reads sysfs (`/sys/block`) and `/dev` directly and relies on BusyBox applets such as `mount`, `readlink`, `cat`, and `sh`.
+The installer now performs configuration discovery with a BusyBox-only toolchain inside the initrd. Initramfs no longer depends on `/dev/disk/by-label`; instead, the discovery script probes filesystem labels directly via `blkid` so the `SP_CONFIG` volume can be located without udev links. The script reads sysfs (`/sys/block`) and `/dev` directly and relies on BusyBox applets such as `mount`, `readlink`, `cat`, and `sh`.
 
 ## BusyBox-first philosophy
 
