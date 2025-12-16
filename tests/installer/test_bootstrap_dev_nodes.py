@@ -6,30 +6,53 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 INIT_SCRIPT = Path("installer/init/init.sh")
 TEST_BIN = Path("tests/installer/bin")
+DEFAULT_CMD_TIMEOUT_SECONDS = int(os.environ.get("SP_TEST_CMD_TIMEOUT_SECONDS", "10"))
 
 
 def _run_command(
-    env_overrides: dict[str, str], command: str
+    env_overrides: dict[str, str], command: str, timeout_seconds: int | None = None
 ) -> subprocess.CompletedProcess:
     env = os.environ.copy()
     env.update(env_overrides)
-    env["PATH"] = f"{TEST_BIN}{os.pathsep}{env.get('PATH', '')}"
+    extra_path_prefix = env.pop("SP_TEST_EXTRA_PATH", None)
+    base_path = env.get("PATH") or os.environ.get("PATH", "")
+
+    path_parts: list[str] = []
+    if extra_path_prefix:
+        path_parts.append(extra_path_prefix)
+    path_parts.append(str(TEST_BIN))
+    if base_path:
+        path_parts.append(base_path)
+    env["PATH"] = os.pathsep.join(path_parts)
+
     env.setdefault("SP_INIT_SCRIPT_PATH", str((ROOT / INIT_SCRIPT).resolve()))
     env.setdefault(
         "SP_RUNTIME_LIB_DIR",
         str((ROOT / "installer" / "runtime" / "lib").resolve()),
     )
 
-    return subprocess.run(
-        ["bash", "-c", command],
-        cwd=ROOT,
-        env=env,
-        capture_output=True,
-        text=True,
-    )
+    timeout = DEFAULT_CMD_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
+    try:
+        return subprocess.run(
+            ["bash", "-c", command],
+            cwd=ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = (exc.stdout or "").strip()
+        stderr = (exc.stderr or "").strip()
+        pytest.fail(
+            f"Command timed out after {timeout}s: {command}\n"
+            f"stdout:\n{stdout}\n\nstderr:\n{stderr}"
+        )
 
 
 def _setup_sys_dev(tmp_path: Path) -> tuple[Path, Path]:
@@ -81,6 +104,33 @@ def test_bootstrap_runs_mdev_before_config_discovery(tmp_path: Path) -> None:
         "SP_TEST_MDEV_LOG": str(mdev_log),
     }
 
+    stub_bin = tmp_path / "bin"
+    stub_bin.mkdir(parents=True, exist_ok=True)
+    calls_log = tmp_path / "mdev-calls.log"
+
+    mdev_stub = stub_bin / "mdev"
+    mdev_stub.write_text(
+        "#!/bin/sh\n"
+        'log="${SP_TEST_MDEV_LOG:-/tmp/mdev.log}"\n'
+        "printf 'mdev-args=%s\\n' \"$*\" >>\"$log\" 2>/dev/null || true\n"
+        f'echo "mdev $@" >> "{calls_log}"\n'
+        "exit 0\n"
+    )
+    mdev_stub.chmod(0o755)
+
+    sbin_dir = tmp_path / "sbin"
+    sbin_dir.mkdir(parents=True, exist_ok=True)
+    (sbin_dir / "mdev").symlink_to(mdev_stub)
+
+    env.update(
+        {
+            "SP_TEST_EXTRA_PATH": os.pathsep.join(
+                [str(stub_bin), str(sbin_dir)]
+            ),
+            "SP_BOOTSTRAP_MDEV_BIN": str(mdev_stub),
+        }
+    )
+
     command = (
         f". {INIT_SCRIPT}; "
         "sp_bootstrap; "
@@ -100,3 +150,5 @@ def test_bootstrap_runs_mdev_before_config_discovery(tmp_path: Path) -> None:
     assert "installer-config.yml" in result.stdout
     assert mdev_log.exists()
     assert "mdev-args=-s" in mdev_log.read_text()
+    assert calls_log.exists()
+    assert "mdev -s" in calls_log.read_text()
