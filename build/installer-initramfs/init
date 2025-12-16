@@ -6,6 +6,39 @@
 SP_LOG_DEVICE="${SP_LOG_DEVICE:-/dev/console}"
 SP_WRITE_GATE_SERIAL_DEVICE="${SP_WRITE_GATE_SERIAL_DEVICE:-/dev/ttyS0}"
 
+sp_is_ci() {
+    [ -n "${CI:-}" ] || [ -n "${GITHUB_ACTIONS:-}" ]
+}
+
+sp_can_write() {
+    [ -n "${1:-}" ] && [ -e "$1" ] && [ -w "$1" ]
+}
+
+sp_best_effort_redirect() {
+    if [ -n "${SP_LOG_DEVICE:-}" ] && sp_can_write "${SP_LOG_DEVICE}"; then
+        printf "%s" "${SP_LOG_DEVICE}"
+        return 0
+    fi
+    if sp_can_write "/dev/console"; then
+        printf "%s" "/dev/console"
+        return 0
+    fi
+    printf "%s" "/dev/stderr"
+    return 0
+}
+
+SP_OUT_DEVICE="$(sp_best_effort_redirect)"
+SP_LOG_DEVICE="${SP_OUT_DEVICE:-$SP_LOG_DEVICE}"
+
+SP_SCRIPT_IS_SOURCED="0"
+if [ -n "${BASH_SOURCE:-}" ] && [ "${BASH_SOURCE:-}" != "$0" ]; then
+    SP_SCRIPT_IS_SOURCED="1"
+elif [ -n "${ZSH_EVAL_CONTEXT:-}" ]; then
+    case "$ZSH_EVAL_CONTEXT" in
+        (*:file*) SP_SCRIPT_IS_SOURCED="1" ;;
+    esac
+fi
+
 sp_log() {
     # Simple structured logger. All lines should start with [SP-INSTALLER].
     # Usage: sp_log "key=value" "message=..."
@@ -19,7 +52,9 @@ sp_trim() {
 sp_write_gate_serial_log() {
     serial_device="${SP_WRITE_GATE_SERIAL_DEVICE:-}"
     if [ -n "$serial_device" ]; then
-        printf '%s\n' "$1" >>"$serial_device" 2>/dev/null || true
+        if sp_can_write "$serial_device"; then
+            printf '%s\n' "$1" >>"$serial_device" 2>/dev/null || true
+        fi
     fi
 }
 
@@ -255,6 +290,84 @@ sp_bootstrap_dev_nodes() {
     sp_log "state=dev-bootstrap" "phase=done"
 }
 
+sp_validate_kernel_modules() {
+    runtime_kernel=$(uname -r 2>/dev/null || true)
+    kernel_version="${SP_EXPECTED_KERNEL_VERSION:-${runtime_kernel}}"
+
+    if [ -z "${kernel_version}" ]; then
+        sp_log "state=kernel-modules" "phase=validate" "result=fatal" "reason=uname-failed"
+        printf '[SP-INSTALLER] FATAL kernel/modules mismatch: unable to determine running kernel\n' >&2
+        exit 1
+    fi
+
+    modules_path="/lib/modules/${kernel_version}"
+
+    if [ ! -d "${modules_path}" ]; then
+        sp_log "state=kernel-modules" \
+            "phase=validate" \
+            "result=fatal" \
+            "reason=modules-missing" \
+            "kernel=${kernel_version}" \
+            "runtime=${runtime_kernel:-unknown}" \
+            "modules=${modules_path}"
+        printf '[SP-INSTALLER] FATAL kernel/modules mismatch: running kernel=%s requires %s\n' \
+            "${runtime_kernel:-unknown}" \
+            "${modules_path}" >&2
+        exit 1
+    fi
+
+    sp_log "state=kernel-modules" \
+        "phase=validate" \
+        "result=ok" \
+        "kernel=${kernel_version}" \
+        "runtime=${runtime_kernel:-unknown}" \
+        "modules=${modules_path}"
+}
+
+sp_try_modprobe_storage_module() {
+    module="$1"
+    modprobe_bin="${SP_STORAGE_MODPROBE_BIN:-$(command -v modprobe || true)}"
+
+    if [ -z "$modprobe_bin" ]; then
+        sp_log "state=storage-drivers" "phase=modprobe" "module=$module" "result=missing" "reason=modprobe-unavailable"
+        return 1
+    fi
+
+    if "$modprobe_bin" "$module" >/dev/null 2>&1; then
+        sp_log "state=storage-drivers" "phase=modprobe" "module=$module" "result=loaded" "cmd=$modprobe_bin"
+        SP_STORAGE_MODPROBE_BIN="$modprobe_bin"
+        export SP_STORAGE_MODPROBE_BIN
+        return 0
+    fi
+
+    rc=$?
+    sp_log "state=storage-drivers" "phase=modprobe" "module=$module" "result=failed" "cmd=$modprobe_bin" "rc=$rc"
+    SP_STORAGE_MODPROBE_BIN="$modprobe_bin"
+    export SP_STORAGE_MODPROBE_BIN
+    return 1
+}
+
+sp_initialize_storage_drivers() {
+    sp_log "state=storage-drivers" "phase=start"
+
+    for module in ahci sd_mod usb-storage nvme; do
+        sp_try_modprobe_storage_module "$module"
+    done
+
+    mdev_bin="${SP_BOOTSTRAP_MDEV_BIN:-$(command -v mdev || true)}"
+    if [ -n "$mdev_bin" ]; then
+        if "$mdev_bin" -s >/dev/null 2>&1; then
+            sp_log "state=storage-drivers" "phase=mdev" "result=ok" "cmd=$mdev_bin"
+        else
+            sp_log "state=storage-drivers" "phase=mdev" "result=failed" "cmd=$mdev_bin"
+        fi
+    else
+        sp_log "state=storage-drivers" "phase=mdev" "result=missing"
+    fi
+
+    sp_log "state=storage-drivers" "phase=done"
+}
+
 sp_bootstrap() {
     PATH=/bin:/sbin:/usr/bin:/usr/sbin
     export PATH
@@ -272,7 +385,11 @@ sp_bootstrap() {
 
     sp_log 'marker=init-reached' 'msg=init reached'
     # CI marker required by qemu_smoke_ci.sh (must remain exact).
-    echo "[SP-INSTALLER] init reached" >/dev/console
+    if [ -n "${SP_OUT_DEVICE:-}" ]; then
+        printf '[SP-INSTALLER] init reached\n' >>"$SP_OUT_DEVICE" 2>&1 || true
+    else
+        echo "[SP-INSTALLER] init reached" >&2 || true
+    fi
 
     # Stage 1 breadcrumb for future debugging (not enforced by CI yet).
     sp_log 'stage=bootstrapped'
@@ -600,7 +717,10 @@ sp_disk_layout_debug_plan() {
 
 sp_idle_shell() {
     sp_log "state=idle-shell" "msg=waiting-for-next-stage"
-    exec sh -i </dev/console >/dev/console 2>&1
+    if sp_can_write "/dev/console"; then
+        exec sh -i </dev/console >/dev/console 2>&1
+    fi
+    exec sh -i >/dev/stderr 2>&1
 }
 
 sp_can_modify_disk() {
@@ -704,8 +824,10 @@ sp_summary() {
         "target_kind=$kind"
 }
 
-main() {
-    sp_bootstrap
+sp_run_installer() {
+    sp_validate_kernel_modules
+
+    sp_initialize_storage_drivers
 
     sp_detect_mode || true
 
@@ -839,6 +961,12 @@ main() {
     sp_idle_shell
 }
 
-if [ "${SP_SKIP_INIT_MAIN:-0}" != "1" ]; then
+main() {
+    sp_bootstrap
+
+    sp_run_installer "$@"
+}
+
+if [ "${SP_SKIP_INIT_MAIN:-0}" != "1" ] && [ "${SP_SCRIPT_IS_SOURCED:-0}" != "1" ]; then
     main "$@"
 fi

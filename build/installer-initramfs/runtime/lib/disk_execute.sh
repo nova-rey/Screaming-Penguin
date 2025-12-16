@@ -285,6 +285,14 @@ sp_execute_gpt_plan() {
         return 1
     fi
 
+    if [ "${SP_DRY_RUN:-0}" = "1" ]; then
+        sp_disk_execute_log "state=disk-exec" "dry-run=1" "disk=$SP_TARGET_DISK"
+        sp_disk_execute_log "state=disk-exec" "step=partitioning"
+        sp_disk_execute_log "state=disk-exec" "result=skipped"
+        sp_disk_execute_marker "END"
+        return 0
+    fi
+
     if ! sp_execute_partitioning; then
         sp_disk_execute_marker "END"
         return 1
