@@ -63,10 +63,11 @@ def _setup_sys_dev(tmp_path: Path) -> tuple[Path, Path]:
     return sys_block, dev_root
 
 
-def _create_block(tmp_path: Path, name: str) -> Path:
+def _create_block(tmp_path: Path, name: str, removable: str = "0") -> Path:
     sys_block, dev_root = _setup_sys_dev(tmp_path)
     block_dir = sys_block / name
     block_dir.mkdir(exist_ok=True)
+    (block_dir / "removable").write_text(f"{removable}\n")
     (dev_root / name).mkdir(exist_ok=True)
     return block_dir
 
@@ -83,9 +84,12 @@ def _create_partition(tmp_path: Path, parent: str, partition: str) -> Path:
 
 
 def test_bootstrap_runs_mdev_before_config_discovery(tmp_path: Path) -> None:
-    _create_block(tmp_path, "sda")
+    _create_block(tmp_path, "sda", removable="1")
     partition = _create_partition(tmp_path, "sda", "sda1")
     (partition / "installer-config.yml").write_text("bootstrap\n")
+    os_dir = partition / "os"
+    os_dir.mkdir(exist_ok=True)
+    (os_dir / "rootfs.tar.gz").write_text("rootfs\n")
 
     mount_point = tmp_path / "config"
     mount_point.mkdir(exist_ok=True)

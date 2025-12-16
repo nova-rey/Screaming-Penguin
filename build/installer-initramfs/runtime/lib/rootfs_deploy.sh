@@ -1,7 +1,9 @@
 #!/bin/sh
 # shellcheck shell=sh
 
-SP_ROOTFS_DEFAULT_TARBALL="/config/os/rootfs.tar.gz"
+SP_CONFIG_MOUNT_POINT="${SP_CONFIG_MOUNT_POINT:-/config}"
+SP_OS_DIR="${SP_OS_DIR:-os}"
+SP_ROOTFS_DEFAULT_TARBALL="${SP_ROOTFS_DEFAULT_TARBALL:-${SP_CONFIG_MOUNT_POINT%/}/${SP_OS_DIR}/rootfs.tar.gz}"
 SP_ROOTFS_DEFAULT_TARGET_MOUNT="/mnt/target"
 
 if ! command -v sp_log >/dev/null 2>&1; then

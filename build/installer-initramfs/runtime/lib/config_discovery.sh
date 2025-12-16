@@ -1,10 +1,12 @@
 #!/bin/sh
 # shellcheck shell=sh
 
+SP_LOG_DEVICE="${SP_LOG_DEVICE:-/dev/stderr}"
+
 # Fallback logging helpers for test contexts (init defines these normally).
 if ! command -v sp_log >/dev/null 2>&1; then
     sp_log() {
-        printf '[SP-INSTALLER] %s\n' "$*" >&2
+        printf '[SP-INSTALLER] %s\n' "$*" >>"$SP_LOG_DEVICE" 2>&1
     }
 fi
 
@@ -22,10 +24,19 @@ if [ -f "$SP_RESCUE_MODE_LIB" ]; then
     . "$SP_RESCUE_MODE_LIB"
 fi
 
-SP_CONFIG_LABEL_NAME="${SP_CONFIG_LABEL_NAME:-SP_CONFIG}"
+SP_CONFIG_LABEL="${SP_CONFIG_LABEL:-${SP_CONFIG_LABEL_NAME:-SP_CONFIG}}"
+SP_CONFIG_LABEL_NAME="${SP_CONFIG_LABEL}"
 SP_CONFIG_LABEL_DIR="${SP_CONFIG_LABEL_DIR:-/dev/disk/by-label}"
-SP_CONFIG_MOUNT_POINT="${SP_CONFIG_MOUNT_POINT:-/config}"
+
+default_config_mount="${SP_CONFIG_MOUNTPOINT:-${SP_CONFIG_MOUNT_POINT:-/config}}"
+SP_CONFIG_MOUNT_POINT="${SP_CONFIG_MOUNT_POINT:-$default_config_mount}"
+SP_CONFIG_MOUNTPOINT="$SP_CONFIG_MOUNT_POINT"
+
 SP_CONFIG_FILE="${SP_CONFIG_FILE:-installer-config.yml}"
+SP_OS_DIR="${SP_OS_DIR:-os}"
+SP_CONFIG_SCAN_REMOVABLE_FALLBACK="${SP_CONFIG_SCAN_REMOVABLE_FALLBACK:-1}"
+SP_CONFIG_ALLOW_NONREMOVABLE="${SP_CONFIG_ALLOW_NONREMOVABLE:-0}"
+
 SP_SYS_BLOCK_ROOT="${SP_SYS_BLOCK_ROOT:-/sys/block}"
 SP_DEV_ROOT="${SP_DEV_ROOT:-/dev}"
 SP_CONFIG_DISCOVERY_MAX_ATTEMPTS="${SP_CONFIG_DISCOVERY_MAX_ATTEMPTS:-1}"
@@ -100,6 +111,48 @@ sp_realpath() {
 
     printf '%s\n' "$path"
     return 0
+}
+
+sp_log_fatal() {
+    printf '[SP-INSTALLER][FATAL] %s\n' "$*" >>"$SP_LOG_DEVICE" 2>&1 || true
+}
+
+sp_parent_block_device_for_partition() {
+    part="$1"
+    if [ -z "$part" ]; then
+        return 1
+    fi
+
+    base=$(basename "$part")
+    if [ -z "$base" ]; then
+        return 1
+    fi
+
+    case "$base" in
+        nvme*|mmcblk*)
+            parent=$(printf '%s\n' "$base" | sed 's/p[0-9]*$//' 2>/dev/null || true)
+            ;;
+        *)
+            parent=$(printf '%s\n' "$base" | sed 's/[0-9]*$//' 2>/dev/null || true)
+            ;;
+    esac
+
+    if [ -z "$parent" ]; then
+        parent="$base"
+    fi
+
+    printf '%s\n' "$parent"
+    return 0
+}
+
+sp_parent_removable_value() {
+    parent="$1"
+    removable_file="${SP_SYS_BLOCK_ROOT%/}/${parent}/removable"
+    if [ ! -e "$removable_file" ]; then
+        printf '0'
+        return 0
+    fi
+    cat "$removable_file" 2>/dev/null || printf '0'
 }
 
 sp_mark_candidate_tried() {
@@ -183,35 +236,89 @@ sp_attempt_mount_candidate() {
     fi
 
     sp_cleanup_mount_point
-    if sp_mount_candidate "$resolved"; then
-        config_path="$SP_CONFIG_MOUNT_POINT/$SP_CONFIG_FILE"
-        if [ -f "$config_path" ]; then
-            SP_CONFIG_PATH="$config_path"
-            export SP_CONFIG_PATH
-            CONFIG_MOUNT="${SP_CONFIG_MOUNT_POINT:-/config}"
-            export CONFIG_MOUNT
-            sp_log "state=discover-config" \
-                "phase=${phase}" \
-                "result=found" \
-                "path=${SP_CONFIG_PATH}" \
-                "candidate=${resolved}" \
-                "label=${label:-}"
-            return 0
-        fi
-        reason="missing-config-file"
-    else
-        reason="mount-failed"
+    parent="$(sp_parent_block_device_for_partition "$resolved" || true)"
+    removable="$(sp_parent_removable_value "$parent" || echo "0")"
+    if [ "$removable" != "1" ] && [ "${SP_CONFIG_ALLOW_NONREMOVABLE:-0}" != "1" ]; then
+        sp_log_fatal "config-media-not-removable dev=${resolved} parent=${parent:-unknown} removable=${removable:-0}"
+        sp_enter_rescue_mode "config-media-not-removable"
+        return 1
     fi
+
+    if ! sp_mount_candidate "$resolved"; then
+        reason="mount-failed"
+        sp_log "state=discover-config" \
+            "phase=${phase}" \
+            "candidate=${resolved}" \
+            "result=reject" \
+            "reason=${reason}" \
+            "label=${label:-}"
+        sp_record_config_candidate "$resolved" "$reason" "${label:-unknown}"
+        sp_unmount_config_point
+        return 1
+    fi
+
+    config_path="${SP_CONFIG_MOUNT_POINT%/}/$SP_CONFIG_FILE"
+    if [ ! -f "$config_path" ]; then
+        sp_log_fatal "config-missing installer-config.yml at ${config_path}"
+        sp_unmount_config_point
+        sp_enter_rescue_mode "missing-config"
+        return 1
+    fi
+
+    os_dir="${SP_CONFIG_MOUNT_POINT%/}/${SP_OS_DIR}"
+    if [ ! -d "$os_dir" ]; then
+        sp_log_fatal "payload-missing os/ at ${os_dir}"
+        sp_unmount_config_point
+        sp_enter_rescue_mode "missing-payload"
+        return 1
+    fi
+
+    found=0
+    selected_tarball=""
+    for entry in "${os_dir}/rootfs.tar"*; do
+        if [ ! -f "$entry" ]; then
+            continue
+        fi
+        found=$((found + 1))
+        selected_tarball="$entry"
+    done
+
+    if [ "$found" -ne 1 ]; then
+        sp_log_fatal "payload-ambiguous found=${found} in ${os_dir}"
+        sp_unmount_config_point
+        sp_enter_rescue_mode "payload-ambiguous"
+        return 1
+    fi
+
+    SP_ROOTFS_DEFAULT_TARBALL="${selected_tarball}"
+    export SP_ROOTFS_DEFAULT_TARBALL
+
+    SP_CONFIG_PATH="$config_path"
+    export SP_CONFIG_PATH
+    CONFIG_MOUNT="${SP_CONFIG_MOUNT_POINT:-/config}"
+    export CONFIG_MOUNT
+
+    if [ "$phase" = "label" ]; then
+        source_desc="label:${label:-unknown}"
+    else
+        source_desc="${phase}:${label:-unknown}"
+    fi
+
+    sp_log "config-source=${source_desc}" \
+        "dev=${resolved}" \
+        "parent=${parent:-unknown}" \
+        "removable=${removable:-0}" \
+        "mount=${SP_CONFIG_MOUNT_POINT}"
+    sp_log "config-path=${SP_CONFIG_PATH}"
+    sp_log "payload-dir=${os_dir}"
 
     sp_log "state=discover-config" \
         "phase=${phase}" \
+        "result=found" \
+        "path=${SP_CONFIG_PATH}" \
         "candidate=${resolved}" \
-        "result=reject" \
-        "reason=${reason}" \
         "label=${label:-}"
-    sp_record_config_candidate "$resolved" "$reason" "${label:-unknown}"
-    sp_unmount_config_point
-    return 1
+    return 0
 }
 
 sp_try_label_candidate() {
@@ -235,7 +342,7 @@ sp_try_label_candidate() {
         return 1
     fi
 
-    if sp_attempt_mount_candidate "$target" "label" "$SP_CONFIG_LABEL_NAME"; then
+    if sp_attempt_mount_candidate "$target" "label" "$SP_CONFIG_LABEL"; then
         return 0
     fi
 
@@ -253,6 +360,11 @@ sp_should_skip_device() {
 }
 
 sp_try_removable_candidates() {
+    if [ "${SP_CONFIG_SCAN_REMOVABLE_FALLBACK:-0}" != "1" ]; then
+        sp_log "state=discover-config" "phase=removable" "result=skip" "reason=fallback-disabled"
+        return 1
+    fi
+
     if [ ! -d "$SP_SYS_BLOCK_ROOT" ]; then
         sp_log "state=discover-config" "phase=removable" "result=skip" "reason=sysfs-missing" "path=${SP_SYS_BLOCK_ROOT}"
         return 1
@@ -269,18 +381,28 @@ sp_try_removable_candidates() {
             continue
         fi
 
-        removable_file="$block_dir/removable"
-        removable="$(cat "$removable_file" 2>/dev/null || echo "0")"
+        removable="$(sp_parent_removable_value "$base" || echo "0")"
         if [ "$removable" != "1" ]; then
             continue
         fi
 
-        candidate="${SP_DEV_ROOT%/}/$base"
-        sp_log "state=discover-config" "phase=removable" "result=discovered" "candidate=${candidate}"
-        found=1
-        if sp_attempt_mount_candidate "$candidate" "removable" "$base"; then
-            return 0
-        fi
+        for part_dir in "$block_dir"/"$base"*; do
+            if [ ! -e "$part_dir" ]; then
+                continue
+            fi
+
+            part_base=$(basename "$part_dir")
+            if [ "$part_base" = "$base" ]; then
+                continue
+            fi
+
+            candidate="${SP_DEV_ROOT%/}/$part_base"
+            sp_log "state=discover-config" "phase=removable" "result=discovered" "candidate=${candidate}"
+            found=1
+            if sp_attempt_mount_candidate "$candidate" "removable" "$part_base"; then
+                return 0
+            fi
+        done
     done
 
     if [ "$found" -eq 0 ]; then
@@ -302,6 +424,11 @@ sp_try_partition_heuristics() {
 
         base=$(basename "$block_dir")
         if sp_should_skip_device "$base"; then
+            continue
+        fi
+
+        removable="$(sp_parent_removable_value "$base" || echo "0")"
+        if [ "$removable" != "1" ] && [ "${SP_CONFIG_ALLOW_NONREMOVABLE:-0}" != "1" ]; then
             continue
         fi
 
@@ -343,6 +470,11 @@ sp_try_partition_candidates() {
 
         base=$(basename "$block_dir")
         if sp_should_skip_device "$base"; then
+            continue
+        fi
+
+        removable="$(sp_parent_removable_value "$base" || echo "0")"
+        if [ "$removable" != "1" ] && [ "${SP_CONFIG_ALLOW_NONREMOVABLE:-0}" != "1" ]; then
             continue
         fi
 

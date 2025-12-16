@@ -10,8 +10,7 @@ confirmation prompts, and log retrieval.
 
 After writing `screaming-penguin-v1.0.0.img` to a USB device:
 
-- **Partition 1 (`/config`)**: Writable config + logs. This FAT32 volume already contains `installer-config.yml`, `/config/os/rootfs.tar.gz`, and the logs directory, and placing it first keeps desktop environments from flagging the USB as a boot-only device.
-- **Partition 2 (read-only)**: Bootable installer system (EFI/BIOS tree with `/EFI/BOOT/BOOTX64.EFI`, `/EFI/BOOT/grub.cfg`, `/boot/vmlinuz-installer`, and `/boot/initrd-installer.img`). The second partition remains an ESP as before, so UEFI firmware locates it by type rather than index.
+- **Partition 1 (`SP_CONFIG`)**: The only user-facing, writable partition is labeled `SP_CONFIG`; it holds `/installer-config.yml`, the `/os/` payload directory, and the rootfs tarball that the installer extracts (`rootfs.tar`, `rootfs.tar.gz`, `rootfs.tar.zst`, etc.). This single partition is the one the installer mounts, so you drop both the configuration YAML and the payload into it before booting.
 
 ---
 
@@ -57,10 +56,19 @@ Installer creates `logs/` automatically.
 
 ## CONFIG Partition Requirements
 
-The installer reads configuration from a partition labeled `CONFIG`, containing
-a file named `installer-config.yml`.
+The installer reads configuration from the partition labeled `SP_CONFIG`. This
+is the single user-facing partition you manipulate on the USB stick; it must
+expose:
 
-- IMG builds: CONFIG partition included
+- `/installer-config.yml`
+- `/os/<rootfs.tar*>` (for example `rootfs.tar.gz`, `rootfs.tar.zst`, etc.)
+
+The installer refuses to trust config media whose parent block device is
+non-removable unless you explicitly enable that behavior with
+`SP_CONFIG_ALLOW_NONREMOVABLE=1`. Keep using removable USB media so the rootfs
+payload is deterministic and safe.
+
+- IMG builds: `SP_CONFIG` partition included
 
 Refer to `USING_IMG.md` for the canonical installer workflow. `USING_ISO.md`
 remains in the tree for historical reference only; hybrid ISO builds are no longer

@@ -39,11 +39,12 @@ sha256sum -c SHA256SUMS
 ## Installer Artifact
 
 Screaming Penguin ships a single installer image: `screaming-penguin.img`. The
-image includes a preformatted `CONFIG` partition so you can flash it, mount
-`/config`, and immediately drop your `installer-config.yml` + rootfs tarball
-without additional partition juggling. The hybrid ISO build has been pruned from
-this repository; historical instructions remain in `docs/USING_ISO.md`, but any
-modern ISO path lives in the external Ouroboros side project.
+image exposes a preformatted `SP_CONFIG` partition so you can flash it, mount
+`/config`, and immediately drop your `installer-config.yml` plus the `/os/`
+rootfs tarball (e.g., `rootfs.tar.gz` or `rootfs.tar.zst`) without additional
+partition juggling. The hybrid ISO build has been pruned from this repository;
+historical instructions remain in `docs/USING_ISO.md`, but any modern ISO path
+lives in the external Ouroboros side project.
 
 ⸻
 
@@ -69,12 +70,17 @@ sync
 
 4. Prepare the /config Partition
 
-After imaging, unplug/reinsert the USB so its writable first partition (the `/config` volume) appears.
+After imaging, unplug/reinsert the USB so the writable `SP_CONFIG` partition
+appears and your system mounts it at `/config`.
 
 Place:
 
-/config/installer-config.yml
-/config/rootfs/debian-rootfs.tar.gz
+- `/config/installer-config.yml`
+- `/config/os/<rootfs.tar*>` such as `rootfs.tar.gz` or `rootfs.tar.zst`
+
+The installer refuses to trust non-removable config media by default, so use a
+removable USB stick unless you deliberately enable
+`SP_CONFIG_ALLOW_NONREMOVABLE=1`.
 
 installer-config.yml must conform to the schema described in
 CONFIG_REFERENCE.md.
