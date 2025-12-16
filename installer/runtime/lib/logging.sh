@@ -39,3 +39,22 @@ log_warn() {
 log_error() {
     _sp_log "ERROR" "$@"
 }
+
+log_block_devices_snapshot() {
+    block_devices=""
+
+    for pattern in /dev/sd* /dev/nvme*; do
+        for dev in $pattern; do
+            [ -e "$dev" ] || continue
+            block_devices="${block_devices:+$block_devices }$dev"
+        done
+    done
+
+    block_devices="${block_devices:-none}"
+
+    log_info "[SP-INSTALLER] block-devices=${block_devices}"
+
+    if [ -n "${SP_LOG_DEVICE:-}" ]; then
+        printf '[SP-INSTALLER] block-devices=%s\n' "$block_devices" >>"$SP_LOG_DEVICE" 2>/dev/null || true
+    fi
+}

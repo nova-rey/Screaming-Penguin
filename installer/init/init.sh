@@ -29,6 +29,7 @@ sp_best_effort_redirect() {
 
 SP_OUT_DEVICE="$(sp_best_effort_redirect)"
 SP_LOG_DEVICE="${SP_OUT_DEVICE:-$SP_LOG_DEVICE}"
+export SP_LOG_DEVICE
 
 SP_SCRIPT_IS_SOURCED="0"
 if [ -n "${BASH_SOURCE:-}" ] && [ "${BASH_SOURCE:-}" != "$0" ]; then
@@ -290,6 +291,20 @@ sp_bootstrap_dev_nodes() {
     sp_log "state=dev-bootstrap" "phase=done"
 }
 
+sp_log_block_devices_snapshot() {
+    block_devices=""
+
+    for pattern in /dev/sd* /dev/nvme*; do
+        for dev in $pattern; do
+            [ -e "$dev" ] || continue
+            block_devices="${block_devices:+$block_devices }$dev"
+        done
+    done
+
+    block_devices="${block_devices:-none}"
+    sp_log "state=storage-bootstrap" "block-devices=${block_devices}" "note=logging-helper-missing"
+}
+
 sp_validate_kernel_modules() {
     runtime_kernel=$(uname -r 2>/dev/null || true)
     kernel_version="${SP_EXPECTED_KERNEL_VERSION:-${runtime_kernel}}"
@@ -395,6 +410,28 @@ sp_bootstrap() {
     sp_log 'stage=bootstrapped'
 
     sp_bootstrap_dev_nodes
+
+    # --- Storage stack bootstrap (best-effort) ---
+    storage_modprobe="${SP_STORAGE_MODPROBE_BIN:-$(command -v modprobe 2>/dev/null || true)}"
+    if [ -n "$storage_modprobe" ]; then
+        for module in ahci sd_mod scsi_mod usb-storage xhci-hcd ehci-hcd nvme; do
+            "$storage_modprobe" "$module" >/dev/null 2>&1 || true
+        done
+        SP_STORAGE_MODPROBE_BIN="$storage_modprobe"
+        export SP_STORAGE_MODPROBE_BIN
+    else
+        sp_log "state=storage-bootstrap" "phase=modprobe" "result=missing" "reason=modprobe-unavailable"
+    fi
+
+    # Give udev/mdev a moment to populate nodes.
+    sleep 0.2
+
+    log_lib="$SP_RUNTIME_LIB_DIR/logging.sh"
+    if [ -f "$log_lib" ]; then
+        sh -c '. "$1"; log_block_devices_snapshot' _ "$log_lib" || true
+    else
+        sp_log_block_devices_snapshot
+    fi
 }
 
 sp_detect_mode() {
