@@ -2,6 +2,8 @@
 
 BUILD_DIR := build
 RUNTIME_DIR := $(BUILD_DIR)/runtime
+CI_SMOKE_PYTEST_TIMEOUT_SECONDS ?= 600
+CI_SMOKE_FULL_INSTALLER ?= 0
 
 .PHONY: img iso rootfs clean qemu-acceptance runtime installer-runtime ci-smoke ci-iso
 img: $(RUNTIME_DIR)/.installer-runtime-built

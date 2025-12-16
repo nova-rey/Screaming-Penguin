@@ -16,6 +16,8 @@ jobs:
     timeout-minutes: 30
     env:
       DEBIAN_FRONTEND: noninteractive
+      CI_SMOKE_PYTEST_TIMEOUT_SECONDS: 600
+      CI_SMOKE_FULL_INSTALLER: 0
     defaults:
       run:
         shell: bash
