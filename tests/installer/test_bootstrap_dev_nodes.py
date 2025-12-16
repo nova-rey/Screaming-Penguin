@@ -161,3 +161,55 @@ def test_bootstrap_runs_mdev_before_config_discovery(tmp_path: Path) -> None:
     assert "mdev-args=-s" in mdev_log.read_text()
     assert calls_log.exists()
     assert "mdev -s" in calls_log.read_text()
+
+
+def test_storage_bootstrap_detects_emmc(tmp_path: Path) -> None:
+    sys_block, dev_root = _setup_sys_dev(tmp_path)
+    mmc_dev = sys_block / "mmcblk0"
+    mmc_dev.mkdir(exist_ok=True)
+    (mmc_dev / "size").write_text("0\n")
+    (mmc_dev / "removable").write_text("0\n")
+    (dev_root / "mmcblk0").mkdir(exist_ok=True)
+
+    log = tmp_path / "storage-bootstrap.log"
+
+    kernel_release = (
+        subprocess.run(["uname", "-r"], capture_output=True, text=True, check=True)
+        .stdout.strip()
+    )
+    modules_root = tmp_path / "modules"
+    modules_root.mkdir(parents=True, exist_ok=True)
+    (modules_root / kernel_release).mkdir(parents=True, exist_ok=True)
+
+    stub_bin = tmp_path / "bin"
+    stub_bin.mkdir(parents=True, exist_ok=True)
+    mdev_stub = stub_bin / "mdev"
+    mdev_stub.write_text("#!/bin/sh\nexit 0\n")
+    mdev_stub.chmod(0o755)
+
+    sbin_dir = tmp_path / "sbin"
+    sbin_dir.mkdir(parents=True, exist_ok=True)
+    (sbin_dir / "mdev").symlink_to(mdev_stub)
+
+    env = {
+        "SP_SYS_BLOCK_ROOT": str(sys_block.resolve()),
+        "SP_DEV_ROOT": str(dev_root.resolve()),
+        "SP_INSTALLER_MODULES_ROOT": str(modules_root.resolve()),
+        "SP_LOG_DEVICE": str(log),
+        "SP_TEST_EXTRA_PATH": os.pathsep.join([str(stub_bin), str(sbin_dir)]),
+        "SP_BOOTSTRAP_MDEV_BIN": str(mdev_stub),
+    }
+
+    command = f". {INIT_SCRIPT}; sp_bootstrap"
+
+    result = _run_command(env, command)
+
+    assert result.returncode == 0, result.stderr
+    assert "storage-platform=emmc" in result.stdout
+    assert "mmc-sys=" in result.stdout
+    assert "mmcblk0" in result.stdout
+
+    fatal_marker = "[SP-INSTALLER][FATAL] no-block-devices-after-storage-bootstrap"
+    log_contents = log.read_text() if log.exists() else ""
+    assert fatal_marker not in result.stdout
+    assert fatal_marker not in log_contents

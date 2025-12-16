@@ -43,19 +43,33 @@ log_error() {
 log_block_devices_snapshot() {
     block_devices=""
 
-    for pattern in /dev/sd* /dev/nvme*; do
+    for pattern in /dev/sd* /dev/nvme* /dev/mmcblk*; do
         for dev in $pattern; do
             [ -e "$dev" ] || continue
             block_devices="${block_devices:+$block_devices }$dev"
         done
     done
 
-    block_devices="${block_devices:-none}"
+    mmc_sys=""
+    for sys_entry in /sys/block/mmcblk*; do
+        [ -e "$sys_entry" ] || continue
+        mmc_sys="${mmc_sys:+$mmc_sys }$sys_entry"
+    done
 
-    log_info "[SP-INSTALLER] block-devices=${block_devices}"
+    mmc_dev=""
+    for dev_entry in /dev/mmcblk*; do
+        [ -e "$dev_entry" ] || continue
+        mmc_dev="${mmc_dev:+$mmc_dev }$dev_entry"
+    done
+
+    block_devices="${block_devices:-none}"
+    mmc_sys="${mmc_sys:-none}"
+    mmc_dev="${mmc_dev:-none}"
+
+    log_info "[SP-INSTALLER] block-devices=${block_devices} mmc-sys=${mmc_sys} mmc-dev=${mmc_dev}"
 
     if [ -n "${SP_LOG_DEVICE:-}" ]; then
-        printf '[SP-INSTALLER] block-devices=%s\n' "$block_devices" >>"$SP_LOG_DEVICE" 2>/dev/null || true
+        printf '[SP-INSTALLER] block-devices=%s mmc-sys=%s mmc-dev=%s\n' "$block_devices" "$mmc_sys" "$mmc_dev" >>"$SP_LOG_DEVICE" 2>/dev/null || true
     fi
 }
 
