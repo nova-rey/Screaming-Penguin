@@ -6,6 +6,30 @@
 SP_LOG_DEVICE="${SP_LOG_DEVICE:-/dev/console}"
 SP_WRITE_GATE_SERIAL_DEVICE="${SP_WRITE_GATE_SERIAL_DEVICE:-/dev/ttyS0}"
 
+sp_is_ci() {
+    [ -n "${CI:-}" ] || [ -n "${GITHUB_ACTIONS:-}" ]
+}
+
+sp_can_write() {
+    [ -n "${1:-}" ] && [ -e "$1" ] && [ -w "$1" ]
+}
+
+sp_best_effort_redirect() {
+    if [ -n "${SP_LOG_DEVICE:-}" ] && sp_can_write "${SP_LOG_DEVICE}"; then
+        printf "%s" "${SP_LOG_DEVICE}"
+        return 0
+    fi
+    if sp_can_write "/dev/console"; then
+        printf "%s" "/dev/console"
+        return 0
+    fi
+    printf "%s" "/dev/stderr"
+    return 0
+}
+
+SP_OUT_DEVICE="$(sp_best_effort_redirect)"
+SP_LOG_DEVICE="${SP_OUT_DEVICE:-$SP_LOG_DEVICE}"
+
 sp_log() {
     # Simple structured logger. All lines should start with [SP-INSTALLER].
     # Usage: sp_log "key=value" "message=..."
@@ -19,7 +43,9 @@ sp_trim() {
 sp_write_gate_serial_log() {
     serial_device="${SP_WRITE_GATE_SERIAL_DEVICE:-}"
     if [ -n "$serial_device" ]; then
-        printf '%s\n' "$1" >>"$serial_device" 2>/dev/null || true
+        if sp_can_write "$serial_device"; then
+            printf '%s\n' "$1" >>"$serial_device" 2>/dev/null || true
+        fi
     fi
 }
 
@@ -350,7 +376,11 @@ sp_bootstrap() {
 
     sp_log 'marker=init-reached' 'msg=init reached'
     # CI marker required by qemu_smoke_ci.sh (must remain exact).
-    echo "[SP-INSTALLER] init reached" >/dev/console
+    if [ -n "${SP_OUT_DEVICE:-}" ]; then
+        printf '[SP-INSTALLER] init reached\n' >>"$SP_OUT_DEVICE" 2>&1 || true
+    else
+        echo "[SP-INSTALLER] init reached" >&2 || true
+    fi
 
     # Stage 1 breadcrumb for future debugging (not enforced by CI yet).
     sp_log 'stage=bootstrapped'
@@ -678,7 +708,10 @@ sp_disk_layout_debug_plan() {
 
 sp_idle_shell() {
     sp_log "state=idle-shell" "msg=waiting-for-next-stage"
-    exec sh -i </dev/console >/dev/console 2>&1
+    if sp_can_write "/dev/console"; then
+        exec sh -i </dev/console >/dev/console 2>&1
+    fi
+    exec sh -i >/dev/stderr 2>&1
 }
 
 sp_can_modify_disk() {

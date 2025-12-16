@@ -8,6 +8,10 @@ SP_RESCUE_LOG_DEVICE="${SP_LOG_DEVICE:-/dev/console}"
 SP_RESCUE_LABEL_DIR="${SP_RESCUE_LABEL_DIR:-/dev/disk/by-label}"
 SP_RESCUE_CONSOLE="${SP_RESCUE_CONSOLE:-/dev/console}"
 
+sp_is_ci() {
+    [ -n "${CI:-}" ] || [ -n "${GITHUB_ACTIONS:-}" ]
+}
+
 sp_rescue_log_line() {
     if command -v sp_log >/dev/null 2>&1; then
         sp_log "$@"
@@ -112,6 +116,16 @@ sp_rescue_mount_minimal() {
         mount -t tmpfs devtmpfs /dev 2>/dev/null || true
 }
 
+sp_rescue_console_fd_setup() {
+    console_path="${1:-/dev/console}"
+    if [ -n "$console_path" ] && [ -e "$console_path" ] && [ -w "$console_path" ]; then
+        exec 3<>"$console_path" 2>/dev/null
+        return 0
+    fi
+    exec 3>&2
+    return 1
+}
+
 sp_rescue_dump_proc_partitions() {
     if [ ! -r /proc/partitions ]; then
         sp_rescue_log_line "source=proc/partitions" "note=missing"
@@ -158,9 +172,18 @@ sp_enter_rescue_mode() {
 
     if [ -n "${shell_path:-}" ]; then
         sp_rescue_log_line "state=rescue" "note=launching-shell" "shell=${shell_path}" "console=${console_path}"
+        first_loop=1
         while :; do
-            # Open console read/write once, then reuse the FD (avoids ShellCheck SC2094).
-            exec 3<>"$console_path"
+            sp_rescue_console_fd_setup "$console_path"
+            if [ "$first_loop" -eq 1 ]; then
+                console_fd_status=$?
+                if sp_is_ci && [ "$console_fd_status" -ne 0 ]; then
+                    sp_rescue_log_line "state=rescue" "note=ci-console-unavailable" "console=${console_path}"
+                    printf '[SP-RESCUE] console unavailable in CI, aborting\n' >&3
+                    exit 1
+                fi
+                first_loop=0
+            fi
             "$shell_path" -i <&3 >&3 2>&3
             exit_status=$?
             sp_rescue_log_line \
