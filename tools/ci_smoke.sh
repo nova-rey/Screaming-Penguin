@@ -18,7 +18,25 @@ python3 -m compileall -q .
 echo "[CI-SMOKE] Running pytest installer unit tests..."
 python3 -c "import pytest; print(pytest.__version__)"
 python3 -c "import pyfatfs; print('pyfatfs ok')"
-python3 -m pytest -q tests/installer
+
+: "${CI_SMOKE_PYTEST_TIMEOUT_SECONDS:=600}"
+: "${CI_SMOKE_FULL_INSTALLER:=0}"
+
+PYTEST_ARGS=(-q)
+TEST_TARGET="tests/installer"
+
+if [[ "${CI_SMOKE_FULL_INSTALLER}" == "1" ]]; then
+  echo "[CI-SMOKE] Running FULL installer test suite (bounded)..."
+else
+  echo "[CI-SMOKE] Running FAST installer smoke selection (bounded)..."
+  PYTEST_ARGS+=(
+    -k "not qemu and not acceptance and not iso and not build and not harness"
+  )
+fi
+
+echo "[CI-SMOKE] pytest timeout=${CI_SMOKE_PYTEST_TIMEOUT_SECONDS}s target=${TEST_TARGET}"
+timeout "${CI_SMOKE_PYTEST_TIMEOUT_SECONDS}" \
+  pytest "${PYTEST_ARGS[@]}" "${TEST_TARGET}"
 
 detect_config() {
   local path="$1"
