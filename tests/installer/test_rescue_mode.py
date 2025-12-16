@@ -40,6 +40,7 @@ def test_rescue_shell_restarts(tmp_path: Path) -> None:
     console.write_text("", encoding="utf-8")
     shell_log = tmp_path / "rescue-shell.log"
     label_log = tmp_path / "rescue-log.txt"
+    label_log.write_text("", encoding="utf-8")
 
     env = {
         "SP_TEST_RESCUE_SHELL": str(

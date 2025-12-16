@@ -171,6 +171,7 @@ sp_enter_rescue_mode() {
     shell_path="$(sp_rescue_find_shell || true)"
 
     if [ -n "${shell_path:-}" ]; then
+        rescue_loop="${SP_TEST_RESCUE_LOOP:-1}"
         sp_rescue_log_line "state=rescue" "note=launching-shell" "shell=${shell_path}" "console=${console_path}"
         first_loop=1
         while :; do
@@ -191,6 +192,9 @@ sp_enter_rescue_mode() {
                 "note=shell-exited" \
                 "shell=${shell_path}" \
                 "status=${exit_status:-}"
+            if [ "${rescue_loop:-1}" != "1" ]; then
+                exit "${exit_status:-0}"
+            fi
             sleep 1
         done
     fi

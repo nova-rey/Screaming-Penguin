@@ -140,6 +140,7 @@ def test_missing_config_triggers_rescue(tmp_path: Path) -> None:
             "SP_TEST_RESCUE_SHELL_EXIT": "47",
             "SP_TEST_RESCUE_SHELL_LOG": str(shell_log),
             "SP_TEST_RESCUE_CONSOLE": str(console),
+            "SP_TEST_RESCUE_LOOP": "0",
         }
     )
 

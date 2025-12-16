@@ -30,6 +30,15 @@ sp_best_effort_redirect() {
 SP_OUT_DEVICE="$(sp_best_effort_redirect)"
 SP_LOG_DEVICE="${SP_OUT_DEVICE:-$SP_LOG_DEVICE}"
 
+SP_SCRIPT_IS_SOURCED="0"
+if [ -n "${BASH_SOURCE:-}" ] && [ "${BASH_SOURCE:-}" != "$0" ]; then
+    SP_SCRIPT_IS_SOURCED="1"
+elif [ -n "${ZSH_EVAL_CONTEXT:-}" ]; then
+    case "$ZSH_EVAL_CONTEXT" in
+        (*:file*) SP_SCRIPT_IS_SOURCED="1" ;;
+    esac
+fi
+
 sp_log() {
     # Simple structured logger. All lines should start with [SP-INSTALLER].
     # Usage: sp_log "key=value" "message=..."
@@ -815,9 +824,7 @@ sp_summary() {
         "target_kind=$kind"
 }
 
-main() {
-    sp_bootstrap
-
+sp_run_installer() {
     sp_validate_kernel_modules
 
     sp_initialize_storage_drivers
@@ -954,6 +961,12 @@ main() {
     sp_idle_shell
 }
 
-if [ "${SP_SKIP_INIT_MAIN:-0}" != "1" ]; then
+main() {
+    sp_bootstrap
+
+    sp_run_installer "$@"
+}
+
+if [ "${SP_SKIP_INIT_MAIN:-0}" != "1" ] && [ "${SP_SCRIPT_IS_SOURCED:-0}" != "1" ]; then
     main "$@"
 fi
