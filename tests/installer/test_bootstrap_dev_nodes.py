@@ -104,6 +104,15 @@ def test_bootstrap_runs_mdev_before_config_discovery(tmp_path: Path) -> None:
         "SP_TEST_MDEV_LOG": str(mdev_log),
     }
 
+    kernel_release = (
+        subprocess.run(["uname", "-r"], capture_output=True, text=True, check=True)
+        .stdout.strip()
+    )
+    modules_root = tmp_path / "modules"
+    modules_root.mkdir(parents=True, exist_ok=True)
+    (modules_root / kernel_release).mkdir(parents=True, exist_ok=True)
+    env["SP_INSTALLER_MODULES_ROOT"] = str(modules_root)
+
     stub_bin = tmp_path / "bin"
     stub_bin.mkdir(parents=True, exist_ok=True)
     calls_log = tmp_path / "mdev-calls.log"

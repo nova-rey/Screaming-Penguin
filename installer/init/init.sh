@@ -411,11 +411,37 @@ sp_bootstrap() {
 
     sp_bootstrap_dev_nodes
 
-    # --- Storage stack bootstrap (best-effort) ---
+    log_lib="$SP_RUNTIME_LIB_DIR/logging.sh"
+
+    if [ -f "$log_lib" ]; then
+        sh -c '. "$1"; sp_log_kernel_and_modules_snapshot' _ "$log_lib" || true
+        sh -c '. "$1"; sp_log_sys_block_snapshot pre_modprobe' _ "$log_lib" || true
+    fi
+
+    kernel_release="$(uname -r 2>/dev/null || true)"
+    modules_root="${SP_INSTALLER_MODULES_ROOT:-/lib/modules}"
+    modules_path="${modules_root}/${kernel_release}"
+    if [ -z "$kernel_release" ] || [ ! -d "$modules_path" ]; then
+        log_target="${kernel_release:-unknown}"
+        if [ -f "$log_lib" ]; then
+            sh -c '. "$1"; log_error "[SP-INSTALLER][FATAL] kernel-modules-missing kernel=${2}"' _ "$log_lib" "$log_target" || true
+        else
+            sp_log "state=storage-bootstrap" "result=fatal" "reason=kernel-modules-missing" "kernel=${log_target}"
+        fi
+        sp_enter_rescue_mode "kernel-modules-missing"
+        return 0
+    fi
+
     storage_modprobe="${SP_STORAGE_MODPROBE_BIN:-$(command -v modprobe 2>/dev/null || true)}"
     if [ -n "$storage_modprobe" ]; then
-        for module in ahci sd_mod scsi_mod usb-storage xhci-hcd ehci-hcd nvme; do
-            "$storage_modprobe" "$module" >/dev/null 2>&1 || true
+        for module in virtio_blk virtio_pci ahci libahci sd_mod sr_mod usb-storage uas xhci_hcd ehci_pci ehci_hcd nvme nvme_core; do
+            "$storage_modprobe" -q "$module" >/dev/null 2>&1
+            rc=$?
+            if [ -f "$log_lib" ]; then
+                sh -c '. "$1"; log_info "[SP-INSTALLER] modprobe module=${2} rc=${3}"' _ "$log_lib" "$module" "$rc" || true
+            else
+                sp_log "state=storage-bootstrap" "phase=modprobe" "module=${module}" "rc=${rc}"
+            fi
         done
         SP_STORAGE_MODPROBE_BIN="$storage_modprobe"
         export SP_STORAGE_MODPROBE_BIN
@@ -423,10 +449,23 @@ sp_bootstrap() {
         sp_log "state=storage-bootstrap" "phase=modprobe" "result=missing" "reason=modprobe-unavailable"
     fi
 
-    # Give udev/mdev a moment to populate nodes.
     sleep 0.2
 
-    log_lib="$SP_RUNTIME_LIB_DIR/logging.sh"
+    if [ -f "$log_lib" ]; then
+        sh -c '. "$1"; sp_log_sys_block_snapshot post_modprobe' _ "$log_lib" || true
+    fi
+
+    block_entries="$(ls -A /sys/block 2>/dev/null || true)"
+    if [ -z "$block_entries" ]; then
+        if [ -f "$log_lib" ]; then
+            sh -c '. "$1"; log_error "[SP-INSTALLER][FATAL] no-block-devices-after-storage-bootstrap"' _ "$log_lib" || true
+        else
+            sp_log "state=storage-bootstrap" "result=fatal" "reason=no-block-devices-after-storage-bootstrap"
+        fi
+        sp_enter_rescue_mode "no-block-devices-after-storage-bootstrap"
+        return 0
+    fi
+
     if [ -f "$log_lib" ]; then
         sh -c '. "$1"; log_block_devices_snapshot' _ "$log_lib" || true
     else
