@@ -17,6 +17,7 @@ def _run_init(
     config_path.write_text(textwrap.dedent(config).strip() + "\n")
 
     console_log = tmp_path / "console.log"
+    console_log.write_text("")
     serial_log = tmp_path / "serial.log"
     serial_log.write_text("")
 
@@ -26,6 +27,17 @@ def _run_init(
     env["SP_EXIT_AFTER_INIT"] = "1"
     env["SP_LOG_DEVICE"] = str(console_log)
     env["SP_WRITE_GATE_SERIAL_DEVICE"] = str(serial_log)
+
+    if "SP_EXPECTED_KERNEL_VERSION" not in env:
+        modules_root = Path("/lib/modules")
+        if modules_root.is_dir():
+            versions = sorted(
+                entry.name
+                for entry in modules_root.iterdir()
+                if entry.is_dir()
+            )
+            if versions:
+                env["SP_EXPECTED_KERNEL_VERSION"] = versions[0]
 
     result = subprocess.run(
         [str(INSTALL_SCRIPT)],

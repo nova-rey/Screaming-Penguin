@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -25,9 +26,30 @@ RUNTIME_LIB_ENTRIES = (
     reason="gzip/cpio required for initrd validation",
 )
 def test_installer_initrd_contains_runtime_payload() -> None:
+    kernel_dir = Path("build/runtime")
+    kernel_dir.mkdir(parents=True, exist_ok=True)
+    kernel_image = kernel_dir / "vmlinuz"
+    kernel_image.write_bytes(b"FAKE-KERNEL")
+
+    modules_root = Path("build/runtime-chroot/lib/modules")
+    kernel_version = "test-kernel"
+    modules_src = modules_root / kernel_version
+    modules_src.mkdir(parents=True, exist_ok=True)
+    (modules_src / "dummy").write_text("module")
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "SP_INSTALLER_KERNEL_IMAGE": str(kernel_image),
+            "SP_INSTALLER_KERNEL_VERSION": kernel_version,
+            "SP_INSTALLER_MODULES_ROOT": str(modules_root),
+        }
+    )
+
     subprocess.run(
         ["bash", "tools/build_installer_initramfs.sh"],
         check=True,
+        env=env,
     )
 
     initrd_path = Path("dist") / "initrd-installer.img"
