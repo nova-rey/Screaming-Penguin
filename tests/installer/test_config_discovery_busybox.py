@@ -76,6 +76,22 @@ def _base_env(tmp_path: Path) -> dict[str, str]:
     }
 
 
+def _configure_rescue_env(env: dict[str, str], tmp_path: Path) -> Path:
+    shell_log = tmp_path / "rescue-shell.log"
+    console = tmp_path / "console"
+    console.write_text("")
+    env.update(
+        {
+            "SP_TEST_RESCUE_SHELL": str(Path("tests/installer/bin/rescue-shell")),
+            "SP_TEST_RESCUE_SHELL_EXIT": "47",
+            "SP_TEST_RESCUE_SHELL_LOG": str(shell_log),
+            "SP_TEST_RESCUE_CONSOLE": str(console),
+            "SP_TEST_RESCUE_LOOP": "0",
+        }
+    )
+    return shell_log
+
+
 def _assert_config_found(
     result: subprocess.CompletedProcess, expected_content: str, mount_point: Path
 ) -> None:
@@ -131,18 +147,7 @@ def test_missing_config_triggers_rescue(tmp_path: Path) -> None:
     _create_block(tmp_path, "faulty", removable="0")
 
     env = _base_env(tmp_path)
-    shell_log = tmp_path / "rescue-shell.log"
-    console = tmp_path / "console"
-    console.write_text("")
-    env.update(
-        {
-            "SP_TEST_RESCUE_SHELL": str(Path("tests/installer/bin/rescue-shell")),
-            "SP_TEST_RESCUE_SHELL_EXIT": "47",
-            "SP_TEST_RESCUE_SHELL_LOG": str(shell_log),
-            "SP_TEST_RESCUE_CONSOLE": str(console),
-            "SP_TEST_RESCUE_LOOP": "0",
-        }
-    )
+    shell_log = _configure_rescue_env(env, tmp_path)
 
     result = _run_command(env, f". {SCRIPT}; sp_discover_config")
 
@@ -156,6 +161,22 @@ def test_missing_config_triggers_rescue(tmp_path: Path) -> None:
     assert "lsblk" not in stderr
     assert shell_log.exists()
     assert "rescue-shell" in shell_log.read_text()
+
+
+def test_respects_exclude_prefix(tmp_path: Path) -> None:
+    skip_device = _create_block(tmp_path, "skip-disk", removable="1")
+    (skip_device / "installer-config.yml").write_text("skip\n")
+
+    allowed_device = _create_block(tmp_path, "z-disk", removable="1")
+    (allowed_device / "installer-config.yml").write_text("allowed\n")
+
+    env = _base_env(tmp_path)
+    env["SP_CONFIG_DISCOVERY_EXCLUDE_PREFIXES"] = "skip"
+
+    command = f'. {SCRIPT}; if sp_discover_config; then printf \'%s\\n%s\\n\' "$SP_CONFIG_PATH" "$CONFIG_MOUNT"; fi'
+    result = _run_command(env, command)
+
+    _assert_config_found(result, "allowed\n", Path(env["SP_CONFIG_MOUNT_POINT"]))
 
 
 def test_uses_heuristic_partition_names(tmp_path: Path) -> None:
