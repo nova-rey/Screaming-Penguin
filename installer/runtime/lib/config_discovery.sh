@@ -244,11 +244,16 @@ sp_try_label_candidate() {
 
 sp_should_skip_device() {
     base="$1"
-    case "$base" in
-        loop*|ram*|fd*|sr*|dm*)
-            return 0
-            ;;
-    esac
+    prefixes="${SP_CONFIG_DISCOVERY_EXCLUDE_PREFIXES:-}"
+
+    for prefix in $prefixes; do
+        case "$base" in
+            "$prefix"*)
+                return 0
+                ;;
+        esac
+    done
+
     return 1
 }
 
