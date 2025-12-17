@@ -23,13 +23,15 @@ if [ -f "$SP_RESCUE_MODE_LIB" ]; then
 fi
 
 SP_CONFIG_LABEL_NAME="${SP_CONFIG_LABEL_NAME:-SP_CONFIG}"
-SP_CONFIG_LABEL_DIR="${SP_CONFIG_LABEL_DIR:-/dev/disk/by-label}"
 SP_CONFIG_MOUNT_POINT="${SP_CONFIG_MOUNT_POINT:-/config}"
 SP_CONFIG_FILE="${SP_CONFIG_FILE:-installer-config.yml}"
 SP_SYS_BLOCK_ROOT="${SP_SYS_BLOCK_ROOT:-/sys/block}"
 SP_DEV_ROOT="${SP_DEV_ROOT:-/dev}"
+SP_PROC_PARTITIONS="${SP_PROC_PARTITIONS:-/proc/partitions}"
 SP_CONFIG_DISCOVERY_MAX_ATTEMPTS="${SP_CONFIG_DISCOVERY_MAX_ATTEMPTS:-1}"
 SP_CONFIG_DISCOVERY_EXCLUDE_PREFIXES="${SP_CONFIG_DISCOVERY_EXCLUDE_PREFIXES:-loop ram fd sr dm}"
+SP_CONFIG_LABEL_PROBE_CANDIDATES=0
+SP_CONFIG_LABEL_DEVICE=""
 
 SP_CONFIG_DISCOVERY_ATTEMPTS_LOG=""
 SP_CONFIG_DISCOVERY_ATTEMPT_COUNT=0
@@ -62,6 +64,84 @@ sp_log_candidate_summary() {
             "reason=${reason:-unknown}" \
             "label=${label:-unknown}"
     done
+}
+
+sp_log_fatal_marker() {
+    message="$1"
+    log_device="${SP_LOG_DEVICE:-}"
+    if [ -n "$log_device" ]; then
+        printf '[SP-INSTALLER][FATAL] %s\n' "$message" >>"$log_device" 2>&1 || true
+    else
+        printf '[SP-INSTALLER][FATAL] %s\n' "$message" >&2 || true
+    fi
+}
+
+sp_find_partition_by_fs_label() {
+    label="$1"
+    partitions="${SP_PROC_PARTITIONS:-/proc/partitions}"
+    SP_CONFIG_LABEL_PROBE_CANDIDATES=0
+
+    if [ -z "$label" ]; then
+        return 1
+    fi
+
+    if ! command -v blkid >/dev/null 2>&1; then
+        sp_log_fatal_marker "blkid-not-found"
+        return 1
+    fi
+
+    if [ ! -r "$partitions" ]; then
+        return 1
+    fi
+
+    candidate_count=0
+    while IFS= read -r line; do
+        set -- $line
+        major="$1"
+        name="$4"
+
+        if [ -z "$major" ]; then
+            continue
+        fi
+
+        case "$major" in
+            ''|*[!0-9]*)
+                continue
+                ;;
+        esac
+
+        if [ -z "$name" ]; then
+            continue
+        fi
+
+        candidate="${SP_DEV_ROOT%/}/${name}"
+        if [ ! -e "$candidate" ]; then
+            continue
+        fi
+
+        candidate_count=$((candidate_count + 1))
+        blkid_output="$(blkid -o export "$candidate" 2>/dev/null || true)"
+        label_value=""
+        while IFS= read -r line; do
+            case "$line" in
+                LABEL=*)
+                    label_value="${line#LABEL=}"
+                    break
+                    ;;
+            esac
+        done <<__BLKID_EXPORT__
+$blkid_output
+__BLKID_EXPORT__
+
+        if [ "$label_value" = "$label" ]; then
+            SP_CONFIG_LABEL_PROBE_CANDIDATES="$candidate_count"
+            SP_CONFIG_LABEL_DEVICE="$candidate"
+            return 0
+        fi
+    done < "$partitions"
+
+    SP_CONFIG_LABEL_PROBE_CANDIDATES="$candidate_count"
+    return 1
 }
 
 sp_cleanup_mount_point() {
@@ -215,30 +295,19 @@ sp_attempt_mount_candidate() {
 }
 
 sp_try_label_candidate() {
-    label_path="${SP_CONFIG_LABEL_DIR%/}/${SP_CONFIG_LABEL_NAME}"
-    if [ ! -e "$label_path" ]; then
-        sp_log "state=discover-config" \
-            "phase=label" \
-            "result=skip" \
-            "reason=missing-label" \
-            "path=${label_path}"
+    sp_log "config-resolver=probe-label"
+    sp_log "config-label=${SP_CONFIG_LABEL_NAME}"
+
+    if sp_find_partition_by_fs_label "$SP_CONFIG_LABEL_NAME"; then
+        target="${SP_CONFIG_LABEL_DEVICE:-}"
+        sp_log "config-dev=${target}"
+        if sp_attempt_mount_candidate "$target" "label" "$SP_CONFIG_LABEL_NAME"; then
+            return 0
+        fi
         return 1
     fi
 
-    target=$(sp_realpath "$label_path" || printf '%s\n' "$label_path")
-    if [ -z "$target" ]; then
-        sp_log "state=discover-config" \
-            "phase=label" \
-            "result=skip" \
-            "reason=label-target-missing" \
-            "path=${label_path}"
-        return 1
-    fi
-
-    if sp_attempt_mount_candidate "$target" "label" "$SP_CONFIG_LABEL_NAME"; then
-        return 0
-    fi
-
+    sp_log_fatal_marker "config-label-not-found label=${SP_CONFIG_LABEL_NAME} candidates=${SP_CONFIG_LABEL_PROBE_CANDIDATES:-0}"
     return 1
 }
 
