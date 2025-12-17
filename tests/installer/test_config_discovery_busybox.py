@@ -46,6 +46,7 @@ def _create_block(tmp_path: Path, name: str, removable: str = "0") -> Path:
     (block_dir / "removable").write_text(removable)
     device = dev_root / name
     device.mkdir(exist_ok=True)
+    _record_proc_partition(tmp_path, name)
     return device
 
 
@@ -57,7 +58,21 @@ def _create_partition(tmp_path: Path, parent: str, partition: str) -> Path:
     part_dir.mkdir(exist_ok=True)
     device = dev_root / partition
     device.mkdir(exist_ok=True)
+    _record_proc_partition(tmp_path, partition)
     return device
+
+
+def _ensure_proc_partitions(tmp_path: Path) -> Path:
+    partitions = tmp_path / "proc_partitions"
+    if not partitions.exists():
+        partitions.write_text("major minor #blocks name\n")
+    return partitions
+
+
+def _record_proc_partition(tmp_path: Path, name: str) -> None:
+    partitions = _ensure_proc_partitions(tmp_path)
+    with partitions.open("a") as stream:
+        stream.write(f"   8     1    1024 {name}\n")
 
 
 def _base_env(tmp_path: Path) -> dict[str, str]:
@@ -68,11 +83,13 @@ def _base_env(tmp_path: Path) -> dict[str, str]:
     label_dir.mkdir(parents=True, exist_ok=True)
     sys_block.mkdir(parents=True, exist_ok=True)
     dev_root.mkdir(parents=True, exist_ok=True)
+    partitions = _ensure_proc_partitions(tmp_path)
     return {
         "SP_SYS_BLOCK_ROOT": str(sys_block),
         "SP_DEV_ROOT": str(dev_root),
         "SP_CONFIG_LABEL_DIR": str(label_dir),
         "SP_CONFIG_MOUNT_POINT": str(mount_point),
+        "SP_PROC_PARTITIONS": str(partitions),
     }
 
 
@@ -113,11 +130,56 @@ def test_prefers_label_device(tmp_path: Path) -> None:
     label_dir.mkdir(parents=True, exist_ok=True)
     (label_dir / "SP_CONFIG").symlink_to(label_device)
 
+    blkid_data = tmp_path / "label-blkid.dat"
+    blkid_data.write_text(
+        f"DEVNAME={label_device}\n"
+        "LABEL=SP_CONFIG\n"
+    )
+
     env = _base_env(tmp_path)
+    env["SP_TEST_BLKID_DATA"] = str(blkid_data)
     command = f'. {SCRIPT}; if sp_discover_config; then printf \'%s\\n%s\\n\' "$SP_CONFIG_PATH" "$CONFIG_MOUNT"; fi'
     result = _run_command(env, command)
 
     _assert_config_found(result, "config\n", Path(env["SP_CONFIG_MOUNT_POINT"]))
+
+
+def test_probe_label_selects_device(tmp_path: Path) -> None:
+    label_device = _create_block(tmp_path, "label-disk")
+    (label_device / "installer-config.yml").write_text("config\n")
+
+    blkid_data = tmp_path / "blkid.dat"
+    blkid_data.write_text(
+        f"DEVNAME={label_device}\n"
+        "LABEL=SP_CONFIG\n"
+    )
+
+    env = _base_env(tmp_path)
+    env["SP_TEST_BLKID_DATA"] = str(blkid_data)
+
+    command = f'. {SCRIPT}; if sp_discover_config; then printf \'%s\\n%s\\n\' "$SP_CONFIG_PATH" "$CONFIG_MOUNT"; fi'
+    result = _run_command(env, command)
+
+    _assert_config_found(result, "config\n", Path(env["SP_CONFIG_MOUNT_POINT"]))
+
+
+def test_probe_label_not_found_fatal(tmp_path: Path) -> None:
+    label_device = _create_block(tmp_path, "label-disk")
+
+    blkid_data = tmp_path / "blkid.dat"
+    blkid_data.write_text(
+        f"DEVNAME={label_device}\n"
+        "LABEL=OTHER\n"
+    )
+
+    env = _base_env(tmp_path)
+    env["SP_TEST_BLKID_DATA"] = str(blkid_data)
+    _configure_rescue_env(env, tmp_path)
+
+    result = _run_command(env, f". {SCRIPT}; sp_discover_config")
+
+    assert result.returncode == 47
+    assert "[SP-INSTALLER][FATAL] config-label-not-found label=SP_CONFIG candidates=1" in result.stderr
 
 
 def test_uses_removable_when_label_missing(tmp_path: Path) -> None:
@@ -203,5 +265,8 @@ def test_runtime_has_no_util_linux_references() -> None:
         if not path.is_file():
             continue
         text = path.read_text(errors="ignore")
+        if path.name == "config_discovery.sh":
+            assert "lsblk" not in text, f"lsblk reference found in {path}"
+            continue
         assert "blkid" not in text, f"blkid reference found in {path}"
         assert "lsblk" not in text, f"lsblk reference found in {path}"

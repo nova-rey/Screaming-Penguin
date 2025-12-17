@@ -11,6 +11,7 @@ The installer now performs configuration discovery with a BusyBox-only toolchain
 ## Discovery order
 
 1. **Label media.** The contents of `${SP_CONFIG_LABEL_DIR%/}/${SP_CONFIG_LABEL_NAME}` are resolved with `readlink -f`; the pointed node is attempted first so labeled installer media remain the preferred source.
+Initramfs probes filesystem labels via blkid; it does not rely on /dev/disk/by-label.
 2. **Removable disks.** `/sys/block/*/removable` is consulted next. Each removable disk path (`${SP_DEV_ROOT:-/dev}/${device}`) is logged before mount attempts.
 3. **All partitions.** Every sysfs partition entry under `/sys/block/*` is enumerated last, maximizing coverage without blocking on non-removable media.
 
