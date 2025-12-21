@@ -174,12 +174,14 @@ def test_probe_label_not_found_fatal(tmp_path: Path) -> None:
 
     env = _base_env(tmp_path)
     env["SP_TEST_BLKID_DATA"] = str(blkid_data)
-    _configure_rescue_env(env, tmp_path)
+    env["SP_CONFIG_LABEL"] = "SP_CONFIG"
+    shell_log = _configure_rescue_env(env, tmp_path)
 
     result = _run_command(env, f". {SCRIPT}; sp_discover_config")
 
-    assert result.returncode == 47
+    assert result.returncode == 1
     assert "[SP-INSTALLER][FATAL] config-label-not-found label=SP_CONFIG candidates=1" in result.stderr
+    assert not shell_log.exists()
 
 
 def test_uses_removable_when_label_missing(tmp_path: Path) -> None:
