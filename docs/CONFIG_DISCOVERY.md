@@ -2,6 +2,8 @@
 
 The installer now performs configuration discovery with a BusyBox-only toolchain inside the initrd. There are no `blkid`, `lsblk`, or `udevadm` dependencies during early boot; the script reads sysfs (`/sys/block`) and `/dev` directly and relies on BusyBox applets such as `mount`, `readlink`, `cat`, and `sh`.
 
+Initramfs loads its bundled library tree under `build/installer-initramfs/runtime/lib`; it does not source `build/runtime/lib`.
+
 ## BusyBox-first philosophy
 
 - _Mounts are read-only._ Candidates are mounted with `mount -o ro -t vfat` and `mount -o ro -t ext4` until `/config/installer-config.yml` is found. Failed mounts are unmounted and the mount point is swept clean.
