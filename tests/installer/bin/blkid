@@ -1,6 +1,53 @@
 #!/bin/sh
+if [ -n "${SP_TEST_BLKID_MISSING:-}" ]; then
+    exit 127
+fi
+
 if [ -n "${SP_TEST_BLKID_DATA:-}" ] && [ -f "${SP_TEST_BLKID_DATA}" ]; then
-    cat "${SP_TEST_BLKID_DATA}"
+    device=""
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            -o)
+                shift 2
+                ;;
+            --)
+                shift
+                break
+                ;;
+            *)
+                device="$1"
+                shift
+                break
+                ;;
+        esac
+    done
+
+    if [ -n "$device" ]; then
+        python3 - "$device" "${SP_TEST_BLKID_DATA}" <<'PY'
+import sys
+from pathlib import Path
+
+target = Path(sys.argv[1])
+data_path = Path(sys.argv[2])
+if not data_path.exists():
+    sys.exit(0)
+for block in data_path.read_text().split("\n\n"):
+    block = block.strip()
+    if not block:
+        continue
+    device_line = next((line for line in block.splitlines() if line.startswith("DEVNAME=")), "")
+    if not device_line:
+        continue
+    dev_value = device_line.split("=", 1)[1]
+    dev_path = Path(dev_value)
+    if dev_path == target or dev_path.name == target.name:
+        print(block)
+        sys.exit(0)
+PY
+    else
+        cat "${SP_TEST_BLKID_DATA}"
+    fi
     exit 0
 fi
+
 exit 0

@@ -137,6 +137,7 @@ mkdir -p "${INITRD_ROOT}"
 
 # Create minimal directory tree
 mkdir -p "${INITRD_ROOT}"/{bin,sbin,etc,proc,sys,usr/bin,usr/sbin,dev,mnt/config,run}
+mkdir -p "${INITRD_ROOT}/lib" "${INITRD_ROOT}/lib64"
 mkdir -p "${INITRD_ROOT}/runtime/lib"
 mkdir -p "${INITRD_ROOT}/lib/modules"
 
@@ -207,6 +208,40 @@ if [ "${BUSYBOX_DYNAMIC}" -eq 1 ]; then
     cp -L "${lib}" "${INITRD_ROOT}${lib}"
   done
 fi
+
+echo "[SP-INSTALLER] Staging blkid label resolver..."
+BLKID_PATH="${SP_BLKID_BIN:-$(command -v blkid || true)}"
+if [ -z "${BLKID_PATH}" ]; then
+  echo "[SP-BUILD] ERROR: blkid binary not found on build host; required for label probes." >&2
+  exit 1
+fi
+echo "[SP-INSTALLER] blkid candidate: ${BLKID_PATH}"
+install -m 0755 "${BLKID_PATH}" "${INITRD_ROOT}/bin/blkid"
+
+if ! command -v ldd >/dev/null 2>&1; then
+  echo "[SP-BUILD] ERROR: ldd is required to stage blkid dependencies but is missing on the build host." >&2
+  exit 1
+fi
+
+blkid_libs=$(ldd "${BLKID_PATH}" | awk '{for (i=1; i<=NF; ++i) if ($i ~ /^\//) {print $i; break}}' | sort -u)
+copied_libs=""
+for lib in ${blkid_libs}; do
+  if [ -z "${lib}" ]; then
+    continue
+  fi
+  if [ ! -f "${lib}" ]; then
+    continue
+  fi
+  case ":${copied_libs}:" in
+    *:"${lib}":*)
+      continue
+      ;;
+  esac
+  copied_libs="${copied_libs}:${lib}"
+  dest_dir="${INITRD_ROOT}$(dirname "${lib}")"
+  mkdir -p "${dest_dir}"
+  cp -L "${lib}" "${dest_dir}/"
+done
 
 (
   cd "${INITRD_ROOT}/bin"
