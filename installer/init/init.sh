@@ -77,6 +77,7 @@ SP_DISK_EXECUTE_LIB="$SP_RUNTIME_LIB_DIR/disk_execute.sh"
 SP_ROOTFS_DEPLOY_LIB="$SP_RUNTIME_LIB_DIR/rootfs_deploy.sh"
 SP_BOOTLOADER_LIB="$SP_RUNTIME_LIB_DIR/bootloader.sh"
 SP_CONFIG_DISCOVERY_LIB="$SP_RUNTIME_LIB_DIR/config_discovery.sh"
+SP_STORAGE_BOOTSTRAP_LIB="$SP_RUNTIME_LIB_DIR/storage_bootstrap.sh"
 
 if [ -f "$SP_RESCUE_MODE_LIB" ]; then
     # shellcheck disable=SC1090
@@ -112,6 +113,12 @@ if [ -f "$SP_CONFIG_DISCOVERY_LIB" ]; then
     # shellcheck disable=SC1090
     # shellcheck source=installer/runtime/lib/config_discovery.sh
     . "$SP_CONFIG_DISCOVERY_LIB"
+fi
+
+if [ -f "$SP_STORAGE_BOOTSTRAP_LIB" ]; then
+    # shellcheck disable=SC1090
+    # shellcheck source=installer/runtime/lib/storage_bootstrap.sh
+    . "$SP_STORAGE_BOOTSTRAP_LIB"
 fi
 
 sp_write_gate_blocked() {
@@ -447,6 +454,10 @@ sp_bootstrap() {
     sp_log 'stage=bootstrapped'
 
     sp_bootstrap_dev_nodes
+
+    if command -v sp_bootstrap_usb_storage >/dev/null 2>&1; then
+        sp_bootstrap_usb_storage
+    fi
 
     log_lib="$SP_RUNTIME_LIB_DIR/logging.sh"
 

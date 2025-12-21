@@ -22,6 +22,13 @@ if [ -f "$SP_RESCUE_MODE_LIB" ]; then
     . "$SP_RESCUE_MODE_LIB"
 fi
 
+SP_STORAGE_BOOTSTRAP_LIB="$SP_RUNTIME_LIB_DIR/storage_bootstrap.sh"
+if [ -f "$SP_STORAGE_BOOTSTRAP_LIB" ]; then
+    # shellcheck disable=SC1090
+    # shellcheck source=installer/runtime/lib/storage_bootstrap.sh
+    . "$SP_STORAGE_BOOTSTRAP_LIB"
+fi
+
 SP_CONFIG_LABEL_NAME_ENV="${SP_CONFIG_LABEL_NAME:-}"
 SP_CONFIG_LABEL_NAME="${SP_CONFIG_LABEL_NAME_ENV:-${SP_CONFIG_LABEL:-SP_CONFIG}}"
 SP_CONFIG_LABEL_REQUESTED=0
@@ -469,6 +476,10 @@ sp_discover_config() {
     SP_CONFIG_DISCOVERY_ATTEMPTS_LOG=""
     SP_CONFIG_DISCOVERY_ATTEMPT_COUNT=0
     SP_CONFIG_DISCOVERY_TRIED=""
+
+    if command -v sp_bootstrap_usb_storage >/dev/null 2>&1; then
+        sp_bootstrap_usb_storage
+    fi
 
     sp_log "state=discover-config" "phase=start"
 

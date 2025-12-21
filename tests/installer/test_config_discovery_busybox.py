@@ -109,6 +109,24 @@ def _configure_rescue_env(env: dict[str, str], tmp_path: Path) -> Path:
     return shell_log
 
 
+def _write_usb_scan_trigger_script(tmp_path: Path) -> Path:
+    script = tmp_path / "usb-scan-trigger.sh"
+    script.write_text(
+        "#!/bin/sh\n"
+        "sys_block=\"$1\"\n"
+        "dev_root=\"$2\"\n"
+        "device_name=\"${SP_TEST_USB_STORAGE_SCAN_DEVICE:-sda}\"\n"
+        "config_content=\"${SP_TEST_USB_STORAGE_SCAN_CONFIG:-usb-scan}\"\n"
+        "removable_value=\"${SP_TEST_USB_STORAGE_SCAN_REMOVABLE:-1}\"\n"
+        "mkdir -p \"$sys_block/$device_name\"\n"
+        "mkdir -p \"$dev_root/$device_name\"\n"
+        "printf '%s\\n' \"$removable_value\" > \"$sys_block/$device_name/removable\"\n"
+        "printf '%s\\n' \"$config_content\" > \"$dev_root/$device_name/installer-config.yml\"\n"
+    )
+    script.chmod(0o755)
+    return script
+
+
 def _assert_config_found(
     result: subprocess.CompletedProcess, expected_content: str, mount_point: Path
 ) -> None:
@@ -193,6 +211,48 @@ def test_uses_removable_when_label_missing(tmp_path: Path) -> None:
     result = _run_command(env, command)
 
     _assert_config_found(result, "removable\n", Path(env["SP_CONFIG_MOUNT_POINT"]))
+
+
+def test_waits_for_usb_storage_scan_trigger(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
+    trigger = _write_usb_scan_trigger_script(tmp_path)
+    scan_value = "delayed-scan"
+    env.update(
+        {
+            "SP_TEST_USB_STORAGE_SCAN_TRIGGER": str(trigger),
+            "SP_TEST_USB_STORAGE_SCAN_CONFIG": scan_value,
+        }
+    )
+
+    command = f'. {SCRIPT}; if sp_discover_config; then printf \'%s\\n%s\\n\' "$SP_CONFIG_PATH" "$CONFIG_MOUNT"; fi'
+    result = _run_command(env, command)
+
+    _assert_config_found(
+        result,
+        f"{scan_value}\n",
+        Path(env["SP_CONFIG_MOUNT_POINT"]),
+    )
+
+
+def test_usb_storage_scan_noop_with_existing_device(tmp_path: Path) -> None:
+    existing_device = _create_block(tmp_path, "present", removable="1")
+    (existing_device / "installer-config.yml").write_text("present\n")
+
+    trigger = tmp_path / "usb-scan-noop.sh"
+    trigger.write_text("#!/bin/sh\nexit 0\n")
+    trigger.chmod(0o755)
+
+    env = _base_env(tmp_path)
+    env["SP_TEST_USB_STORAGE_SCAN_TRIGGER"] = str(trigger)
+
+    command = f'. {SCRIPT}; if sp_discover_config; then printf \'%s\\n%s\\n\' "$SP_CONFIG_PATH" "$CONFIG_MOUNT"; fi'
+    result = _run_command(env, command)
+
+    _assert_config_found(
+        result,
+        "present\n",
+        Path(env["SP_CONFIG_MOUNT_POINT"]),
+    )
 
 
 def test_falls_back_to_partitions(tmp_path: Path) -> None:
