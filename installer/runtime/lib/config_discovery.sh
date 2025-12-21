@@ -22,7 +22,12 @@ if [ -f "$SP_RESCUE_MODE_LIB" ]; then
     . "$SP_RESCUE_MODE_LIB"
 fi
 
-SP_CONFIG_LABEL_NAME="${SP_CONFIG_LABEL_NAME:-SP_CONFIG}"
+SP_CONFIG_LABEL_NAME_ENV="${SP_CONFIG_LABEL_NAME:-}"
+SP_CONFIG_LABEL_NAME="${SP_CONFIG_LABEL_NAME_ENV:-${SP_CONFIG_LABEL:-SP_CONFIG}}"
+SP_CONFIG_LABEL_REQUESTED=0
+if [ -n "${SP_CONFIG_LABEL_NAME_ENV}" ] || [ -n "${SP_CONFIG_LABEL:-}" ]; then
+    SP_CONFIG_LABEL_REQUESTED=1
+fi
 SP_CONFIG_MOUNT_POINT="${SP_CONFIG_MOUNT_POINT:-/config}"
 SP_CONFIG_FILE="${SP_CONFIG_FILE:-installer-config.yml}"
 SP_SYS_BLOCK_ROOT="${SP_SYS_BLOCK_ROOT:-/sys/block}"
@@ -307,7 +312,6 @@ sp_try_label_candidate() {
         return 1
     fi
 
-    sp_log_fatal_marker "config-label-not-found label=${SP_CONFIG_LABEL_NAME} candidates=${SP_CONFIG_LABEL_PROBE_CANDIDATES:-0}"
     return 1
 }
 
@@ -486,6 +490,11 @@ sp_discover_config() {
 
         if sp_try_label_candidate; then
             return 0
+        fi
+
+        if [ "${SP_CONFIG_LABEL_REQUESTED:-0}" -eq 1 ] && [ -z "${SP_CONFIG_LABEL_DEVICE:-}" ]; then
+            sp_log_fatal_marker "config-label-not-found label=${SP_CONFIG_LABEL_NAME} candidates=${SP_CONFIG_LABEL_PROBE_CANDIDATES:-0}"
+            return 1
         fi
 
         if sp_try_removable_candidates; then
