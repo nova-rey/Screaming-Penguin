@@ -69,8 +69,18 @@ sp_log_write_gate_marker() {
 }
 
 SP_INIT_SCRIPT_PATH="${SP_INIT_SCRIPT_PATH:-$0}"
-SP_SCRIPT_DIR="$(cd "$(dirname "$SP_INIT_SCRIPT_PATH")" && pwd)"
-SP_RUNTIME_LIB_DIR="$(cd "$SP_SCRIPT_DIR/../runtime/lib" && pwd)"
+
+if [ -n "${SP_INIT_PATH:-}" ]; then
+    SP_SCRIPT_DIR="$(cd "$(dirname "$SP_INIT_PATH")" && pwd)"
+else
+    SP_SCRIPT_DIR="$(cd "$(dirname "$SP_INIT_SCRIPT_PATH")" && pwd)"
+fi
+
+if [ -d "$SP_SCRIPT_DIR/runtime/lib" ]; then
+    SP_RUNTIME_LIB_DIR="$(cd "$SP_SCRIPT_DIR/runtime/lib" && pwd)"
+else
+    SP_RUNTIME_LIB_DIR="$(cd "$SP_SCRIPT_DIR/../runtime/lib" && pwd)"
+fi
 SP_RESCUE_MODE_LIB="$SP_RUNTIME_LIB_DIR/rescue_mode.sh"
 SP_DISK_LAYOUT_LIB="$SP_RUNTIME_LIB_DIR/disk_layout.sh"
 SP_DISK_EXECUTE_LIB="$SP_RUNTIME_LIB_DIR/disk_execute.sh"

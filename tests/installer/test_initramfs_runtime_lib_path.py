@@ -24,6 +24,7 @@ def test_local_runtime_lib_has_priority(tmp_path: Path) -> None:
     env.update(
         {
             "SP_SKIP_INIT_MAIN": "1",
+            "SP_INIT_PATH": str(installer_root / "init"),
             "SP_INIT_SCRIPT_PATH": str(installer_root / "init"),
             "SP_LOG_DEVICE": str(log_device),
         }
