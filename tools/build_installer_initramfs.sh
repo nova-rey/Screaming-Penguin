@@ -33,6 +33,11 @@ _is_busybox_static() {
   return 1
 }
 
+_depmod_version_is_numeric() {
+  local version="$1"
+  [[ "${version}" =~ ^[0-9] ]]
+}
+
 _determine_kernel_version() {
   local kernel_image="$1"
   local detected_version=""
@@ -312,13 +317,17 @@ if [ "${#missing_modules[@]}" -gt 0 ]; then
   echo "[SP-INSTALLER] WARNING: FAT/VFAT modules missing from ${MODULES_DST}: ${missing_modules[*]}"
 fi
 
-if ! command -v depmod >/dev/null 2>&1; then
-  echo "[SP-BUILD] ERROR: depmod is required to generate module dependency metadata." >&2
-  exit 1
-fi
+if _depmod_version_is_numeric "${KERNEL_VERSION}"; then
+  if ! command -v depmod >/dev/null 2>&1; then
+    echo "[SP-BUILD] ERROR: depmod is required to generate module dependency metadata." >&2
+    exit 1
+  fi
 
-echo "[SP-INSTALLER] Generating module dependency metadata..."
-depmod -b "${INITRD_ROOT}" "${KERNEL_VERSION}"
+  echo "[SP-INSTALLER] Generating module dependency metadata..."
+  depmod -b "${INITRD_ROOT}" "${KERNEL_VERSION}"
+else
+  echo "[SP-INSTALLER] WARNING: Skipping depmod for ${KERNEL_VERSION} because it does not look like a real kernel version." >&2
+fi
 
 echo "[SP-INSTALLER] Creating init script..."
 if [ ! -f "${INIT_SCRIPT_SRC}" ]; then
