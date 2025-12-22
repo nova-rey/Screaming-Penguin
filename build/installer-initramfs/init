@@ -69,9 +69,10 @@ sp_log_write_gate_marker() {
 }
 
 SP_INIT_SCRIPT_PATH="${SP_INIT_SCRIPT_PATH:-$0}"
+SP_INIT_PATH_SAFE="${SP_INIT_PATH:-}"
 
-if [ -n "${SP_INIT_PATH:-}" ]; then
-    SP_SCRIPT_DIR="$(cd "$(dirname "$SP_INIT_PATH")" && pwd)"
+if [ -n "${SP_INIT_PATH_SAFE}" ]; then
+    SP_SCRIPT_DIR="$(cd "$(dirname "$SP_INIT_PATH_SAFE")" && pwd)"
 else
     SP_SCRIPT_DIR="$(cd "$(dirname "$SP_INIT_SCRIPT_PATH")" && pwd)"
 fi
