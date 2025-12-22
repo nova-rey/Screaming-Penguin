@@ -12,8 +12,7 @@ Initramfs loads its bundled library tree under `build/installer-initramfs/runtim
 
 ## Discovery order
 
-1. **Label media.** The contents of `${SP_CONFIG_LABEL_DIR%/}/${SP_CONFIG_LABEL_NAME}` are resolved with `readlink -f`; the pointed node is attempted first so labeled installer media remain the preferred source.
-Initramfs probes filesystem labels via blkid; it does not rely on /dev/disk/by-label.
+1. **Label media.** If `${SP_CONFIG_LABEL_DIR}` exists (e.g., `/dev/disk/by-label`) the `${SP_CONFIG_LABEL_NAME}` symlink is resolved with `readlink -f` and the target is mounted first. BusyBox initramfs often lacks `/dev/disk/by-label`, so when the directory is missing or the symlink fails the helper walks `${SP_PROC_PARTITIONS:-/proc/partitions}` and runs `blkid -o export` on every partition under `${SP_DEV_ROOT:-/dev}`. This requires a real `/bin/blkid` inside the initramfs plus its shared libraries, and each probe logs `[SP-INSTALLER] label-probe device=… rc=… label=…`. When a label request cannot be satisfied the script emits `[SP-INSTALLER][FATAL] missing-blkid-for-label-probe` (if `blkid` itself is unavailable) or `[SP-INSTALLER][FATAL] label-not-found label=<name> probed=<N>` and exits instead of dropping to rescue.
 2. **Removable disks.** `/sys/block/*/removable` is consulted next. Each removable disk path (`${SP_DEV_ROOT:-/dev}/${device}`) is logged before mount attempts.
 3. **All partitions.** Every sysfs partition entry under `/sys/block/*` is enumerated last, maximizing coverage without blocking on non-removable media.
 

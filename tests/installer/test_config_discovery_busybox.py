@@ -16,7 +16,8 @@ def _run_command(
 ) -> subprocess.CompletedProcess:
     env = os.environ.copy()
     env.update(env_overrides)
-    env["PATH"] = f"{TEST_BIN}{os.pathsep}{env.get('PATH', '')}"
+    test_bin_path = str((ROOT / TEST_BIN).resolve())
+    env["PATH"] = f"{test_bin_path}{os.pathsep}{env.get('PATH', '')}"
     env.setdefault(
         "SP_RUNTIME_LIB_DIR",
         str((ROOT / "installer" / "runtime" / "lib").resolve()),
@@ -198,7 +199,48 @@ def test_probe_label_not_found_fatal(tmp_path: Path) -> None:
     result = _run_command(env, f". {SCRIPT}; sp_discover_config")
 
     assert result.returncode == 1
-    assert "[SP-INSTALLER][FATAL] config-label-not-found label=SP_CONFIG candidates=1" in result.stderr
+    assert "[SP-INSTALLER][FATAL] label-not-found label=SP_CONFIG probed=1" in result.stderr
+    assert not shell_log.exists()
+
+
+def test_label_probe_uses_blkid_without_dev_disk_by_label(tmp_path: Path) -> None:
+    partition_one = _create_partition(tmp_path, "sda", "sda1")
+    (partition_one / "installer-config.yml").write_text("config\n")
+    _create_partition(tmp_path, "sda", "sda2")
+
+    env = _base_env(tmp_path)
+    dev_root = Path(env["SP_DEV_ROOT"])
+    blkid_data = tmp_path / "multi-blkid.dat"
+    blkid_data.write_text(
+        f"DEVNAME={dev_root / 'sda1'}\n"
+        "LABEL=SP_CONFIG\n"
+        "\n"
+        f"DEVNAME={dev_root / 'sda2'}\n"
+        "LABEL=\n"
+    )
+    env["SP_CONFIG_LABEL"] = "SP_CONFIG"
+    env["SP_TEST_BLKID_DATA"] = str(blkid_data)
+    command = f'. {SCRIPT}; if sp_discover_config; then printf \'%s\\n%s\\n\' "$SP_CONFIG_PATH" "$CONFIG_MOUNT"; fi'
+    result = _run_command(env, command)
+
+    expected_device = Path(env["SP_DEV_ROOT"]) / "sda1"
+    assert result.returncode == 0, result.stderr
+    assert f"label-probe device={expected_device}" in result.stderr
+    assert f"SP_CONFIG_LABEL_DEVICE={expected_device}" in result.stderr
+    assert "/dev/disk/by-label" not in result.stderr
+    _assert_config_found(result, "config\n", Path(env["SP_CONFIG_MOUNT_POINT"]))
+
+
+def test_label_probe_fails_fast_when_blkid_missing(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
+    env["SP_CONFIG_LABEL"] = "SP_CONFIG"
+    env["SP_TEST_BLKID_MISSING"] = "1"
+    shell_log = _configure_rescue_env(env, tmp_path)
+
+    result = _run_command(env, f". {SCRIPT}; sp_discover_config")
+
+    assert result.returncode == 1
+    assert "[SP-INSTALLER][FATAL] missing-blkid-for-label-probe" in result.stderr
     assert not shell_log.exists()
 
 
@@ -281,8 +323,6 @@ def test_missing_config_triggers_rescue(tmp_path: Path) -> None:
     assert "source=sysfs" in stderr
     assert "source=proc/partitions" in stderr
     assert "source=by-label" in stderr
-    assert "blkid" not in stderr
-    assert "lsblk" not in stderr
     assert shell_log.exists()
     assert "rescue-shell" in shell_log.read_text()
 
