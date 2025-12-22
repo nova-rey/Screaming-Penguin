@@ -182,6 +182,30 @@ def test_probe_label_selects_device(tmp_path: Path) -> None:
     _assert_config_found(result, "config\n", Path(env["SP_CONFIG_MOUNT_POINT"]))
 
 
+def test_mount_falls_back_to_ext4(tmp_path: Path) -> None:
+    fallback_device = _create_block(tmp_path, "fallback", removable="0")
+    (fallback_device / "installer-config.yml").write_text("fallback-config\n")
+
+    env = _base_env(tmp_path)
+    env["SP_CONFIG_FS_TYPES"] = " vfat , ext4 "
+    env["SP_TEST_MOUNT_FAIL_FS"] = "vfat"
+
+    blkid_data = tmp_path / "fallback-blkid.dat"
+    blkid_data.write_text(
+        f"DEVNAME={fallback_device}\n"
+        "LABEL=SP_CONFIG\n"
+    )
+    env["SP_TEST_BLKID_DATA"] = str(blkid_data)
+
+    command = f'. {SCRIPT}; if sp_discover_config; then printf \'%s\\n%s\\n\' "$SP_CONFIG_PATH" "$CONFIG_MOUNT"; fi'
+    result = _run_command(env, command)
+
+    _assert_config_found(result, "fallback-config\n", Path(env["SP_CONFIG_MOUNT_POINT"]))
+    expected_device = Path(env["SP_DEV_ROOT"]) / "fallback"
+    expected_log = f"config-mount-ok fstype=ext4 dev={expected_device} mnt={env['SP_CONFIG_MOUNT_POINT']}"
+    assert expected_log in result.stderr
+
+
 def test_probe_label_not_found_fatal(tmp_path: Path) -> None:
     label_device = _create_block(tmp_path, "label-disk")
 

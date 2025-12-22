@@ -2,7 +2,7 @@
 
 The installer now performs configuration discovery with a BusyBox-only toolchain inside the initrd. There are no `blkid`, `lsblk`, or `udevadm` dependencies during early boot; the script reads sysfs (`/sys/block`) and `/dev` directly and relies on BusyBox applets such as `mount`, `readlink`, `cat`, and `sh`.
 
-SP_CONFIG resides on FAT32 media, so the initramfs now stages the `fat`, `vfat`, `nls_cp437`, and `nls_iso8859-1` modules and runs `modprobe` against them early. That ensures the subsequent `mount -t vfat` attempts succeed even when the filesystem drivers are modular.
+SP_CONFIG typically resides on FAT32 media, so the initramfs now stages the `fat`, `vfat`, `nls_cp437`, and `nls_iso8859-1` modules and runs `modprobe` against them early. By default the discovery stack tries `vfat` only, but `SP_CONFIG_FS_TYPES` lets you provide an ordered, comma-separated list such as `vfat,ext4` so the installer can fall back to other filesystems. The fallback is useful when the kernel lacks VFAT modules: discovery still finds the `SP_CONFIG` label but will log `[SP-INSTALLER] config-mount-ok fstype=ext4 ...` when the `ext4` attempt succeeds.
 
 Initramfs loads its bundled library tree under `build/installer-initramfs/runtime/lib`; it does not source `build/runtime/lib`.
 

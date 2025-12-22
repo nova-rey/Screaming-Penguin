@@ -168,8 +168,27 @@ sp_enter_rescue_mode() {
     if [ "${reason:-}" = "missing-config" ]; then
         if [ -r /proc/filesystems ]; then
             sp_rescue_dump_command "proc/filesystems" cat /proc/filesystems
-        elif command -v lsmod >/dev/null 2>&1; then
+        else
+            sp_rescue_log_line "source=proc/filesystems" "note=missing"
+        fi
+
+        if command -v lsmod >/dev/null 2>&1; then
             sp_rescue_dump_command "lsmod" lsmod
+        else
+            sp_rescue_log_line "source=lsmod" "note=missing"
+        fi
+
+        if [ "${SP_CONFIG_MOUNT_TRIED_VFAT:-0}" -eq 1 ]; then
+            if modprobe_bin="$(command -v modprobe 2>/dev/null)"; then
+                if "$modprobe_bin" -q vfat >/dev/null 2>&1; then
+                    rc=0
+                else
+                    rc=$?
+                fi
+                sp_rescue_log_line "source=modprobe" "module=vfat" "rc=${rc:-}"
+            else
+                sp_rescue_log_line "source=modprobe" "module=vfat" "note=missing"
+            fi
         fi
     fi
     sp_rescue_list_labels
