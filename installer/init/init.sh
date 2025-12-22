@@ -427,6 +427,34 @@ sp_initialize_storage_drivers() {
     sp_log "state=storage-drivers" "phase=done"
 }
 
+sp_try_modprobe_filesystem_module() {
+    module="$1"
+    modprobe_bin="${SP_STORAGE_MODPROBE_BIN:-$(command -v modprobe || true)}"
+
+    if [ -z "$modprobe_bin" ]; then
+        sp_log "state=filesystem-drivers" "phase=modprobe" "module=$module" "result=missing" "reason=modprobe-unavailable"
+        return
+    fi
+
+    if "$modprobe_bin" -q "$module" >/dev/null 2>&1; then
+        sp_log "state=filesystem-drivers" "phase=modprobe" "module=$module" "result=loaded" "cmd=$modprobe_bin"
+        SP_STORAGE_MODPROBE_BIN="$modprobe_bin"
+        export SP_STORAGE_MODPROBE_BIN
+        return
+    fi
+
+    rc=$?
+    sp_log "state=filesystem-drivers" "phase=modprobe" "module=$module" "result=failed" "cmd=$modprobe_bin" "rc=$rc"
+    SP_STORAGE_MODPROBE_BIN="$modprobe_bin"
+    export SP_STORAGE_MODPROBE_BIN
+}
+
+sp_load_filesystem_modules() {
+    for module in fat vfat nls_cp437 nls_iso8859-1; do
+        sp_try_modprobe_filesystem_module "$module"
+    done
+}
+
 sp_bootstrap() {
     PATH=/bin:/sbin:/usr/bin:/usr/sbin
     export PATH
@@ -961,6 +989,8 @@ sp_run_installer() {
     sp_validate_kernel_modules
 
     sp_initialize_storage_drivers
+
+    sp_load_filesystem_modules
 
     sp_detect_mode || true
 

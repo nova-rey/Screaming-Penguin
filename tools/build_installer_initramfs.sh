@@ -299,6 +299,27 @@ echo "[SP-INSTALLER] Runtime helpers staged in ${RUNTIME_LIB_DST}"
 mkdir -p "${MODULES_DST}"
 cp -a "${MODULES_SRC_DIR}/." "${MODULES_DST}/"
 
+FAT_MODULES=(fat vfat nls_cp437 nls_iso8859-1)
+missing_modules=()
+for module in "${FAT_MODULES[@]}"; do
+  module_path=$(find "${MODULES_DST}" -name "${module}.ko*" -print -quit 2>/dev/null || true)
+  if [ -z "${module_path}" ]; then
+    missing_modules+=("${module}")
+  fi
+done
+
+if [ "${#missing_modules[@]}" -gt 0 ]; then
+  echo "[SP-INSTALLER] WARNING: FAT/VFAT modules missing from ${MODULES_DST}: ${missing_modules[*]}"
+fi
+
+if ! command -v depmod >/dev/null 2>&1; then
+  echo "[SP-BUILD] ERROR: depmod is required to generate module dependency metadata." >&2
+  exit 1
+fi
+
+echo "[SP-INSTALLER] Generating module dependency metadata..."
+depmod -b "${INITRD_ROOT}" "${KERNEL_VERSION}"
+
 echo "[SP-INSTALLER] Creating init script..."
 if [ ! -f "${INIT_SCRIPT_SRC}" ]; then
   echo "[SP-BUILD] ERROR: init script source missing: ${INIT_SCRIPT_SRC}" >&2

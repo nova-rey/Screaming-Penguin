@@ -74,3 +74,8 @@ def test_installer_initrd_contains_runtime_payload() -> None:
     assert "bin/busybox" in entries
     for required in RUNTIME_LIB_ENTRIES:
         assert required in entries
+
+    init_script_path = Path("build/installer-initramfs/init")
+    init_content = init_script_path.read_text(encoding="utf-8")
+    assert "sp_load_filesystem_modules" in init_content
+    assert "for module in fat vfat nls_cp437 nls_iso8859-1" in init_content

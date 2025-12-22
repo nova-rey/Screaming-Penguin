@@ -2,6 +2,8 @@
 
 The installer now performs configuration discovery with a BusyBox-only toolchain inside the initrd. There are no `blkid`, `lsblk`, or `udevadm` dependencies during early boot; the script reads sysfs (`/sys/block`) and `/dev` directly and relies on BusyBox applets such as `mount`, `readlink`, `cat`, and `sh`.
 
+SP_CONFIG resides on FAT32 media, so the initramfs now stages the `fat`, `vfat`, `nls_cp437`, and `nls_iso8859-1` modules and runs `modprobe` against them early. That ensures the subsequent `mount -t vfat` attempts succeed even when the filesystem drivers are modular.
+
 Initramfs loads its bundled library tree under `build/installer-initramfs/runtime/lib`; it does not source `build/runtime/lib`.
 
 ## BusyBox-first philosophy
