@@ -46,11 +46,21 @@ def test_installer_initrd_contains_runtime_payload() -> None:
         }
     )
 
-    subprocess.run(
-        ["bash", "tools/build_installer_initramfs.sh"],
-        check=True,
-        env=env,
-    )
+    try:
+        subprocess.run(
+            ["bash", "tools/build_installer_initramfs.sh"],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+    except subprocess.CalledProcessError as exc:
+        stdout = exc.stdout.rstrip("\n") if exc.stdout else "<no stdout>"
+        stderr = exc.stderr.rstrip("\n") if exc.stderr else "<no stderr>"
+        pytest.fail(
+            "tools/build_installer_initramfs.sh failed "
+            f"(exit {exc.returncode}).\nstdout:\n{stdout}\nstderr:\n{stderr}"
+        )
 
     initrd_path = Path("dist") / "initrd-installer.img"
     assert initrd_path.exists(), "initrd-installer.img should exist after the build"
