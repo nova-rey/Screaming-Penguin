@@ -299,8 +299,25 @@ sp_mount_candidate() {
     [ -n "$candidate" ] || return 1
     mkdir -p "$SP_CONFIG_MOUNT_POINT" 2>/dev/null || true
 
+    sp_try_load_fat_modules
+
     for fs in vfat ext4; do
-        mount -o ro -t "$fs" "$candidate" "$SP_CONFIG_MOUNT_POINT" >/dev/null 2>&1 && return 0
+        if mount_output="$(mount -o ro -t "$fs" "$candidate" "$SP_CONFIG_MOUNT_POINT" 2>&1)"; then
+            return 0
+        fi
+
+        mount_rc=$?
+        if [ "$fs" = "vfat" ]; then
+            normalized_output="$(printf '%s' "$mount_output" | tr '\n' ' ' || true)"
+            normalized_output="${normalized_output:-none}"
+            sp_log "state=discover-config" \
+                "severity=FATAL" \
+                "event=mount-vfat-failed" \
+                "reason=filesystem-support-missing" \
+                "candidate=${candidate}" \
+                "error=${normalized_output}" \
+                "rc=${mount_rc}"
+        fi
     done
 
     return 1

@@ -165,6 +165,13 @@ sp_enter_rescue_mode() {
     sp_rescue_mount_minimal
     sp_rescue_dump_sys_block
     sp_rescue_dump_proc_partitions
+    if [ "${reason:-}" = "missing-config" ]; then
+        if [ -r /proc/filesystems ]; then
+            sp_rescue_dump_command "proc/filesystems" cat /proc/filesystems
+        elif command -v lsmod >/dev/null 2>&1; then
+            sp_rescue_dump_command "lsmod" lsmod
+        fi
+    fi
     sp_rescue_list_labels
 
     console_path="${SP_TEST_RESCUE_CONSOLE:-${SP_RESCUE_CONSOLE:-/dev/console}}"
