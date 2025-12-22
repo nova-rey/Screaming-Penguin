@@ -32,9 +32,7 @@ def _run_init(
         modules_root = Path("/lib/modules")
         if modules_root.is_dir():
             versions = sorted(
-                entry.name
-                for entry in modules_root.iterdir()
-                if entry.is_dir()
+                entry.name for entry in modules_root.iterdir() if entry.is_dir()
             )
             if versions:
                 env["SP_EXPECTED_KERNEL_VERSION"] = versions[0]

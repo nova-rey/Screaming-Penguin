@@ -1,0 +1,49 @@
+name: Lint
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+      - "**/feature/**"
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint + format check
+    runs-on: ubuntu-latest
+    env:
+      PYTHONUNBUFFERED: 1
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python tooling
+        run: |
+          set -euxo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-timeout pyfatfs ruff black
+
+      - name: Ruff check
+        run: |
+          set -euxo pipefail
+          ruff check .
+
+      - name: Black check
+        run: |
+          set -euxo pipefail
+          black --check .
+
+      - name: Pytest
+        run: |
+          set -euxo pipefail
+          pytest -q

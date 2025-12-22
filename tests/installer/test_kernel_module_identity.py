@@ -50,7 +50,9 @@ def test_detection_prefers_override(tmp_path: Path) -> None:
         }
     )
 
-    expected_dest = REPO_ROOT / "build" / "installer-initramfs" / "lib" / "modules" / kernel_version
+    expected_dest = (
+        REPO_ROOT / "build" / "installer-initramfs" / "lib" / "modules" / kernel_version
+    )
 
     assert result.returncode == 0
     assert "Kernel version detection method: override" in result.stdout

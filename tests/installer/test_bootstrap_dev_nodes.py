@@ -36,7 +36,9 @@ def _run_command(
         str((ROOT / "installer" / "runtime" / "lib").resolve()),
     )
 
-    timeout = DEFAULT_CMD_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
+    timeout = (
+        DEFAULT_CMD_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
+    )
     try:
         return subprocess.run(
             ["bash", "-c", command],
@@ -104,10 +106,9 @@ def test_bootstrap_runs_mdev_before_config_discovery(tmp_path: Path) -> None:
         "SP_TEST_MDEV_LOG": str(mdev_log),
     }
 
-    kernel_release = (
-        subprocess.run(["uname", "-r"], capture_output=True, text=True, check=True)
-        .stdout.strip()
-    )
+    kernel_release = subprocess.run(
+        ["uname", "-r"], capture_output=True, text=True, check=True
+    ).stdout.strip()
     modules_root = tmp_path / "modules"
     modules_root.mkdir(parents=True, exist_ok=True)
     (modules_root / kernel_release).mkdir(parents=True, exist_ok=True)
@@ -121,7 +122,7 @@ def test_bootstrap_runs_mdev_before_config_discovery(tmp_path: Path) -> None:
     mdev_stub.write_text(
         "#!/bin/sh\n"
         'log="${SP_TEST_MDEV_LOG:-/tmp/mdev.log}"\n'
-        "printf 'mdev-args=%s\\n' \"$*\" >>\"$log\" 2>/dev/null || true\n"
+        'printf \'mdev-args=%s\\n\' "$*" >>"$log" 2>/dev/null || true\n'
         f'echo "mdev $@" >> "{calls_log}"\n'
         "exit 0\n"
     )
@@ -133,9 +134,7 @@ def test_bootstrap_runs_mdev_before_config_discovery(tmp_path: Path) -> None:
 
     env.update(
         {
-            "SP_TEST_EXTRA_PATH": os.pathsep.join(
-                [str(stub_bin), str(sbin_dir)]
-            ),
+            "SP_TEST_EXTRA_PATH": os.pathsep.join([str(stub_bin), str(sbin_dir)]),
             "SP_BOOTSTRAP_MDEV_BIN": str(mdev_stub),
         }
     )
@@ -173,10 +172,9 @@ def test_storage_bootstrap_detects_emmc(tmp_path: Path) -> None:
 
     log = tmp_path / "storage-bootstrap.log"
 
-    kernel_release = (
-        subprocess.run(["uname", "-r"], capture_output=True, text=True, check=True)
-        .stdout.strip()
-    )
+    kernel_release = subprocess.run(
+        ["uname", "-r"], capture_output=True, text=True, check=True
+    ).stdout.strip()
     modules_root = tmp_path / "modules"
     modules_root.mkdir(parents=True, exist_ok=True)
     (modules_root / kernel_release).mkdir(parents=True, exist_ok=True)

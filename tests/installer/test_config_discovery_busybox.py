@@ -114,15 +114,15 @@ def _write_usb_scan_trigger_script(tmp_path: Path) -> Path:
     script = tmp_path / "usb-scan-trigger.sh"
     script.write_text(
         "#!/bin/sh\n"
-        "sys_block=\"$1\"\n"
-        "dev_root=\"$2\"\n"
-        "device_name=\"${SP_TEST_USB_STORAGE_SCAN_DEVICE:-sda}\"\n"
-        "config_content=\"${SP_TEST_USB_STORAGE_SCAN_CONFIG:-usb-scan}\"\n"
-        "removable_value=\"${SP_TEST_USB_STORAGE_SCAN_REMOVABLE:-1}\"\n"
-        "mkdir -p \"$sys_block/$device_name\"\n"
-        "mkdir -p \"$dev_root/$device_name\"\n"
-        "printf '%s\\n' \"$removable_value\" > \"$sys_block/$device_name/removable\"\n"
-        "printf '%s\\n' \"$config_content\" > \"$dev_root/$device_name/installer-config.yml\"\n"
+        'sys_block="$1"\n'
+        'dev_root="$2"\n'
+        'device_name="${SP_TEST_USB_STORAGE_SCAN_DEVICE:-sda}"\n'
+        'config_content="${SP_TEST_USB_STORAGE_SCAN_CONFIG:-usb-scan}"\n'
+        'removable_value="${SP_TEST_USB_STORAGE_SCAN_REMOVABLE:-1}"\n'
+        'mkdir -p "$sys_block/$device_name"\n'
+        'mkdir -p "$dev_root/$device_name"\n'
+        'printf \'%s\\n\' "$removable_value" > "$sys_block/$device_name/removable"\n'
+        'printf \'%s\\n\' "$config_content" > "$dev_root/$device_name/installer-config.yml"\n'
     )
     script.chmod(0o755)
     return script
@@ -150,10 +150,7 @@ def test_prefers_label_device(tmp_path: Path) -> None:
     (label_dir / "SP_CONFIG").symlink_to(label_device)
 
     blkid_data = tmp_path / "label-blkid.dat"
-    blkid_data.write_text(
-        f"DEVNAME={label_device}\n"
-        "LABEL=SP_CONFIG\n"
-    )
+    blkid_data.write_text(f"DEVNAME={label_device}\n" "LABEL=SP_CONFIG\n")
 
     env = _base_env(tmp_path)
     env["SP_TEST_BLKID_DATA"] = str(blkid_data)
@@ -168,10 +165,7 @@ def test_probe_label_selects_device(tmp_path: Path) -> None:
     (label_device / "installer-config.yml").write_text("config\n")
 
     blkid_data = tmp_path / "blkid.dat"
-    blkid_data.write_text(
-        f"DEVNAME={label_device}\n"
-        "LABEL=SP_CONFIG\n"
-    )
+    blkid_data.write_text(f"DEVNAME={label_device}\n" "LABEL=SP_CONFIG\n")
 
     env = _base_env(tmp_path)
     env["SP_TEST_BLKID_DATA"] = str(blkid_data)
@@ -186,10 +180,7 @@ def test_probe_label_not_found_fatal(tmp_path: Path) -> None:
     label_device = _create_block(tmp_path, "label-disk")
 
     blkid_data = tmp_path / "blkid.dat"
-    blkid_data.write_text(
-        f"DEVNAME={label_device}\n"
-        "LABEL=OTHER\n"
-    )
+    blkid_data.write_text(f"DEVNAME={label_device}\n" "LABEL=OTHER\n")
 
     env = _base_env(tmp_path)
     env["SP_TEST_BLKID_DATA"] = str(blkid_data)
@@ -199,7 +190,10 @@ def test_probe_label_not_found_fatal(tmp_path: Path) -> None:
     result = _run_command(env, f". {SCRIPT}; sp_discover_config")
 
     assert result.returncode == 1
-    assert "[SP-INSTALLER][FATAL] label-not-found label=SP_CONFIG probed=1" in result.stderr
+    assert (
+        "[SP-INSTALLER][FATAL] label-not-found label=SP_CONFIG probed=1"
+        in result.stderr
+    )
     assert not shell_log.exists()
 
 
