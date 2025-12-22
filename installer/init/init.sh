@@ -460,17 +460,31 @@ sp_try_modprobe_filesystem_module() {
     export SP_STORAGE_MODPROBE_BIN
 }
 
-sp_try_load_fat_modules() {
+sp_try_load_fat_stack() {
+    modules="fat vfat nls_cp437 nls_iso8859-1"
+    sp_log "fat-stack: probing modules (${modules})"
+
     modprobe_bin="${SP_STORAGE_MODPROBE_BIN:-$(command -v modprobe || true)}"
 
     if [ -z "$modprobe_bin" ]; then
-        sp_log "state=filesystem-drivers" "phase=fat-load" "result=missing" "reason=modprobe-unavailable"
+        sp_log "fat-stack: modprobe unavailable"
         return 0
     fi
 
-    for module in nls_cp437 nls_iso8859-1 fat vfat; do
-        "$modprobe_bin" -q "$module" >/dev/null 2>&1 || true
+    ready=0
+    for module in ${modules}; do
+        if "$modprobe_bin" "$module" >/dev/null 2>&1; then
+            rc=0
+            ready=1
+        else
+            rc=$?
+        fi
+        sp_log "fat-stack: modprobe ${module} rc=${rc}"
     done
+
+    if [ "${ready:-0}" -ne 0 ]; then
+        sp_log "fat-stack: ready"
+    fi
 }
 
 sp_load_filesystem_modules() {
