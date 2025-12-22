@@ -70,7 +70,27 @@ sp_log_write_gate_marker() {
 
 SP_INIT_SCRIPT_PATH="${SP_INIT_SCRIPT_PATH:-$0}"
 SP_SCRIPT_DIR="$(cd "$(dirname "$SP_INIT_SCRIPT_PATH")" && pwd)"
-SP_RUNTIME_LIB_DIR="$(cd "$SP_SCRIPT_DIR/../runtime/lib" && pwd)"
+SP_SCRIPT_ZERO_CANONICAL=""
+if [ -n "$0" ]; then
+    script_zero_dir="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+    if [ -n "$script_zero_dir" ]; then
+        SP_SCRIPT_ZERO_CANONICAL="$script_zero_dir/$(basename "$0")"
+    fi
+fi
+
+SP_INIT_SCRIPT_CANONICAL="$SP_SCRIPT_DIR/$(basename "$SP_INIT_SCRIPT_PATH")"
+
+if [ "${SP_SCRIPT_IS_SOURCED:-0}" = "0" ] && [ -n "$SP_SCRIPT_ZERO_CANONICAL" ] && \
+    [ "$SP_SCRIPT_ZERO_CANONICAL" != "$SP_INIT_SCRIPT_CANONICAL" ]; then
+    SP_SCRIPT_IS_SOURCED="1"
+fi
+
+if [ -d "$SP_SCRIPT_DIR/runtime/lib" ]; then
+    SP_RUNTIME_LIB_DIR="$(cd "$SP_SCRIPT_DIR/runtime/lib" && pwd)"
+else
+    SP_RUNTIME_LIB_DIR="$(cd "$SP_SCRIPT_DIR/../runtime/lib" && pwd)"
+fi
+sp_log "state=bootstrap" "runtime_lib_dir=${SP_RUNTIME_LIB_DIR:-unknown}"
 SP_RESCUE_MODE_LIB="$SP_RUNTIME_LIB_DIR/rescue_mode.sh"
 SP_DISK_LAYOUT_LIB="$SP_RUNTIME_LIB_DIR/disk_layout.sh"
 SP_DISK_EXECUTE_LIB="$SP_RUNTIME_LIB_DIR/disk_execute.sh"
