@@ -51,6 +51,42 @@ SP_LAST_LABEL_PROBE_LABEL=""
 SP_CONFIG_DISCOVERY_ATTEMPTS_LOG=""
 SP_CONFIG_DISCOVERY_ATTEMPT_COUNT=0
 SP_CONFIG_DISCOVERY_TRIED=""
+SP_CONFIG_FS_TYPES="${SP_CONFIG_FS_TYPES:-vfat}"
+SP_CONFIG_FS_TYPES_ORDERED=""
+SP_CONFIG_FS_TYPES_SERIALIZED=""
+SP_CONFIG_MOUNT_TRIED_VFAT=0
+
+sp_trim_spaces() {
+    printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+sp_build_config_fs_types() {
+    raw="${SP_CONFIG_FS_TYPES:-vfat}"
+    normalized="$(printf '%s' "$raw" | tr ',' ' ')"
+    ordered=""
+    serialized=""
+    for entry in $normalized; do
+        trimmed="$(sp_trim_spaces "$entry" || true)"
+        if [ -z "$trimmed" ]; then
+            continue
+        fi
+        if [ -z "$ordered" ]; then
+            ordered="$trimmed"
+            serialized="$trimmed"
+        else
+            ordered="${ordered} ${trimmed}"
+            serialized="${serialized},${trimmed}"
+        fi
+    done
+    if [ -z "$ordered" ]; then
+        ordered="vfat"
+        serialized="vfat"
+    fi
+    SP_CONFIG_FS_TYPES_ORDERED="$ordered"
+    SP_CONFIG_FS_TYPES_SERIALIZED="$serialized"
+}
+
+sp_build_config_fs_types
 
 sp_record_config_candidate() {
     candidate="$1"
@@ -299,27 +335,38 @@ sp_mount_candidate() {
     [ -n "$candidate" ] || return 1
     mkdir -p "$SP_CONFIG_MOUNT_POINT" 2>/dev/null || true
 
-    sp_try_load_fat_modules
+    fat_modules_attempted=0
+    tried=""
+    last_rc=1
+    last_error=""
 
-    for fs in vfat ext4; do
+    for fs in $SP_CONFIG_FS_TYPES_ORDERED; do
+        if [ "$fs" = "vfat" ] && [ "$fat_modules_attempted" -eq 0 ]; then
+            sp_try_load_fat_modules
+            fat_modules_attempted=1
+        fi
+
         if mount_output="$(mount -o ro -t "$fs" "$candidate" "$SP_CONFIG_MOUNT_POINT" 2>&1)"; then
+            sp_log "config-mount-ok" "fstype=${fs}" "dev=${candidate}" "mnt=${SP_CONFIG_MOUNT_POINT}"
             return 0
         fi
 
         mount_rc=$?
+        last_rc="$mount_rc"
+        last_error="$(printf '%s' "$mount_output" | tr '\n' ' ' || true)"
+        if [ -z "$tried" ]; then
+            tried="$fs"
+        else
+            tried="${tried},${fs}"
+        fi
         if [ "$fs" = "vfat" ]; then
-            normalized_output="$(printf '%s' "$mount_output" | tr '\n' ' ' || true)"
-            normalized_output="${normalized_output:-none}"
-            sp_log "state=discover-config" \
-                "severity=FATAL" \
-                "event=mount-vfat-failed" \
-                "reason=filesystem-support-missing" \
-                "candidate=${candidate}" \
-                "error=${normalized_output}" \
-                "rc=${mount_rc}"
+            SP_CONFIG_MOUNT_TRIED_VFAT=1
         fi
     done
 
+    tried="${tried:-${SP_CONFIG_FS_TYPES_SERIALIZED:-vfat}}"
+    error="${last_error:-none}"
+    sp_log_fatal_marker "config-mount-failed dev=${candidate} tried=${tried} last_rc=${last_rc} error=${error}"
     return 1
 }
 

@@ -1,13 +1,37 @@
 #!/bin/sh
-if [ "$#" -lt 2 ]; then
-    exit 1
-fi
 
-last=""
+skip_next=0
+capture_next_fstype=0
 second_last=""
+last=""
+fstype=""
+
 for arg in "$@"; do
-    second_last="$last"
-    last="$arg"
+    if [ "$capture_next_fstype" -eq 1 ]; then
+        fstype="$arg"
+        capture_next_fstype=0
+        continue
+    fi
+
+    if [ "$skip_next" -eq 1 ]; then
+        skip_next=0
+        continue
+    fi
+
+    case "$arg" in
+        -t)
+            capture_next_fstype=1
+            ;;
+        -o)
+            skip_next=1
+            ;;
+        -*)
+            ;;
+        *)
+            second_last="$last"
+            last="$arg"
+            ;;
+    esac
 done
 
 device="$second_last"
@@ -17,12 +41,29 @@ if [ -z "$device" ] || [ -z "$mountpoint" ]; then
     exit 1
 fi
 
+should_fail=0
+fail_list="${SP_TEST_MOUNT_FAIL_FS:-}"
+if [ -n "$fstype" ] && [ -n "$fail_list" ]; then
+    normalized="$(printf '%s' "$fail_list" | tr ',' ' ')"
+    for entry in $normalized; do
+        trimmed="$(printf '%s' "$entry" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+        if [ -n "$trimmed" ] && [ "$trimmed" = "$fstype" ]; then
+            should_fail=1
+            break
+        fi
+    done
+fi
+
+if [ "$should_fail" -eq 1 ]; then
+    exit 32
+fi
+
 if [ ! -e "$device" ]; then
     exit 32
 fi
 
 mkdir -p "$mountpoint" 2>/dev/null || true
-rm -rf "$mountpoint"/* 2>/dev/null || true
+rm -rf "${mountpoint:?}"/* 2>/dev/null || true
 if [ -d "$device" ]; then
     cp -a "${device}/." "$mountpoint/" 2>/dev/null || true
 else
