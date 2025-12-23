@@ -1,14 +1,11 @@
 import shutil
-import subprocess
-from pathlib import Path
-from shlex import quote
-
 import pytest
 
-from tests.installer._initramfs_helpers import (
-    FAT_MODULE_PATHS,
-    TEST_KERNEL_VERSION,
+from tests.installer._initramfs_helpers import FAT_MODULE_PATHS, TEST_KERNEL_VERSION
+from tests.installer.initrd_test_helpers import (
+    _list_initrd_entries,
     _prepare_kernel_environment,
+    _read_initrd_file,
     _run_installer_initramfs_build,
 )
 
@@ -25,19 +22,6 @@ RUNTIME_LIB_ENTRIES = (
     "runtime/lib/bootloader.sh",
     "runtime/lib/config_discovery.sh",
 )
-
-def _list_initrd_entries(initrd_path: Path):
-    list_cmd = f"gzip -cd {quote(str(initrd_path))} | cpio -t -H newc"
-    proc = subprocess.run(
-        ["bash", "-lc", list_cmd],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    return {
-        line.strip().lstrip("./") for line in proc.stdout.splitlines() if line.strip()
-    }
 
 
 @pytest.mark.skipif(
@@ -59,8 +43,7 @@ def test_installer_initrd_contains_runtime_payload() -> None:
     for required in RUNTIME_LIB_ENTRIES:
         assert required in entries
 
-    init_script_path = Path("build/installer-initramfs/init")
-    init_content = init_script_path.read_text(encoding="utf-8")
+    init_content = _read_initrd_file(initrd_path, "init")
     assert "sp_load_filesystem_modules" in init_content
     assert "for module in fat vfat nls_cp437 nls_iso8859-1" in init_content
 
@@ -81,7 +64,6 @@ def test_installer_initrd_includes_vfat_support() -> None:
     for module_entry in module_entries:
         assert module_entry in entries
 
-    init_script_path = Path("build/installer-initramfs/init")
-    init_content = init_script_path.read_text(encoding="utf-8")
+    init_content = _read_initrd_file(initrd_path, "init")
     assert "sp_try_load_fat_stack" in init_content
     assert 'sp_log "fat-stack: probing modules (${modules})"' in init_content

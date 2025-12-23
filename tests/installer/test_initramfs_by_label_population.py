@@ -1,9 +1,9 @@
-from pathlib import Path
-
 import pytest
 
-from tests.installer._initramfs_helpers import (
+from tests.installer.initrd_test_helpers import (
+    _list_initrd_entries,
     _prepare_kernel_environment,
+    _read_initrd_file,
     _run_installer_initramfs_build,
 )
 from tests.installer.test_installer_initrd import HAS_REQUIRED_TOOLS
@@ -19,8 +19,10 @@ def test_installer_initrd_populates_disk_by_label() -> None:
 
     assert initrd_path.exists(), "initrd-installer.img should exist after the build"
 
-    init_script_path = Path("build/installer-initramfs/init")
-    init_content = init_script_path.read_text(encoding="utf-8")
+    entries = _list_initrd_entries(initrd_path)
+    assert "init" in entries
+
+    init_content = _read_initrd_file(initrd_path, "init")
 
     assert "sp_populate_disk_by_label" in init_content
     assert "blkid -o export" in init_content
