@@ -313,10 +313,10 @@ FAT_MODULE_PATTERNS=(
 missing_fat_patterns=()
 shopt -s nullglob
 for pattern in "${FAT_MODULE_PATTERNS[@]}"; do
-  old_ifs="$IFS"
-  IFS=$'\n'
-  matches=( ${MODULES_SRC_DIR}/${pattern} )
-  IFS="$old_ifs"
+  matches=()
+  for candidate in "${MODULES_SRC_DIR}"/${pattern}; do
+    matches+=("${candidate}")
+  done
   if [ "${#matches[@]}" -eq 0 ]; then
     missing_fat_patterns+=("${pattern}")
     continue
@@ -342,10 +342,10 @@ MODULE_METADATA_PATTERNS=(
 )
 shopt -s nullglob
 for pattern in "${MODULE_METADATA_PATTERNS[@]}"; do
-  old_ifs="$IFS"
-  IFS=$'\n'
-  matches=( ${MODULES_SRC_DIR}/${pattern} )
-  IFS="$old_ifs"
+  matches=()
+  for candidate in "${MODULES_SRC_DIR}"/${pattern}; do
+    matches+=("${candidate}")
+  done
   if [ "${#matches[@]}" -eq 0 ]; then
     continue
   fi
