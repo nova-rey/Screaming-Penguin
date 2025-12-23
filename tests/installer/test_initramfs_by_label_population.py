@@ -2,11 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from tests.installer.test_installer_initrd import (
-    HAS_REQUIRED_TOOLS,
+from tests.installer._initramfs_helpers import (
     _prepare_kernel_environment,
-    _run_installer_initrd_build,
+    _run_installer_initramfs_build,
 )
+from tests.installer.test_installer_initrd import HAS_REQUIRED_TOOLS
 
 
 @pytest.mark.skipif(
