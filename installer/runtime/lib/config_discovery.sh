@@ -654,6 +654,10 @@ sp_discover_config() {
 
     sp_log "state=discover-config" "phase=start"
 
+    if [ ! -d /dev/disk/by-label ]; then
+        echo "[SP-INSTALLER][WARN] /dev/disk/by-label missing at discovery time"
+    fi
+
     attempts="${SP_CONFIG_DISCOVERY_MAX_ATTEMPTS}"
     case "${attempts}" in
         ''|*[!0-9]*)
