@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.installer._initramfs_helpers import (
+from tests.installer.initrd_test_helpers import (
     _prepare_kernel_environment,
     _run_installer_initramfs_build,
 )
