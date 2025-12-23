@@ -180,14 +180,25 @@ sp_enter_rescue_mode() {
 
         if [ "${SP_CONFIG_MOUNT_TRIED_VFAT:-0}" -eq 1 ]; then
             if modprobe_bin="$(command -v modprobe 2>/dev/null)"; then
-                if "$modprobe_bin" -q vfat >/dev/null 2>&1; then
-                    rc=0
-                else
-                    rc=$?
-                fi
-                sp_rescue_log_line "source=modprobe" "module=vfat" "rc=${rc:-}"
+                for module in nls_cp437 vfat; do
+                    if "$modprobe_bin" "$module" >/dev/null 2>&1; then
+                        rc=0
+                    else
+                        rc=$?
+                    fi
+                    sp_rescue_log_line "source=modprobe" "module=${module}" "rc=${rc:-}"
+                done
             else
-                sp_rescue_log_line "source=modprobe" "module=vfat" "note=missing"
+                sp_rescue_log_line "source=modprobe" "note=missing"
+            fi
+
+            if [ -n "${SP_CONFIG_LAST_VFAT_MOUNT_OUTPUT:-}" ]; then
+                printf '%s\n' "${SP_CONFIG_LAST_VFAT_MOUNT_OUTPUT}" | while IFS= read -r mount_line; do
+                    sp_rescue_log_line \
+                        "source=mount" \
+                        "fstype=vfat" \
+                        "line=${mount_line:-}"
+                done
             fi
         fi
     fi

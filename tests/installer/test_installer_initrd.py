@@ -137,4 +137,5 @@ def test_installer_initrd_includes_vfat_support() -> None:
 
     init_script_path = Path("build/installer-initramfs/init")
     init_content = init_script_path.read_text(encoding="utf-8")
-    assert "sp_try_load_fat_modules" in init_content
+    assert "sp_try_load_fat_stack" in init_content
+    assert 'sp_log "fat-stack: probing modules (${modules})"' in init_content

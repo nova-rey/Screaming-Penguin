@@ -304,6 +304,58 @@ echo "[SP-INSTALLER] Runtime helpers staged in ${RUNTIME_LIB_DST}"
 mkdir -p "${MODULES_DST}"
 cp -a "${MODULES_SRC_DIR}/." "${MODULES_DST}/"
 
+FAT_MODULE_PATTERNS=(
+  "kernel/fs/fat/fat.ko*"
+  "kernel/fs/fat/vfat.ko*"
+  "kernel/fs/nls/nls_cp437.ko*"
+  "kernel/fs/nls/nls_iso8859-1.ko*"
+)
+missing_fat_patterns=()
+shopt -s nullglob
+for pattern in "${FAT_MODULE_PATTERNS[@]}"; do
+  old_ifs="$IFS"
+  IFS=$'\n'
+  matches=( ${MODULES_SRC_DIR}/${pattern} )
+  IFS="$old_ifs"
+  if [ "${#matches[@]}" -eq 0 ]; then
+    missing_fat_patterns+=("${pattern}")
+    continue
+  fi
+
+  dest_dir="${MODULES_DST}/$(dirname "${pattern}")"
+  mkdir -p "${dest_dir}"
+  for src in "${matches[@]}"; do
+    cp -a "${src}" "${dest_dir}/"
+  done
+done
+shopt -u nullglob
+
+if [ "${#missing_fat_patterns[@]}" -gt 0 ]; then
+  echo "[SP-INSTALLER] WARNING: Missing FAT module artifacts: ${missing_fat_patterns[*]}"
+fi
+
+MODULE_METADATA_PATTERNS=(
+  "modules.dep*"
+  "modules.alias*"
+  "modules.builtin*"
+  "modules.order*"
+)
+shopt -s nullglob
+for pattern in "${MODULE_METADATA_PATTERNS[@]}"; do
+  old_ifs="$IFS"
+  IFS=$'\n'
+  matches=( ${MODULES_SRC_DIR}/${pattern} )
+  IFS="$old_ifs"
+  if [ "${#matches[@]}" -eq 0 ]; then
+    continue
+  fi
+
+  for src in "${matches[@]}"; do
+    cp -a "${src}" "${MODULES_DST}/"
+  done
+done
+shopt -u nullglob
+
 FAT_MODULES=(fat vfat nls_cp437 nls_iso8859-1)
 missing_modules=()
 for module in "${FAT_MODULES[@]}"; do

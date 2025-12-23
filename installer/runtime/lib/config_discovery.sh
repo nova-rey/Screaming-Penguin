@@ -55,6 +55,9 @@ SP_CONFIG_FS_TYPES="${SP_CONFIG_FS_TYPES:-vfat}"
 SP_CONFIG_FS_TYPES_ORDERED=""
 SP_CONFIG_FS_TYPES_SERIALIZED=""
 SP_CONFIG_MOUNT_TRIED_VFAT=0
+SP_CONFIG_LAST_VFAT_MOUNT_OUTPUT=""
+export SP_CONFIG_LAST_VFAT_MOUNT_OUTPUT
+SP_CONFIG_LAST_VFAT_MOUNT_OUTPUT=""
 
 sp_trim_spaces() {
     printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
@@ -339,10 +342,11 @@ sp_mount_candidate() {
     tried=""
     last_rc=1
     last_error=""
+    SP_CONFIG_LAST_VFAT_MOUNT_OUTPUT=""
 
     for fs in $SP_CONFIG_FS_TYPES_ORDERED; do
         if [ "$fs" = "vfat" ] && [ "$fat_modules_attempted" -eq 0 ]; then
-            sp_try_load_fat_modules
+            sp_try_load_fat_stack
             fat_modules_attempted=1
         fi
 
@@ -361,6 +365,7 @@ sp_mount_candidate() {
         fi
         if [ "$fs" = "vfat" ]; then
             SP_CONFIG_MOUNT_TRIED_VFAT=1
+            SP_CONFIG_LAST_VFAT_MOUNT_OUTPUT="$mount_output"
         fi
     done
 
