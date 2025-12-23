@@ -654,8 +654,11 @@ sp_discover_config() {
 
     sp_log "state=discover-config" "phase=start"
 
-    if [ ! -d /dev/disk/by-label ]; then
+    by_label_dir="/dev/disk/by-label"
+    if [ ! -d "$by_label_dir" ]; then
         echo "[SP-INSTALLER][WARN] /dev/disk/by-label missing at discovery time"
+    elif [ -z "$(ls -A "$by_label_dir" 2>/dev/null)" ]; then
+        echo "[SP-INSTALLER][WARN] by-label namespace empty after population"
     fi
 
     attempts="${SP_CONFIG_DISCOVERY_MAX_ATTEMPTS}"
