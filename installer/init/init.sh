@@ -487,6 +487,33 @@ sp_try_load_fat_stack() {
     fi
 }
 
+sp_populate_disk_by_label() {
+    mkdir -p /dev/disk/by-label
+
+    if command -v blkid >/dev/null 2>&1; then
+        dev=""
+        label=""
+        blkid -o export | while read -r line; do
+            case "$line" in
+                DEVNAME=*)
+                    dev="${line#DEVNAME=}"
+                    ;;
+                LABEL=*)
+                    label="${line#LABEL=}"
+                    if [ -n "${dev:-}" ] && [ -n "$label" ]; then
+                        ln -sf "$dev" "/dev/disk/by-label/$label"
+                        echo "[SP-INSTALLER] by-label link: $label -> $dev"
+                    fi
+                    dev=""
+                    label=""
+                    ;;
+            esac
+        done
+    else
+        echo "[SP-INSTALLER][WARN] blkid not available; cannot populate by-label"
+    fi
+}
+
 sp_load_filesystem_modules() {
     for module in fat vfat nls_cp437 nls_iso8859-1; do
         sp_try_modprobe_filesystem_module "$module"
@@ -1031,6 +1058,9 @@ sp_run_installer() {
     sp_load_filesystem_modules
 
     sp_detect_mode || true
+
+    sp_try_load_fat_stack
+    sp_populate_disk_by_label
 
     if [ "${SP_SKIP_CONFIG_DISCOVERY:-}" != "1" ]; then
         sp_discover_config || true
