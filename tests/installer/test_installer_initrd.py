@@ -1,13 +1,12 @@
 import shutil
-import subprocess
 from pathlib import Path
-from shlex import quote
 
 import pytest
 
-from tests.installer._initramfs_helpers import (
+from tests.installer.initrd_test_helpers import (
     FAT_MODULE_PATHS,
     TEST_KERNEL_VERSION,
+    _list_initrd_entries,
     _prepare_kernel_environment,
     _run_installer_initramfs_build,
 )
@@ -26,19 +25,6 @@ RUNTIME_LIB_ENTRIES = (
     "runtime/lib/config_discovery.sh",
 )
 
-def _list_initrd_entries(initrd_path: Path):
-    list_cmd = f"gzip -cd {quote(str(initrd_path))} | cpio -t -H newc"
-    proc = subprocess.run(
-        ["bash", "-lc", list_cmd],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    return {
-        line.strip().lstrip("./") for line in proc.stdout.splitlines() if line.strip()
-    }
-
 
 @pytest.mark.skipif(
     not HAS_REQUIRED_TOOLS,
@@ -53,7 +39,7 @@ def test_installer_initrd_contains_runtime_payload() -> None:
         initrd_path.stat().st_size >= MIN_INITRD_SIZE_BYTES
     ), f"initrd-installer.img is too small ({initrd_path.stat().st_size} bytes)"
 
-    entries = _list_initrd_entries(initrd_path)
+    entries = set(_list_initrd_entries(initrd_path))
 
     assert "bin/busybox" in entries
     for required in RUNTIME_LIB_ENTRIES:
@@ -73,7 +59,7 @@ def test_installer_initrd_includes_vfat_support() -> None:
     env = _prepare_kernel_environment()
     initrd_path = _run_installer_initramfs_build(env)
 
-    entries = _list_initrd_entries(initrd_path)
+    entries = set(_list_initrd_entries(initrd_path))
     module_entries = {
         f"lib/modules/{TEST_KERNEL_VERSION}/{module.as_posix()}"
         for module in FAT_MODULE_PATHS

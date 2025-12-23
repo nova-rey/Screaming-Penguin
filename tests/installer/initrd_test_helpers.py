@@ -1,9 +1,15 @@
+from __future__ import annotations
+
 import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
+from shlex import quote
 
 import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 TEST_KERNEL_VERSION = "test-kernel"
@@ -15,13 +21,13 @@ FAT_MODULE_PATHS = (
 )
 
 
-def _prepare_kernel_environment(kernel_version: str = TEST_KERNEL_VERSION):
-    kernel_dir = Path("build/runtime")
+def _prepare_kernel_environment(kernel_version: str = TEST_KERNEL_VERSION) -> dict[str, str]:
+    kernel_dir = REPO_ROOT / "build" / "runtime"
     kernel_dir.mkdir(parents=True, exist_ok=True)
     kernel_image = kernel_dir / "vmlinuz"
     kernel_image.write_bytes(b"FAKE-KERNEL")
 
-    modules_root = Path("build/runtime-chroot/lib/modules")
+    modules_root = REPO_ROOT / "build" / "runtime-chroot" / "lib" / "modules"
     modules_root.mkdir(parents=True, exist_ok=True)
     modules_src = modules_root / kernel_version
     if modules_src.exists():
@@ -46,7 +52,7 @@ def _prepare_kernel_environment(kernel_version: str = TEST_KERNEL_VERSION):
     return env
 
 
-def _run_installer_initramfs_build(env):
+def _run_installer_initramfs_build(env: dict[str, str]) -> Path:
     try:
         subprocess.run(
             ["bash", "tools/build_installer_initramfs.sh"],
@@ -54,6 +60,7 @@ def _run_installer_initramfs_build(env):
             capture_output=True,
             text=True,
             env=env,
+            cwd=str(REPO_ROOT),
         )
     except subprocess.CalledProcessError as exc:
         stdout = exc.stdout.rstrip("\n") if exc.stdout else "<no stdout>"
@@ -63,4 +70,46 @@ def _run_installer_initramfs_build(env):
             f"(exit {exc.returncode}).\nstdout:\n{stdout}\nstderr:\n{stderr}"
         )
 
-    return Path("dist") / "initrd-installer.img"
+    return REPO_ROOT / "dist" / "initrd-installer.img"
+
+
+def _list_initrd_entries(initrd_path: Path) -> list[str]:
+    quoted_initrd = quote(str(initrd_path))
+    list_cmd = f"gzip -cd {quoted_initrd} | cpio -t -H newc"
+    proc = subprocess.run(
+        ["bash", "-lc", list_cmd],
+        check=True,
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+    )
+
+    entries = [
+        line.strip().lstrip("./")
+        for line in proc.stdout.splitlines()
+        if line.strip()
+    ]
+    entries.sort()
+    return entries
+
+
+def _read_initrd_file(initrd_path: Path, file_path: str) -> str:
+    quoted_initrd = quote(str(initrd_path))
+    quoted_file = quote(file_path)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        cmd = (
+            f"set -euo pipefail; "
+            f"cd {quote(str(temp_path))}; "
+            f"gzip -dc {quoted_initrd} | cpio -i --quiet {quoted_file} -d >/dev/null; "
+            f"cat {quoted_file}"
+        )
+        cp = subprocess.run(
+            ["bash", "-lc", cmd],
+            cwd=str(REPO_ROOT),
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        return cp.stdout
