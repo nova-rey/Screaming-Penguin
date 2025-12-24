@@ -91,43 +91,43 @@ SP_CONFIG_DISCOVERY_LIB="$SP_RUNTIME_LIB_DIR/config_discovery.sh"
 SP_STORAGE_BOOTSTRAP_LIB="$SP_RUNTIME_LIB_DIR/storage_bootstrap.sh"
 
 if [ -f "$SP_RESCUE_MODE_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/rescue_mode.sh
     . "$SP_RESCUE_MODE_LIB"
 fi
 
 if [ -f "$SP_DISK_LAYOUT_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/disk_layout.sh
     . "$SP_DISK_LAYOUT_LIB"
 fi
 
 if [ -f "$SP_DISK_EXECUTE_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/disk_execute.sh
     . "$SP_DISK_EXECUTE_LIB"
 fi
 
 if [ -f "$SP_ROOTFS_DEPLOY_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/rootfs_deploy.sh
     . "$SP_ROOTFS_DEPLOY_LIB"
 fi
 
 if [ -f "$SP_BOOTLOADER_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/bootloader.sh
     . "$SP_BOOTLOADER_LIB"
 fi
 
 if [ -f "$SP_CONFIG_DISCOVERY_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/config_discovery.sh
     . "$SP_CONFIG_DISCOVERY_LIB"
 fi
 
 if [ -f "$SP_STORAGE_BOOTSTRAP_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/storage_bootstrap.sh
     . "$SP_STORAGE_BOOTSTRAP_LIB"
 fi

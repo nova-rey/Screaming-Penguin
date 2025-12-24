@@ -17,14 +17,14 @@ fi
 SP_RUNTIME_LIB_DIR="${SP_RUNTIME_LIB_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 SP_RESCUE_MODE_LIB="$SP_RUNTIME_LIB_DIR/rescue_mode.sh"
 if [ -f "$SP_RESCUE_MODE_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/rescue_mode.sh
     . "$SP_RESCUE_MODE_LIB"
 fi
 
 SP_STORAGE_BOOTSTRAP_LIB="$SP_RUNTIME_LIB_DIR/storage_bootstrap.sh"
 if [ -f "$SP_STORAGE_BOOTSTRAP_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/storage_bootstrap.sh
     . "$SP_STORAGE_BOOTSTRAP_LIB"
 fi
@@ -55,6 +55,10 @@ SP_CONFIG_FS_TYPES="${SP_CONFIG_FS_TYPES:-vfat}"
 SP_CONFIG_FS_TYPES_ORDERED=""
 SP_CONFIG_FS_TYPES_SERIALIZED=""
 SP_CONFIG_MOUNT_TRIED_VFAT=0
+export SP_CONFIG_MOUNT_TRIED_VFAT
+SP_CONFIG_LAST_VFAT_MOUNT_OUTPUT=""
+export SP_CONFIG_LAST_VFAT_MOUNT_OUTPUT
+SP_CONFIG_LAST_VFAT_MOUNT_OUTPUT=""
 
 sp_trim_spaces() {
     printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
@@ -210,10 +214,9 @@ sp_find_partition_by_fs_label() {
 
     candidate_count=0
     while IFS= read -r line; do
-        set -- $line
-        major="$1"
-        name="$4"
-
+        read -r major _ _ name _ <<__PARTITION_LINE__
+$line
+__PARTITION_LINE__
         if [ -z "$major" ]; then
             continue
         fi
@@ -339,10 +342,11 @@ sp_mount_candidate() {
     tried=""
     last_rc=1
     last_error=""
+    SP_CONFIG_LAST_VFAT_MOUNT_OUTPUT=""
 
     for fs in $SP_CONFIG_FS_TYPES_ORDERED; do
         if [ "$fs" = "vfat" ] && [ "$fat_modules_attempted" -eq 0 ]; then
-            sp_try_load_fat_modules
+            sp_try_load_fat_stack
             fat_modules_attempted=1
         fi
 
@@ -361,6 +365,7 @@ sp_mount_candidate() {
         fi
         if [ "$fs" = "vfat" ]; then
             SP_CONFIG_MOUNT_TRIED_VFAT=1
+            SP_CONFIG_LAST_VFAT_MOUNT_OUTPUT="$mount_output"
         fi
     done
 
@@ -648,6 +653,13 @@ sp_discover_config() {
     fi
 
     sp_log "state=discover-config" "phase=start"
+
+    by_label_dir="/dev/disk/by-label"
+    if [ ! -d "$by_label_dir" ]; then
+        echo "[SP-INSTALLER][WARN] /dev/disk/by-label missing at discovery time"
+    elif [ -z "$(ls -A "$by_label_dir" 2>/dev/null)" ]; then
+        echo "[SP-INSTALLER][WARN] by-label namespace empty after population"
+    fi
 
     attempts="${SP_CONFIG_DISCOVERY_MAX_ATTEMPTS}"
     case "${attempts}" in
