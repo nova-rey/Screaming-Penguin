@@ -35,6 +35,7 @@ def _run_command(
         "SP_RUNTIME_LIB_DIR",
         str((ROOT / "installer" / "runtime" / "lib").resolve()),
     )
+    env.setdefault("SP_RESCUE_NONINTERACTIVE", "1")
 
     timeout = DEFAULT_CMD_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
     try:

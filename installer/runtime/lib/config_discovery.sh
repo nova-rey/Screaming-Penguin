@@ -37,6 +37,7 @@ if [ -n "${SP_CONFIG_LABEL_NAME_ENV}" ] || [ -n "${SP_CONFIG_LABEL:-}" ]; then
 fi
 SP_CONFIG_MOUNT_POINT="${SP_CONFIG_MOUNT_POINT:-/config}"
 SP_CONFIG_LABEL_DIR="${SP_CONFIG_LABEL_DIR:-/dev/disk/by-label}"
+SP_CONFIG_REQUIRE_BY_LABEL="${SP_CONFIG_REQUIRE_BY_LABEL:-0}"
 SP_CONFIG_FILE="${SP_CONFIG_FILE:-installer-config.yml}"
 SP_SYS_BLOCK_ROOT="${SP_SYS_BLOCK_ROOT:-/sys/block}"
 SP_DEV_ROOT="${SP_DEV_ROOT:-/dev}"
@@ -135,6 +136,10 @@ sp_handle_by_label_failure() {
     log_device="${SP_LOG_DEVICE:-/dev/console}"
     printf '[SP-INSTALLER][FATAL] by-label namespace empty after population\n' >>"$log_device" 2>&1 || true
     sp_enter_rescue_mode "by-label-empty"
+}
+
+sp_log_by_label_warn() {
+    printf '[SP-INSTALLER][WARN] %s\n' "$1" >&2
 }
 
 sp_has_blkid() {
@@ -662,13 +667,19 @@ sp_discover_config() {
 
     by_label_dir="${SP_CONFIG_LABEL_DIR:-/dev/disk/by-label}"
     if [ ! -d "$by_label_dir" ]; then
-        sp_handle_by_label_failure
-        return 1
-    fi
-
-    if [ -z "$(ls -A "$by_label_dir" 2>/dev/null || true)" ]; then
-        sp_handle_by_label_failure
-        return 1
+        if [ "${SP_CONFIG_REQUIRE_BY_LABEL:-0}" = "1" ]; then
+            sp_handle_by_label_failure
+            return 1
+        fi
+        sp_log_by_label_warn "by-label namespace missing; continuing fallback discovery"
+    else
+        if [ -z "$(ls -A "$by_label_dir" 2>/dev/null || true)" ]; then
+            if [ "${SP_CONFIG_REQUIRE_BY_LABEL:-0}" = "1" ]; then
+                sp_handle_by_label_failure
+                return 1
+            fi
+            sp_log_by_label_warn "by-label namespace empty after population; continuing fallback discovery"
+        fi
     fi
 
     attempts="${SP_CONFIG_DISCOVERY_MAX_ATTEMPTS}"

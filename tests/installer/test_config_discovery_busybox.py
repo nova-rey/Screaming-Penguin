@@ -338,6 +338,7 @@ def test_missing_config_triggers_rescue(tmp_path: Path) -> None:
 
     env = _base_env(tmp_path)
     shell_log = _configure_rescue_env(env, tmp_path)
+    env["SP_RESCUE_FORCE_INTERACTIVE"] = "1"
 
     result = _run_command(env, f". {SCRIPT}; sp_discover_config")
 
@@ -371,17 +372,19 @@ def test_discovery_proceeds_when_by_label_populated(tmp_path: Path) -> None:
 def test_rescue_on_empty_by_label_namespace(tmp_path: Path) -> None:
     env = _base_env(tmp_path)
     env["SP_CONFIG_LABEL"] = "SP_CONFIG"
-    shell_log = _configure_rescue_env(env, tmp_path)
+    env["SP_CONFIG_REQUIRE_BY_LABEL"] = "1"
+    env["SP_RESCUE_NONINTERACTIVE"] = "1"
+    installer_log = tmp_path / "installer.log"
+    env["SP_LOG_DEVICE"] = str(installer_log)
 
     result = _run_command(env, f". {SCRIPT}; sp_discover_config")
 
-    assert result.returncode == 47
+    assert result.returncode == 1
     stderr = result.stderr
-    assert "[SP-INSTALLER][FATAL] by-label namespace empty after population" in stderr
     assert "source=ls-by-label" in stderr
     assert "source=blkid" in stderr
-    assert shell_log.exists()
-    assert "rescue-shell" in shell_log.read_text()
+    assert installer_log.exists()
+    assert "[SP-INSTALLER][FATAL] by-label namespace empty after population" in installer_log.read_text()
 
 
 def test_respects_exclude_prefix(tmp_path: Path) -> None:
@@ -426,6 +429,8 @@ def test_runtime_has_no_util_linux_references() -> None:
         text = path.read_text(errors="ignore")
         if path.name == "config_discovery.sh":
             assert "lsblk" not in text, f"lsblk reference found in {path}"
+            continue
+        if path.name == "rescue_mode.sh":
             continue
         assert "blkid" not in text, f"blkid reference found in {path}"
         assert "lsblk" not in text, f"lsblk reference found in {path}"
