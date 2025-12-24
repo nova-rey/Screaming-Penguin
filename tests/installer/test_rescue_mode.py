@@ -51,6 +51,7 @@ def test_rescue_shell_restarts(tmp_path: Path) -> None:
         "SP_TEST_RESCUE_CONSOLE": str(console),
         "SP_RESCUE_LOG_DEVICE": str(label_log),
         "SP_LOG_DEVICE": str(label_log),
+        "SP_RESCUE_FORCE_INTERACTIVE": "1",
     }
 
     proc = _run_rescue_process(env)
