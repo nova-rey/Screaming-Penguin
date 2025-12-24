@@ -351,6 +351,39 @@ def test_missing_config_triggers_rescue(tmp_path: Path) -> None:
     assert "rescue-shell" in shell_log.read_text()
 
 
+def test_discovery_proceeds_when_by_label_populated(tmp_path: Path) -> None:
+    label_device = _create_block(tmp_path, "label-disk")
+    (label_device / "installer-config.yml").write_text("popped\n")
+
+    env = _base_env(tmp_path)
+    label_dir = Path(env["SP_CONFIG_LABEL_DIR"])
+    (label_dir / "SP_CONFIG").symlink_to(label_device)
+    env["SP_CONFIG_LABEL"] = "SP_CONFIG"
+
+    command = f'. {SCRIPT}; if sp_discover_config; then printf \'%s\\n%s\\n\' "$SP_CONFIG_PATH" "$CONFIG_MOUNT"; fi'
+    result = _run_command(env, command)
+
+    assert result.returncode == 0, result.stderr
+    assert "[SP-INSTALLER][FATAL] by-label namespace empty after population" not in result.stderr
+    _assert_config_found(result, "popped\n", Path(env["SP_CONFIG_MOUNT_POINT"]))
+
+
+def test_rescue_on_empty_by_label_namespace(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
+    env["SP_CONFIG_LABEL"] = "SP_CONFIG"
+    shell_log = _configure_rescue_env(env, tmp_path)
+
+    result = _run_command(env, f". {SCRIPT}; sp_discover_config")
+
+    assert result.returncode == 47
+    stderr = result.stderr
+    assert "[SP-INSTALLER][FATAL] by-label namespace empty after population" in stderr
+    assert "source=ls-by-label" in stderr
+    assert "source=blkid" in stderr
+    assert shell_log.exists()
+    assert "rescue-shell" in shell_log.read_text()
+
+
 def test_respects_exclude_prefix(tmp_path: Path) -> None:
     skip_device = _create_block(tmp_path, "skip-disk", removable="1")
     (skip_device / "installer-config.yml").write_text("skip\n")
