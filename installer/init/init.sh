@@ -498,6 +498,43 @@ sp_populate_disk_by_label() {
     fi
 }
 
+sp_by_label_has_entries() {
+    by_label_dir="/dev/disk/by-label"
+    if [ ! -d "$by_label_dir" ]; then
+        return 1
+    fi
+
+    entries="$(ls -A "$by_label_dir" 2>/dev/null || true)"
+    if [ -n "$entries" ]; then
+        return 0
+    fi
+
+    return 1
+}
+
+sp_log_by_label_ready() {
+    log_device="${SP_LOG_DEVICE:-/dev/console}"
+    printf '[SP-INSTALLER] by-label ready\n' >>"$log_device" 2>&1 || true
+}
+
+sp_verify_by_label_population() {
+    if sp_by_label_has_entries; then
+        sp_log_by_label_ready
+        return 0
+    fi
+
+    sp_populate_disk_by_label
+
+    if sp_by_label_has_entries; then
+        sp_log_by_label_ready
+        return 0
+    fi
+
+    warn_device="${SP_LOG_DEVICE:-/dev/console}"
+    printf '[SP-INSTALLER][WARN] by-label empty after population attempt\n' >>"$warn_device" 2>&1 || true
+    return 1
+}
+
 sp_load_filesystem_modules() {
     for module in fat vfat nls_cp437 nls_iso8859-1; do
         sp_try_modprobe_filesystem_module "$module"
@@ -1045,6 +1082,8 @@ sp_run_installer() {
 
     sp_try_load_fat_stack
     sp_populate_disk_by_label
+
+    sp_verify_by_label_population
 
     if [ "${SP_SKIP_CONFIG_DISCOVERY:-}" != "1" ]; then
         sp_discover_config || true

@@ -164,6 +164,10 @@ sp_enter_rescue_mode() {
     sp_rescue_write_header "$reason"
     sp_rescue_mount_minimal
     sp_rescue_dump_sys_block
+    if [ "${reason:-}" = "by-label-empty" ]; then
+        sp_rescue_dump_command "ls-by-label" ls -l /dev/disk/by-label
+        sp_rescue_dump_command "blkid" blkid
+    fi
     sp_rescue_dump_proc_partitions
     if [ "${reason:-}" = "missing-config" ]; then
         if [ -r /proc/filesystems ]; then
