@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 import pytest
 
@@ -23,5 +24,5 @@ def test_installer_initrd_populates_disk_by_label() -> None:
     init_content = init_script_path.read_text(encoding="utf-8")
 
     assert "sp_populate_disk_by_label" in init_content
-    assert "blkid -o export" in init_content
+    assert re.search(r'("?\$blkid_bin"?|blkid)\s+-o\s+export\b', init_content), init_content
     assert "mkdir -p /dev/disk/by-label" in init_content

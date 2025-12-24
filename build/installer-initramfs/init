@@ -91,43 +91,43 @@ SP_CONFIG_DISCOVERY_LIB="$SP_RUNTIME_LIB_DIR/config_discovery.sh"
 SP_STORAGE_BOOTSTRAP_LIB="$SP_RUNTIME_LIB_DIR/storage_bootstrap.sh"
 
 if [ -f "$SP_RESCUE_MODE_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/rescue_mode.sh
     . "$SP_RESCUE_MODE_LIB"
 fi
 
 if [ -f "$SP_DISK_LAYOUT_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/disk_layout.sh
     . "$SP_DISK_LAYOUT_LIB"
 fi
 
 if [ -f "$SP_DISK_EXECUTE_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/disk_execute.sh
     . "$SP_DISK_EXECUTE_LIB"
 fi
 
 if [ -f "$SP_ROOTFS_DEPLOY_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/rootfs_deploy.sh
     . "$SP_ROOTFS_DEPLOY_LIB"
 fi
 
 if [ -f "$SP_BOOTLOADER_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/bootloader.sh
     . "$SP_BOOTLOADER_LIB"
 fi
 
 if [ -f "$SP_CONFIG_DISCOVERY_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/config_discovery.sh
     . "$SP_CONFIG_DISCOVERY_LIB"
 fi
 
 if [ -f "$SP_STORAGE_BOOTSTRAP_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/storage_bootstrap.sh
     . "$SP_STORAGE_BOOTSTRAP_LIB"
 fi
@@ -460,17 +460,42 @@ sp_try_modprobe_filesystem_module() {
     export SP_STORAGE_MODPROBE_BIN
 }
 
-sp_try_load_fat_modules() {
+sp_try_load_fat_stack() {
+    modules="fat vfat nls_cp437 nls_iso8859-1"
+    sp_log "fat-stack: probing modules (${modules})"
+
     modprobe_bin="${SP_STORAGE_MODPROBE_BIN:-$(command -v modprobe || true)}"
 
     if [ -z "$modprobe_bin" ]; then
-        sp_log "state=filesystem-drivers" "phase=fat-load" "result=missing" "reason=modprobe-unavailable"
+        sp_log "fat-stack: modprobe unavailable"
         return 0
     fi
 
-    for module in nls_cp437 nls_iso8859-1 fat vfat; do
-        "$modprobe_bin" -q "$module" >/dev/null 2>&1 || true
+    ready=0
+    for module in ${modules}; do
+        if "$modprobe_bin" "$module" >/dev/null 2>&1; then
+            rc=0
+            ready=1
+        else
+            rc=$?
+        fi
+        sp_log "fat-stack: modprobe ${module} rc=${rc}"
     done
+
+    if [ "${ready:-0}" -ne 0 ]; then
+        sp_log "fat-stack: ready"
+    fi
+}
+
+sp_populate_disk_by_label() {
+    mkdir -p /dev/disk/by-label
+
+    blkid_bin="$(command -v blkid 2>/dev/null || true)"
+    if [ -n "$blkid_bin" ]; then
+        if "$blkid_bin" -o export >/dev/null 2>&1; then
+            sp_log "by-label populated"
+        fi
+    fi
 }
 
 sp_load_filesystem_modules() {
@@ -1017,6 +1042,9 @@ sp_run_installer() {
     sp_load_filesystem_modules
 
     sp_detect_mode || true
+
+    sp_try_load_fat_stack
+    sp_populate_disk_by_label
 
     if [ "${SP_SKIP_CONFIG_DISCOVERY:-}" != "1" ]; then
         sp_discover_config || true

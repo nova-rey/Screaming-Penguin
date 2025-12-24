@@ -17,14 +17,14 @@ fi
 SP_RUNTIME_LIB_DIR="${SP_RUNTIME_LIB_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 SP_RESCUE_MODE_LIB="$SP_RUNTIME_LIB_DIR/rescue_mode.sh"
 if [ -f "$SP_RESCUE_MODE_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/rescue_mode.sh
     . "$SP_RESCUE_MODE_LIB"
 fi
 
 SP_STORAGE_BOOTSTRAP_LIB="$SP_RUNTIME_LIB_DIR/storage_bootstrap.sh"
 if [ -f "$SP_STORAGE_BOOTSTRAP_LIB" ]; then
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1091
     # shellcheck source=installer/runtime/lib/storage_bootstrap.sh
     . "$SP_STORAGE_BOOTSTRAP_LIB"
 fi
@@ -55,6 +55,7 @@ SP_CONFIG_FS_TYPES="${SP_CONFIG_FS_TYPES:-vfat}"
 SP_CONFIG_FS_TYPES_ORDERED=""
 SP_CONFIG_FS_TYPES_SERIALIZED=""
 SP_CONFIG_MOUNT_TRIED_VFAT=0
+export SP_CONFIG_MOUNT_TRIED_VFAT
 SP_CONFIG_LAST_VFAT_MOUNT_OUTPUT=""
 export SP_CONFIG_LAST_VFAT_MOUNT_OUTPUT
 SP_CONFIG_LAST_VFAT_MOUNT_OUTPUT=""
@@ -213,10 +214,9 @@ sp_find_partition_by_fs_label() {
 
     candidate_count=0
     while IFS= read -r line; do
-        set -- $line
-        major="$1"
-        name="$4"
-
+        read -r major _ _ name _ <<__PARTITION_LINE__
+$line
+__PARTITION_LINE__
         if [ -z "$major" ]; then
             continue
         fi
