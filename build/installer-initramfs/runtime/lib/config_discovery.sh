@@ -131,6 +131,12 @@ sp_log_fatal_marker() {
     fi
 }
 
+sp_handle_by_label_failure() {
+    log_device="${SP_LOG_DEVICE:-/dev/console}"
+    printf '[SP-INSTALLER][FATAL] by-label namespace empty after population\n' >>"$log_device" 2>&1 || true
+    sp_enter_rescue_mode "by-label-empty"
+}
+
 sp_has_blkid() {
     blkid_path="$(command -v blkid 2>/dev/null || true)"
     if [ -z "$blkid_path" ]; then
@@ -654,11 +660,15 @@ sp_discover_config() {
 
     sp_log "state=discover-config" "phase=start"
 
-    by_label_dir="/dev/disk/by-label"
+    by_label_dir="${SP_CONFIG_LABEL_DIR:-/dev/disk/by-label}"
     if [ ! -d "$by_label_dir" ]; then
-        echo "[SP-INSTALLER][WARN] /dev/disk/by-label missing at discovery time"
-    elif [ -z "$(ls -A "$by_label_dir" 2>/dev/null)" ]; then
-        echo "[SP-INSTALLER][WARN] by-label namespace empty after population"
+        sp_handle_by_label_failure
+        return 1
+    fi
+
+    if [ -z "$(ls -A "$by_label_dir" 2>/dev/null || true)" ]; then
+        sp_handle_by_label_failure
+        return 1
     fi
 
     attempts="${SP_CONFIG_DISCOVERY_MAX_ATTEMPTS}"
