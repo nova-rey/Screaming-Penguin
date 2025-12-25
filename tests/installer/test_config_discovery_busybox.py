@@ -264,7 +264,7 @@ def test_label_probe_fails_fast_when_blkid_missing(tmp_path: Path) -> None:
     result = _run_command(env, f". {SCRIPT}; sp_discover_config")
 
     assert result.returncode == 1
-    assert "[SP-INSTALLER][FATAL] missing-blkid-for-label-probe" in result.stderr
+    assert "[SP-INSTALLER][FATAL] blkid unavailable; cannot resolve labels" in result.stderr
     assert not shell_log.exists()
 
 
@@ -389,7 +389,9 @@ def test_falls_back_to_blkid_when_by_label_missing(tmp_path: Path) -> None:
     result = _run_command(env, command)
 
     assert result.returncode == 0, result.stderr
-    assert "[SP-INSTALLER][WARN] by-label directory unavailable; falling back to blkid" in result.stderr
+    assert "[SP-INSTALLER] by-label directory unavailable; continuing fallback discovery" in result.stderr
+    assert "[SP-INSTALLER] source=by-label" in result.stderr
+    assert "Entering rescue mode" not in result.stderr
     _assert_config_found(result, "missing\n", Path(env["SP_CONFIG_MOUNT_POINT"]))
 
 
@@ -411,9 +413,30 @@ def test_falls_back_to_blkid_when_by_label_empty(tmp_path: Path) -> None:
     result = _run_command(env, command)
 
     assert result.returncode == 0, result.stderr
-    assert "[SP-INSTALLER][WARN] by-label directory unavailable; falling back to blkid" in result.stderr
+    assert "[SP-INSTALLER] by-label directory unavailable; continuing fallback discovery" in result.stderr
+    assert "[SP-INSTALLER] source=by-label" in result.stderr
     _assert_config_found(result, "empty\n", Path(env["SP_CONFIG_MOUNT_POINT"]))
 
+
+
+def test_requires_by_label_namespace_strict(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
+    label_dir = Path(env["SP_CONFIG_LABEL_DIR"])
+    label_dir.rmdir()
+    env["SP_CONFIG_LABEL"] = "SP_CONFIG"
+    env["SP_CONFIG_REQUIRE_BY_LABEL"] = "1"
+    env["SP_RESCUE_FORCE_INTERACTIVE"] = "1"
+    shell_log = _configure_rescue_env(env, tmp_path)
+
+    result = _run_command(env, f". {SCRIPT}; sp_discover_config")
+
+    assert result.returncode == 47
+    stderr = result.stderr
+    assert "[SP-INSTALLER] by-label directory unavailable; continuing fallback discovery" in stderr
+    assert "[SP-INSTALLER][FATAL] by-label namespace missing/empty and SP_CONFIG_REQUIRE_BY_LABEL=1" in stderr
+    assert "Entering rescue mode" in stderr
+    assert shell_log.exists()
+    assert "rescue-shell" in shell_log.read_text()
 
 
 def test_respects_exclude_prefix(tmp_path: Path) -> None:
