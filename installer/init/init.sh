@@ -57,6 +57,24 @@ sp_trim() {
     printf '%s' "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
 }
 
+sp_check_filesystem_support() {
+    sp_log "[FS-CHECK] verifying VFAT support"
+
+    mkdir -p /run/fs-check 2>/dev/null || true
+
+    if ! mount -t vfat -o ro /dev/null /run/fs-check 2>/run/fs-check/error; then
+        sp_log "[SP-INSTALLER][FATAL] VFAT mount test failed"
+        sp_log "[SP-INSTALLER][FATAL] kernel or initramfs lacks vfat/fat support"
+        mount_error="$(cat /run/fs-check/error 2>/dev/null || true)"
+        sp_log "[SP-INSTALLER][FATAL] mount output: ${mount_error}"
+        return 1
+    fi
+
+    umount /run/fs-check >/dev/null 2>&1 || true
+    sp_log "[FS-CHECK] VFAT support present"
+    return 0
+}
+
 sp_write_gate_serial_log() {
     serial_device="${SP_WRITE_GATE_SERIAL_DEVICE:-}"
     if [ -n "$serial_device" ]; then
@@ -1091,6 +1109,13 @@ sp_run_installer() {
     sp_detect_mode || true
 
     sp_try_load_fat_stack
+
+    if ! sp_check_filesystem_support; then
+        export SP_RESCUE_REASON="missing-vfat-support"
+        sp_enter_rescue_mode "missing-vfat-support"
+        exit 1
+    fi
+
     sp_populate_disk_by_label
 
     sp_verify_by_label_population
