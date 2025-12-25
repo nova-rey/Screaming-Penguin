@@ -60,17 +60,23 @@ sp_trim() {
 sp_check_filesystem_support() {
     sp_log "[FS-CHECK] verifying VFAT support"
 
-    mkdir -p /run/fs-check 2>/dev/null || true
+    fs_check_dir="/run/fs-check"
+    if ! mkdir -p /run >/dev/null 2>&1; then
+        fs_check_dir="/tmp/fs-check"
+    fi
+    mkdir -p "$fs_check_dir" >/dev/null 2>&1 || true
 
-    if ! mount -t vfat -o ro /dev/null /run/fs-check 2>/run/fs-check/error; then
+    fs_check_error="${fs_check_dir}/error"
+
+    if ! mount -t vfat -o ro /dev/null "$fs_check_dir" 2>"$fs_check_error"; then
         sp_log "[SP-INSTALLER][FATAL] VFAT mount test failed"
         sp_log "[SP-INSTALLER][FATAL] kernel or initramfs lacks vfat/fat support"
-        mount_error="$(cat /run/fs-check/error 2>/dev/null || true)"
+        mount_error="$(cat "$fs_check_error" 2>/dev/null || true)"
         sp_log "[SP-INSTALLER][FATAL] mount output: ${mount_error}"
         return 1
     fi
 
-    umount /run/fs-check >/dev/null 2>&1 || true
+    umount "$fs_check_dir" >/dev/null 2>&1 || true
     sp_log "[FS-CHECK] VFAT support present"
     return 0
 }
