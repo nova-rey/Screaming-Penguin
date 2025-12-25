@@ -46,7 +46,7 @@ SP_CONFIG_DISCOVERY_EXCLUDE_PREFIXES="${SP_CONFIG_DISCOVERY_EXCLUDE_PREFIXES:-lo
 SP_CONFIG_LABEL_PROBE_CANDIDATES=0
 SP_CONFIG_LABEL_DEVICE=""
 SP_CONFIG_LABEL_BLKID_FAILURE=0
-SP_LAST_LABEL_PROBE_LABEL=""
+SP_BLKID_LABEL_MAP=""
 
 SP_CONFIG_DISCOVERY_ATTEMPTS_LOG=""
 SP_CONFIG_DISCOVERY_ATTEMPT_COUNT=0
@@ -131,10 +131,8 @@ sp_log_fatal_marker() {
     fi
 }
 
-sp_handle_by_label_failure() {
-    log_device="${SP_LOG_DEVICE:-/dev/console}"
-    printf '[SP-INSTALLER][FATAL] by-label namespace empty after population\n' >>"$log_device" 2>&1 || true
-    sp_enter_rescue_mode "by-label-empty"
+sp_log_by_label_warn() {
+    printf '[SP-INSTALLER][WARN] %s\n' "$1" >&2
 }
 
 sp_has_blkid() {
@@ -146,136 +144,69 @@ sp_has_blkid() {
     "$blkid_path" --version >/dev/null 2>&1
 }
 
-sp_probe_label_with_blkid() {
-    device="$1"
-    if [ -z "$device" ]; then
-        return 1
-    fi
+sp_build_label_map() {
+    SP_BLKID_LABEL_MAP=""
+    SP_CONFIG_LABEL_PROBE_CANDIDATES=0
+    current_dev=""
+    current_label=""
+    entry_count=0
 
     if ! sp_has_blkid; then
-        return 127
+        return 2
     fi
 
-    if blkid_output="$(blkid -o export "$device" 2>&1)"; then
-        rc=0
-    else
-        rc=$?
+    if ! blkid_output="$(blkid -o export 2>/dev/null)"; then
+        return 2
     fi
 
-    SP_LAST_LABEL_PROBE_LABEL=""
-    label_value=""
-    current_dev=""
-    while IFS= read -r line; do
+    while IFS= read -r line || [ -n "$line" ]; do
         case "$line" in
             DEVNAME=*)
                 current_dev="${line#DEVNAME=}"
                 ;;
             LABEL=*)
-                label_value="${line#LABEL=}"
-                if [ -n "$current_dev" ] && [ "$current_dev" != "$device" ] && [ "$current_dev" != "${device##*/}" ]; then
-                    label_value=""
-                    continue
+                current_label="${line#LABEL=}"
+                ;;
+            '')
+                if [ -n "$current_dev" ] && [ -n "$current_label" ]; then
+                    SP_BLKID_LABEL_MAP="${SP_BLKID_LABEL_MAP}${current_label}|${current_dev}
+"
+                    entry_count=$((entry_count + 1))
                 fi
-                break
+                current_dev=""
+                current_label=""
                 ;;
         esac
     done <<__BLKID_EXPORT__
 $blkid_output
 __BLKID_EXPORT__
 
-    sp_log "label-probe" \
-        "device=${device}" \
-        "rc=${rc}" \
-        "label=${label_value:-}"
-
-    if [ "$rc" -ne 0 ]; then
-        case "$rc" in
-            126|127)
-                return "$rc"
-                ;;
-        esac
+    if [ -n "$current_dev" ] && [ -n "$current_label" ]; then
+        SP_BLKID_LABEL_MAP="${SP_BLKID_LABEL_MAP}${current_label}|${current_dev}"
+        entry_count=$((entry_count + 1))
     fi
 
-    SP_LAST_LABEL_PROBE_LABEL="${label_value:-}"
+    SP_CONFIG_LABEL_PROBE_CANDIDATES="$entry_count"
     return 0
 }
 
-sp_find_partition_by_fs_label() {
+sp_lookup_label_device() {
     label="$1"
-    partitions="${SP_PROC_PARTITIONS:-/proc/partitions}"
-    SP_CONFIG_LABEL_PROBE_CANDIDATES=0
-    SP_CONFIG_LABEL_DEVICE=""
-
     if [ -z "$label" ]; then
         return 1
     fi
 
-    if [ ! -r "$partitions" ]; then
-        return 1
-    fi
-
-    if ! sp_has_blkid; then
-        return 2
-    fi
-
-    candidate_count=0
-    while IFS= read -r line; do
-        read -r major _ _ name _ <<__PARTITION_LINE__
-$line
-__PARTITION_LINE__
-        if [ -z "$major" ]; then
-            continue
+    while IFS= read -r entry; do
+        [ -n "$entry" ] || continue
+        map_label="${entry%%|*}"
+        map_device="${entry#*|}"
+        if [ "$map_label" = "$label" ]; then
+            printf '%s\n' "$map_device"
+            return 0
         fi
-
-        case "$major" in
-            ''|*[!0-9]*)
-                continue
-                ;;
-        esac
-
-        if [ -z "$name" ]; then
-            continue
-        fi
-
-        candidate="${SP_DEV_ROOT%/}/${name}"
-        if [ ! -e "$candidate" ]; then
-            continue
-        fi
-
-        partition_base=""
-        if [ -d "$SP_SYS_BLOCK_ROOT" ]; then
-            for block_dir in "$SP_SYS_BLOCK_ROOT"/*; do
-                if [ ! -d "$block_dir" ]; then
-                    continue
-                fi
-                if [ -d "$block_dir/$name" ] && [ -f "$block_dir/$name/partition" ]; then
-                    partition_base="$(basename "$block_dir")"
-                    break
-                fi
-            done
-        fi
-
-        if [ -z "$partition_base" ]; then
-            partition_base="${name}"
-        fi
-
-        if sp_should_skip_device "$partition_base"; then
-            continue
-        fi
-
-        candidate_count=$((candidate_count + 1))
-        SP_CONFIG_LABEL_PROBE_CANDIDATES="$candidate_count"
-
-        if sp_probe_label_with_blkid "$candidate"; then
-            if [ "${SP_LAST_LABEL_PROBE_LABEL:-}" = "$label" ]; then
-                SP_CONFIG_LABEL_DEVICE="$candidate"
-                return 0
-            fi
-            continue
-        fi
-
-        return 2
-    done < "$partitions"
+    done <<__BLKID_MAP__
+$SP_BLKID_LABEL_MAP
+__BLKID_MAP__
 
     return 1
 }
@@ -464,9 +395,23 @@ sp_try_label_candidate() {
     sp_log "config-resolver=probe-label"
     sp_log "config-label=${SP_CONFIG_LABEL_NAME}"
     SP_CONFIG_LABEL_BLKID_FAILURE=0
+    SP_CONFIG_LABEL_PROBE_CANDIDATES=0
+    SP_CONFIG_LABEL_DEVICE=""
 
     label_dir="${SP_CONFIG_LABEL_DIR:-}"
+    by_label_populated=0
     if [ -n "$label_dir" ] && [ -d "$label_dir" ]; then
+        entries="$(ls -A "$label_dir" 2>/dev/null || true)"
+        if [ -n "$entries" ]; then
+            by_label_populated=1
+        fi
+    fi
+
+    if [ "$by_label_populated" -eq 0 ]; then
+        sp_log_by_label_warn "by-label directory unavailable; falling back to blkid"
+    fi
+
+    if [ "$by_label_populated" -eq 1 ]; then
         label_node="${label_dir%/}/${SP_CONFIG_LABEL_NAME}"
         if [ -e "$label_node" ]; then
             resolved_label="$(sp_realpath "$label_node" || printf '%s\n' "$label_node")"
@@ -480,13 +425,18 @@ sp_try_label_candidate() {
     fi
 
     probe_result=0
-    if sp_find_partition_by_fs_label "$SP_CONFIG_LABEL_NAME"; then
-        target="${SP_CONFIG_LABEL_DEVICE:-}"
-        sp_log "SP_CONFIG_LABEL_DEVICE=${target:-}"
+    if sp_build_label_map; then
+        target="$(sp_lookup_label_device "$SP_CONFIG_LABEL_NAME" 2>/dev/null || true)"
+        SP_CONFIG_LABEL_DEVICE="${target:-}"
+        sp_log "SP_CONFIG_LABEL_DEVICE=${SP_CONFIG_LABEL_DEVICE:-}"
+        sp_log "label-probe" \
+            "device=${target:-none}" \
+            "rc=0" \
+            "label=${SP_CONFIG_LABEL_NAME}"
         if [ -n "$target" ] && sp_attempt_mount_candidate "$target" "label" "$SP_CONFIG_LABEL_NAME"; then
             return 0
         fi
-        return 1
+        SP_CONFIG_LABEL_DEVICE=""
     else
         probe_result=$?
     fi
@@ -660,16 +610,6 @@ sp_discover_config() {
 
     sp_log "state=discover-config" "phase=start"
 
-    by_label_dir="${SP_CONFIG_LABEL_DIR:-/dev/disk/by-label}"
-    if [ ! -d "$by_label_dir" ]; then
-        sp_handle_by_label_failure
-        return 1
-    fi
-
-    if [ -z "$(ls -A "$by_label_dir" 2>/dev/null || true)" ]; then
-        sp_handle_by_label_failure
-        return 1
-    fi
 
     attempts="${SP_CONFIG_DISCOVERY_MAX_ATTEMPTS}"
     case "${attempts}" in
