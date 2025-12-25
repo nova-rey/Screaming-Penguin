@@ -21,6 +21,10 @@ sp_rescue_log_line() {
     printf '[SP-RESCUE] %s\n' "$*" >>"$SP_RESCUE_LOG_DEVICE" 2>/dev/null || true
 }
 
+sp_rescue_log_noninteractive_skip() {
+    printf '[SP-INSTALLER][WARN] rescue noninteractive; skipping shell\n' >&2
+}
+
 sp_rescue_write_header() {
     sp_rescue_log_line "state=rescue" "result=enter" "reason=${1:-unknown}"
     sp_rescue_log_line "==== SP RESCUE MODE ===="
@@ -211,7 +215,21 @@ sp_enter_rescue_mode() {
     console_path="${SP_TEST_RESCUE_CONSOLE:-${SP_RESCUE_CONSOLE:-/dev/console}}"
     shell_path="$(sp_rescue_find_shell || true)"
 
+    rescue_noninteractive=0
+    if [ "${SP_RESCUE_FORCE_INTERACTIVE:-0}" != "1" ]; then
+        if [ ! -t 0 ]; then
+            rescue_noninteractive=1
+        fi
+        if [ "${SP_RESCUE_NONINTERACTIVE:-0}" = "1" ]; then
+            rescue_noninteractive=1
+        fi
+    fi
+
     if [ -n "${shell_path:-}" ]; then
+        if [ "${rescue_noninteractive:-0}" -eq 1 ]; then
+            sp_rescue_log_noninteractive_skip
+            return 1
+        fi
         rescue_loop="${SP_TEST_RESCUE_LOOP:-1}"
         sp_rescue_log_line "state=rescue" "note=launching-shell" "shell=${shell_path}" "console=${console_path}"
         first_loop=1

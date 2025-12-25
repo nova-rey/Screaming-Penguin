@@ -92,7 +92,26 @@ sp_bootstrap_usb_storage() {
     for host in /sys/class/scsi_host/host*; do
         [ -d "$host" ] || continue
         scan="${host}/scan"
-        printf '%s\n' "- - -" > "$scan" 2>/dev/null || true
+        [ -e "$scan" ] || continue
+        if [ ! -w "$scan" ]; then
+            sp_log_warn \
+                "state=storage-bootstrap" \
+                "phase=scsi-scan" \
+                "result=warn" \
+                "reason=scan-not-writable" \
+                "scan=${scan}"
+            continue
+        fi
+
+        if ! printf '%s\n' "- - -" > "$scan" 2>/dev/null; then
+            sp_log_warn \
+                "state=storage-bootstrap" \
+                "phase=scsi-scan" \
+                "result=warn" \
+                "reason=scan-write-failed" \
+                "scan=${scan}"
+            continue
+        fi
     done
 
     sp_bootstrap_usb_storage_run_test_trigger

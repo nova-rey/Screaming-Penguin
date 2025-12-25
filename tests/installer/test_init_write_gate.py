@@ -28,16 +28,50 @@ def _run_init(
     env["SP_LOG_DEVICE"] = str(console_log)
     env["SP_WRITE_GATE_SERIAL_DEVICE"] = str(serial_log)
 
-    if "SP_EXPECTED_KERNEL_VERSION" not in env:
-        modules_root = Path("/lib/modules")
-        if modules_root.is_dir():
-            versions = sorted(
-                entry.name
-                for entry in modules_root.iterdir()
-                if entry.is_dir()
-            )
-            if versions:
-                env["SP_EXPECTED_KERNEL_VERSION"] = versions[0]
+    modules_root = Path("/lib/modules")
+    available_versions = []
+    if modules_root.is_dir():
+        available_versions = sorted(
+            entry.name
+            for entry in modules_root.iterdir()
+            if entry.is_dir()
+        )
+    if "SP_EXPECTED_KERNEL_VERSION" not in env and available_versions:
+        env["SP_EXPECTED_KERNEL_VERSION"] = available_versions[0]
+
+    if available_versions:
+        modules_override_root = tmp_path / "modules"
+        modules_override_root.mkdir(exist_ok=True)
+        uname_proc = subprocess.run(
+            ["uname", "-r"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        runtime_kernel = uname_proc.stdout.strip()
+        if runtime_kernel:
+            target = modules_override_root / runtime_kernel
+            target.symlink_to(modules_root / available_versions[0])
+            env["SP_INSTALLER_MODULES_ROOT"] = str(modules_override_root)
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir(exist_ok=True)
+    mount_stub = fake_bin / "mount"
+    mount_stub.write_text(
+        textwrap.dedent(
+            """\
+            #!/bin/sh
+            if [ "$1" = "-t" ] && [ "$2" = "vfat" ]; then
+                exit 0
+            fi
+
+            exec /bin/mount "$@"
+            """
+        )
+    )
+    mount_stub.chmod(0o755)
+    env["PATH"] = str(fake_bin) + os.pathsep + env.get("PATH", "")
+    env["SP_PREPEND_PATH"] = str(fake_bin)
 
     result = subprocess.run(
         [str(INSTALL_SCRIPT)],

@@ -53,6 +53,10 @@ sp_log() {
     printf '[SP-INSTALLER] %s\n' "$@" >>"$SP_LOG_DEVICE" 2>&1
 }
 
+sp_log_warn() {
+    sp_log "$@"
+}
+
 sp_trim() {
     printf '%s' "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
 }
@@ -574,6 +578,9 @@ sp_load_filesystem_modules() {
 
 sp_bootstrap() {
     PATH=/bin:/sbin:/usr/bin:/usr/sbin
+    if [ -n "${SP_PREPEND_PATH:-}" ]; then
+        PATH="${SP_PREPEND_PATH}:${PATH}"
+    fi
     export PATH
 
     # BusyBox setup (best-effort).
