@@ -522,19 +522,119 @@ sp_try_load_fat_stack() {
     fi
 }
 
-sp_populate_disk_by_label() {
-    mkdir -p /dev/disk/by-label
+sp_strip_surrounding_quotes() {
+    value="$1"
+    while [ "${value#\"}" != "$value" ]; do
+        value=${value#\"}
+    done
+    while [ "${value%\"}" != "$value" ]; do
+        value=${value%\"}
+    done
+    while [ "${value#\'}" != "$value" ]; do
+        value=${value#\'}
+    done
+    while [ "${value%\'}" != "$value" ]; do
+        value=${value%\'}
+    done
+    printf '%s' "$value"
+}
+
+sp_sanitize_label_filename() {
+    label="$1"
+    label=$(sp_trim "$label")
+    label=$(sp_strip_surrounding_quotes "$label")
+    if [ -z "$label" ]; then
+        return 0
+    fi
+    sanitized=$(printf '%s' "$label" | sed 's%/%_%g')
+    printf '%s' "$sanitized"
+}
+
+sp_link_label_if_valid() {
+    devname="$1"
+    label="$2"
+    label_dir="$3"
+
+    if [ -z "$devname" ] || [ -z "$label" ] || [ -z "$label_dir" ]; then
+        return 0
+    fi
+
+    safe_label=$(sp_sanitize_label_filename "$label")
+    if [ -z "$safe_label" ]; then
+        return 0
+    fi
+
+    ln -sf -- "$devname" "${label_dir}/${safe_label}" >/dev/null 2>&1 || true
+    found_labeled_devices=1
+}
+
+sp_populate_by_label_namespace() {
+    dev_root="${SP_DEV_ROOT:-/dev}"
+    label_dir="${SP_CONFIG_LABEL_DIR:-${dev_root}/disk/by-label}"
+
+    mkdir -p "$label_dir" >/dev/null 2>&1 || true
 
     blkid_bin="$(command -v blkid 2>/dev/null || true)"
-    if [ -n "$blkid_bin" ]; then
-        if "$blkid_bin" -o export >/dev/null 2>&1; then
-            sp_log "by-label populated"
-        fi
+    if [ -z "$blkid_bin" ]; then
+        sp_log "[SP-INSTALLER][FATAL] blkid unavailable; cannot populate by-label namespace"
+        export SP_RESCUE_REASON="missing-blkid"
+        sp_enter_rescue_mode "missing-blkid"
+        return 1
     fi
+
+    if ! blkid_output="$("$blkid_bin" -o export 2>/dev/null)"; then
+        sp_log "[SP-INSTALLER][FATAL] blkid unavailable; cannot populate by-label namespace"
+        export SP_RESCUE_REASON="missing-blkid"
+        sp_enter_rescue_mode "missing-blkid"
+        return 1
+    fi
+
+    current_devname=""
+    current_label=""
+    found_labeled_devices=0
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        if [ -z "$line" ]; then
+            sp_link_label_if_valid "$current_devname" "$current_label" "$label_dir"
+            current_devname=""
+            current_label=""
+            continue
+        fi
+
+        case "$line" in
+            DEVNAME=*)
+                if [ -n "$current_devname" ] || [ -n "$current_label" ]; then
+                    sp_link_label_if_valid "$current_devname" "$current_label" "$label_dir"
+                    current_devname=""
+                    current_label=""
+                fi
+                raw_dev="${line#*=}"
+                raw_dev=$(sp_trim "$raw_dev")
+                current_devname=$(sp_strip_surrounding_quotes "$raw_dev")
+                ;;
+            LABEL=*)
+                raw_label="${line#*=}"
+                raw_label=$(sp_trim "$raw_label")
+                current_label=$(sp_strip_surrounding_quotes "$raw_label")
+                ;;
+            *)
+                ;;
+        esac
+    done <<EOF
+$blkid_output
+EOF
+
+    sp_link_label_if_valid "$current_devname" "$current_label" "$label_dir"
+
+    if [ "${found_labeled_devices:-0}" -eq 0 ]; then
+        sp_log "[SP-INSTALLER][WARN] no labeled block devices found via blkid; by-label namespace will be empty"
+    fi
+
+    return 0
 }
 
 sp_by_label_has_entries() {
-    by_label_dir="/dev/disk/by-label"
+    by_label_dir="${SP_CONFIG_LABEL_DIR:-/dev/disk/by-label}"
     if [ ! -d "$by_label_dir" ]; then
         return 1
     fi
@@ -558,7 +658,7 @@ sp_verify_by_label_population() {
         return 0
     fi
 
-    sp_populate_disk_by_label
+    sp_populate_by_label_namespace
 
     if sp_by_label_has_entries; then
         sp_log_by_label_ready
@@ -606,6 +706,7 @@ sp_bootstrap() {
     sp_log 'stage=bootstrapped'
 
     sp_bootstrap_dev_nodes
+    sp_populate_by_label_namespace
 
     if command -v sp_bootstrap_usb_storage >/dev/null 2>&1; then
         sp_bootstrap_usb_storage
@@ -1133,7 +1234,7 @@ sp_run_installer() {
         exit 1
     fi
 
-    sp_populate_disk_by_label
+    sp_populate_by_label_namespace
 
     sp_verify_by_label_population
 
