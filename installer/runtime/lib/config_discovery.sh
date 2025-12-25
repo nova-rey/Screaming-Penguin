@@ -8,6 +8,20 @@ if ! command -v sp_log >/dev/null 2>&1; then
     }
 fi
 
+if ! command -v sp_log_warn >/dev/null 2>&1; then
+    sp_log_warn() {
+        sp_log "$@"
+    }
+fi
+
+if ! command -v sp_log_kv >/dev/null 2>&1; then
+    sp_log_kv() {
+        key="$1"
+        value="$2"
+        sp_log "${key}=${value}"
+    }
+fi
+
 if ! command -v sp_write_gate_blocked >/dev/null 2>&1; then
     sp_write_gate_blocked() {
         sp_log "state=write-gate" "result=blocked" "$@"
@@ -62,6 +76,26 @@ SP_CONFIG_LAST_VFAT_MOUNT_OUTPUT=""
 
 sp_trim_spaces() {
     printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+sp_is_by_label_available() {
+    label_dir="${SP_CONFIG_LABEL_DIR:-/dev/disk/by-label}"
+    [ -d "$label_dir" ] || return 1
+
+    entries="$(ls -A "$label_dir" 2>/dev/null || true)"
+    if [ -z "$entries" ]; then
+        return 1
+    fi
+
+    return 0
+}
+
+sp_warn_by_label_unavailable() {
+    label_dir="${SP_CONFIG_LABEL_DIR:-/dev/disk/by-label}"
+    sp_log_warn "by-label directory unavailable; continuing fallback discovery"
+    sp_log_kv "source" "by-label"
+    sp_log_kv "path" "$label_dir"
+    sp_log_kv "note" "missing"
 }
 
 sp_build_config_fs_types() {
@@ -131,10 +165,6 @@ sp_log_fatal_marker() {
     fi
 }
 
-sp_log_by_label_warn() {
-    printf '[SP-INSTALLER][WARN] %s\n' "$1" >&2
-}
-
 sp_has_blkid() {
     blkid_path="$(command -v blkid 2>/dev/null || true)"
     if [ -z "$blkid_path" ]; then
@@ -144,20 +174,20 @@ sp_has_blkid() {
     "$blkid_path" --version >/dev/null 2>&1
 }
 
-sp_build_label_map() {
+sp_parse_blkid_export_to_map() {
+    blkid_output="${1:-}"
     SP_BLKID_LABEL_MAP=""
     SP_CONFIG_LABEL_PROBE_CANDIDATES=0
     current_dev=""
     current_label=""
     entry_count=0
 
-    if ! sp_has_blkid; then
-        return 2
+    tmpfile="$(mktemp 2>/dev/null || true)"
+    if [ -z "$tmpfile" ]; then
+        tmpfile="${TMPDIR:-/tmp}/sp-blkid-map-${$}"
     fi
 
-    if ! blkid_output="$(blkid -o export 2>/dev/null)"; then
-        return 2
-    fi
+    printf '%s\n' "$blkid_output" >"$tmpfile"
 
     while IFS= read -r line || [ -n "$line" ]; do
         case "$line" in
@@ -177,9 +207,9 @@ sp_build_label_map() {
                 current_label=""
                 ;;
         esac
-    done <<__BLKID_EXPORT__
-$blkid_output
-__BLKID_EXPORT__
+    done <"$tmpfile"
+
+    rm -f "$tmpfile"
 
     if [ -n "$current_dev" ] && [ -n "$current_label" ]; then
         SP_BLKID_LABEL_MAP="${SP_BLKID_LABEL_MAP}${current_label}|${current_dev}"
@@ -187,6 +217,22 @@ __BLKID_EXPORT__
     fi
 
     SP_CONFIG_LABEL_PROBE_CANDIDATES="$entry_count"
+    return 0
+}
+
+sp_build_label_map() {
+    if ! sp_has_blkid; then
+        return 2
+    fi
+
+    if ! blkid_output="$(blkid -o export 2>/dev/null)"; then
+        return 3
+    fi
+
+    if ! sp_parse_blkid_export_to_map "$blkid_output"; then
+        return 3
+    fi
+
     return 0
 }
 
@@ -398,20 +444,8 @@ sp_try_label_candidate() {
     SP_CONFIG_LABEL_PROBE_CANDIDATES=0
     SP_CONFIG_LABEL_DEVICE=""
 
-    label_dir="${SP_CONFIG_LABEL_DIR:-}"
-    by_label_populated=0
-    if [ -n "$label_dir" ] && [ -d "$label_dir" ]; then
-        entries="$(ls -A "$label_dir" 2>/dev/null || true)"
-        if [ -n "$entries" ]; then
-            by_label_populated=1
-        fi
-    fi
-
-    if [ "$by_label_populated" -eq 0 ]; then
-        sp_log_by_label_warn "by-label directory unavailable; falling back to blkid"
-    fi
-
-    if [ "$by_label_populated" -eq 1 ]; then
+    label_dir="${SP_CONFIG_LABEL_DIR:-/dev/disk/by-label}"
+    if sp_is_by_label_available; then
         label_node="${label_dir%/}/${SP_CONFIG_LABEL_NAME}"
         if [ -e "$label_node" ]; then
             resolved_label="$(sp_realpath "$label_node" || printf '%s\n' "$label_node")"
@@ -422,13 +456,20 @@ sp_try_label_candidate() {
             fi
             SP_CONFIG_LABEL_DEVICE=""
         fi
+    else
+        sp_warn_by_label_unavailable
+        if [ "${SP_CONFIG_REQUIRE_BY_LABEL:-0}" = "1" ]; then
+            sp_log_fatal_marker "by-label namespace missing/empty and SP_CONFIG_REQUIRE_BY_LABEL=1"
+            sp_enter_rescue_mode "missing-by-label-namespace"
+            return 1
+        fi
     fi
 
     probe_result=0
     if sp_build_label_map; then
         target="$(sp_lookup_label_device "$SP_CONFIG_LABEL_NAME" 2>/dev/null || true)"
         SP_CONFIG_LABEL_DEVICE="${target:-}"
-        sp_log "SP_CONFIG_LABEL_DEVICE=${SP_CONFIG_LABEL_DEVICE:-}"
+        sp_log "SP_CONFIG_LABEL_DEVICE=${target:-}"
         sp_log "label-probe" \
             "device=${target:-none}" \
             "rc=0" \
@@ -441,9 +482,11 @@ sp_try_label_candidate() {
         probe_result=$?
     fi
 
-    if [ "${probe_result:-0}" -eq 2 ] && [ "${SP_CONFIG_LABEL_REQUESTED:-0}" -eq 1 ]; then
+    if { [ "${probe_result:-0}" -eq 2 ] || [ "${probe_result:-0}" -eq 3 ]; } && [ "${SP_CONFIG_LABEL_REQUESTED:-0}" -eq 1 ]; then
         SP_CONFIG_LABEL_BLKID_FAILURE=1
-        sp_log_fatal_marker "missing-blkid-for-label-probe label=${SP_CONFIG_LABEL_NAME}"
+        sp_log_fatal_marker "blkid unavailable; cannot resolve labels"
+        sp_enter_rescue_mode "missing-blkid"
+        return 1
     fi
 
     return 1
