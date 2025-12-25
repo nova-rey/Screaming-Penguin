@@ -35,6 +35,9 @@ SP_SYS_BLOCK_ROOT="${SP_SYS_BLOCK_ROOT:-/sys/block}"
 SP_DEV_ROOT="${SP_DEV_ROOT:-/dev}"
 export SP_SYS_BLOCK_ROOT SP_DEV_ROOT
 
+SP_BOOTSTRAP_COMPLETE="0"
+export SP_BOOTSTRAP_COMPLETE
+
 SP_SCRIPT_IS_SOURCED="0"
 if [ -n "${BASH_SOURCE:-}" ] && [ "${BASH_SOURCE:-}" != "$0" ]; then
     SP_SCRIPT_IS_SOURCED="1"
@@ -642,6 +645,9 @@ sp_bootstrap() {
     else
         sp_log_block_devices_snapshot
     fi
+
+    SP_BOOTSTRAP_COMPLETE="1"
+    export SP_BOOTSTRAP_COMPLETE
 }
 
 sp_detect_mode() {
@@ -1072,6 +1078,10 @@ sp_summary() {
 }
 
 sp_run_installer() {
+    if [ "${SP_BOOTSTRAP_COMPLETE:-0}" != "1" ]; then
+        sp_bootstrap
+    fi
+
     sp_validate_kernel_modules
 
     sp_initialize_storage_drivers

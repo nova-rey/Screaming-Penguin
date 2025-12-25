@@ -369,22 +369,51 @@ def test_discovery_proceeds_when_by_label_populated(tmp_path: Path) -> None:
     _assert_config_found(result, "popped\n", Path(env["SP_CONFIG_MOUNT_POINT"]))
 
 
-def test_rescue_on_empty_by_label_namespace(tmp_path: Path) -> None:
+def test_falls_back_to_blkid_when_by_label_missing(tmp_path: Path) -> None:
+    label_device = _create_block(tmp_path, "label-disk")
+    (label_device / "installer-config.yml").write_text("missing\n")
+
+    blkid_data = tmp_path / "missing-blkid.dat"
+    blkid_data.write_text(
+        f"DEVNAME={label_device}\n"
+        "LABEL=SP_CONFIG\n"
+    )
+
+    env = _base_env(tmp_path)
+    label_dir = Path(env["SP_CONFIG_LABEL_DIR"])
+    label_dir.rmdir()
+    env["SP_CONFIG_LABEL"] = "SP_CONFIG"
+    env["SP_TEST_BLKID_DATA"] = str(blkid_data)
+
+    command = f'. {SCRIPT}; if sp_discover_config; then printf \'%s\\n%s\\n\' "$SP_CONFIG_PATH" "$CONFIG_MOUNT"; fi'
+    result = _run_command(env, command)
+
+    assert result.returncode == 0, result.stderr
+    assert "[SP-INSTALLER][WARN] by-label directory unavailable; falling back to blkid" in result.stderr
+    _assert_config_found(result, "missing\n", Path(env["SP_CONFIG_MOUNT_POINT"]))
+
+
+def test_falls_back_to_blkid_when_by_label_empty(tmp_path: Path) -> None:
+    label_device = _create_block(tmp_path, "label-disk")
+    (label_device / "installer-config.yml").write_text("empty\n")
+
+    blkid_data = tmp_path / "empty-blkid.dat"
+    blkid_data.write_text(
+        f"DEVNAME={label_device}\n"
+        "LABEL=SP_CONFIG\n"
+    )
+
     env = _base_env(tmp_path)
     env["SP_CONFIG_LABEL"] = "SP_CONFIG"
-    env["SP_CONFIG_REQUIRE_BY_LABEL"] = "1"
-    env["SP_RESCUE_NONINTERACTIVE"] = "1"
-    installer_log = tmp_path / "installer.log"
-    env["SP_LOG_DEVICE"] = str(installer_log)
+    env["SP_TEST_BLKID_DATA"] = str(blkid_data)
 
-    result = _run_command(env, f". {SCRIPT}; sp_discover_config")
+    command = f'. {SCRIPT}; if sp_discover_config; then printf \'%s\\n%s\\n\' "$SP_CONFIG_PATH" "$CONFIG_MOUNT"; fi'
+    result = _run_command(env, command)
 
-    assert result.returncode == 1
-    stderr = result.stderr
-    assert "source=ls-by-label" in stderr
-    assert "source=blkid" in stderr
-    assert installer_log.exists()
-    assert "[SP-INSTALLER][FATAL] by-label namespace empty after population" in installer_log.read_text()
+    assert result.returncode == 0, result.stderr
+    assert "[SP-INSTALLER][WARN] by-label directory unavailable; falling back to blkid" in result.stderr
+    _assert_config_found(result, "empty\n", Path(env["SP_CONFIG_MOUNT_POINT"]))
+
 
 
 def test_respects_exclude_prefix(tmp_path: Path) -> None:
