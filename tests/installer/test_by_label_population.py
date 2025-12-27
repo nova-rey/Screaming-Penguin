@@ -93,6 +93,7 @@ def test_missing_blkid_triggers_rescue_reason(tmp_path: Path) -> None:
             "SP_DEV_ROOT": str(dev_root),
             "SP_CONFIG_LABEL_DIR": str(label_dir),
             "SP_LOG_DEVICE": str(log_file),
+            "SP_BLKID_BIN": "/no-such-bin/blkid",
         }
     )
 
@@ -104,10 +105,10 @@ def test_missing_blkid_triggers_rescue_reason(tmp_path: Path) -> None:
 
     result = _run_helper_command(env, command)
 
-    assert result.returncode == 0, result.stderr
+    assert result.returncode != 0, "expected helper to fail when blkid is missing"
     assert "SP_RESCUE_REASON=missing-blkid" in result.stdout
     log_contents = log_file.read_text() if log_file.exists() else ""
     assert (
-        "[SP-INSTALLER][FATAL] blkid unavailable; cannot populate by-label namespace"
+        "[SP-INSTALLER][FATAL] blkid missing; cannot populate by-label namespace"
         in log_contents
     )
