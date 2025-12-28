@@ -583,7 +583,7 @@ sp_populate_by_label_namespace() {
     fi
 
     if ! blkid_output="$("${SP_BLKID_BIN}" -o export 2>/dev/null)"; then
-        sp_log "[SP-INSTALLER][FATAL] blkid missing; cannot populate by-label namespace"
+        sp_log "[SP-INSTALLER][FATAL] blkid failed; cannot populate by-label namespace"
         export SP_RESCUE_REASON="missing-blkid"
         sp_enter_rescue_mode "missing-blkid"
         return 1
