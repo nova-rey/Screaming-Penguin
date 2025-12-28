@@ -100,7 +100,9 @@ def test_missing_blkid_triggers_rescue_reason(tmp_path: Path) -> None:
     command = (
         ". installer/init/init.sh; "
         "sp_populate_by_label_namespace; "
-        'printf "SP_RESCUE_REASON=%s\\n" "${SP_RESCUE_REASON:-}"'
+        "rc=$?; "
+        'printf "SP_RESCUE_REASON=%s\\n" "${SP_RESCUE_REASON:-}"; '
+        "exit $rc"
     )
 
     result = _run_helper_command(env, command)
