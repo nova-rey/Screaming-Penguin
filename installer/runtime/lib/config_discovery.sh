@@ -100,10 +100,11 @@ sp_warn_by_label_unavailable() {
 
 sp_build_config_fs_types() {
     raw="${SP_CONFIG_FS_TYPES:-vfat}"
-    normalized="$(printf '%s' "$raw" | tr ',' ' ')"
     ordered=""
     serialized=""
-    for entry in $normalized; do
+    old_ifs="$IFS"
+    IFS=','
+    for entry in $raw; do
         trimmed="$(sp_trim_spaces "$entry" || true)"
         if [ -z "$trimmed" ]; then
             continue
@@ -116,6 +117,7 @@ sp_build_config_fs_types() {
             serialized="${serialized},${trimmed}"
         fi
     done
+    IFS="$old_ifs"
     if [ -z "$ordered" ]; then
         ordered="vfat"
         serialized="vfat"
@@ -182,13 +184,6 @@ sp_parse_blkid_export_to_map() {
     current_label=""
     entry_count=0
 
-    tmpfile="$(mktemp 2>/dev/null || true)"
-    if [ -z "$tmpfile" ]; then
-        tmpfile="${TMPDIR:-/tmp}/sp-blkid-map-${$}"
-    fi
-
-    printf '%s\n' "$blkid_output" >"$tmpfile"
-
     while IFS= read -r line || [ -n "$line" ]; do
         case "$line" in
             DEVNAME=*)
@@ -207,9 +202,9 @@ sp_parse_blkid_export_to_map() {
                 current_label=""
                 ;;
         esac
-    done <"$tmpfile"
-
-    rm -f "$tmpfile"
+    done <<__BLKID_EXPORT__
+$blkid_output
+__BLKID_EXPORT__
 
     if [ -n "$current_dev" ] && [ -n "$current_label" ]; then
         SP_BLKID_LABEL_MAP="${SP_BLKID_LABEL_MAP}${current_label}|${current_dev}"
