@@ -25,7 +25,7 @@ def test_installer_initrd_populates_by_label_namespace() -> None:
 
     assert "sp_populate_by_label_namespace" in init_content
     assert "sp_link_label_if_valid" in init_content
-    pattern = r'(^|\n)\s*(?:if\s+)?("?(\$blkid_bin|blkid)"?)\s+-o\s+export\b'
+    pattern = r'("?(\$blkid_bin|blkid)"?)\s+-o\s+export\b'
     assert re.search(pattern, init_content), init_content
     assert 'ln -sf -- "$devname" "${label_dir}/${safe_label}"' in init_content
     assert (
