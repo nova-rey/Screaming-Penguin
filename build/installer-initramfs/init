@@ -575,14 +575,14 @@ sp_populate_by_label_namespace() {
     mkdir -p "$label_dir" >/dev/null 2>&1 || true
 
     blkid_bin="${SP_BLKID_BIN:-blkid}"
-    if ! command -v "${blkid_bin}" >/dev/null 2>&1; then
+    if ! command -v "$blkid_bin" >/dev/null 2>&1; then
         sp_log "[SP-INSTALLER][FATAL] blkid missing; cannot populate by-label namespace"
         export SP_RESCUE_REASON="missing-blkid"
         sp_enter_rescue_mode "missing-blkid"
         return 1
     fi
 
-    if ! blkid_output="$("${blkid_bin}" -o export 2>/dev/null)"; then
+    if ! blkid_output="$("$blkid_bin" -o export 2>/dev/null)"; then
         sp_log "[SP-INSTALLER][FATAL] blkid failed; cannot populate by-label namespace"
         export SP_RESCUE_REASON="missing-blkid"
         sp_enter_rescue_mode "missing-blkid"
